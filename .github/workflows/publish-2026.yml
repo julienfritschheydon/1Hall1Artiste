@@ -1,0 +1,131 @@
+name: Publish 2026 Program
+
+on:
+  workflow_dispatch:
+    inputs:
+      eventsFile:
+        description: 'Contenu du fichier events.ts'
+        required: true
+        type: string
+      artistsFile:
+        description: 'Contenu du fichier artists.ts'
+        required: true
+        type: string
+      locationsFile:
+        description: 'Contenu du fichier locations.ts'
+        required: true
+        type: string
+      adminEmail:
+        description: 'Email de l\'administrateur pour notification'
+        required: false
+        default: 'admin@collectif-feydeau.fr'
+        type: string
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Configure Git
+        run: |
+          git config user.name "Admin Bot"
+          git config user.email "admin@collectif-feydeau.fr"
+      
+      - name: Update data files
+        run: |
+          echo "${{ github.event.inputs.eventsFile }}" > src/data/events.ts
+          echo "${{ github.event.inputs.artistsFile }}" > src/data/artists.ts
+          echo "${{ github.event.inputs.locationsFile }}" > src/data/locations.ts
+      
+      - name: Verify files
+        run: |
+          echo "=== events.ts ==="
+          head -n 20 src/data/events.ts
+          echo "=== artists.ts ==="
+          head -n 20 src/data/artists.ts
+          echo "=== locations.ts ==="
+          head -n 20 src/data/locations.ts
+      
+      - name: Commit changes
+        run: |
+          git add src/data/events.ts src/data/artists.ts src/data/locations.ts
+          git commit -m "🎨 Mise à jour programme 2026 via interface admin
+          
+          - $(grep -c 'id:' src/data/events.ts) événements
+          - $(grep -c 'id:' src/data/artists.ts) artistes
+          - $(grep -c 'id:' src/data/locations.ts) lieux
+          
+          Publié le $(date +'%Y-%m-%d à %H:%M')"
+      
+      - name: Push changes
+        run: git push origin main
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Build application
+        run: npm run build
+        env:
+          CI: false
+      
+      - name: Deploy to production
+        run: npm run deploy
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+      
+      - name: Send success notification
+        if: success()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: '✅ Programme 2026 publié avec succès'
+          to: ${{ github.event.inputs.adminEmail }}
+          from: 'Collectif Feydeau Bot <noreply@collectif-feydeau.fr>'
+          body: |
+            Le programme 2026 a été publié avec succès !
+            
+            📊 Résumé :
+            - Événements mis à jour
+            - Artistes mis à jour
+            - Lieux mis à jour
+            
+            🔗 Site en ligne : https://collectif-feydeau.fr
+            
+            📝 Commit : ${{ github.sha }}
+            🕐 Date : $(date +'%Y-%m-%d à %H:%M')
+            
+            Le site sera accessible dans quelques minutes.
+      
+      - name: Send failure notification
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: '❌ Échec de la publication du programme 2026'
+          to: ${{ github.event.inputs.adminEmail }}
+          from: 'Collectif Feydeau Bot <noreply@collectif-feydeau.fr>'
+          body: |
+            ❌ La publication du programme 2026 a échoué.
+            
+            Veuillez vérifier les logs GitHub Actions :
+            https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            
+            Contactez le développeur si le problème persiste.
