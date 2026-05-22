@@ -20,15 +20,16 @@ export const AudioGuide = ({ audioSrc, locationId, className = "" }: AudioGuideP
   const [audioLoading, setAudioLoading] = useState(false);
 
   const togglePlayPause = () => {
-    if (audioRef.current) {
-      if (isPlaying) {
-        audioRef.current.pause();
-        analytics.trackAudio('pause', locationId);
-      } else {
-        audioRef.current.play();
-        analytics.trackAudio('play', locationId);
-      }
-      setIsPlaying(!isPlaying);
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (audio.paused) {
+      audio.play().catch(() => {
+        setIsPlaying(false);
+      });
+      analytics.trackAudio('play', locationId);
+    } else {
+      audio.pause();
+      analytics.trackAudio('pause', locationId);
     }
   };
 
@@ -113,6 +114,8 @@ export const AudioGuide = ({ audioSrc, locationId, className = "" }: AudioGuideP
           : ''}
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
         onEnded={() => setIsPlaying(false)}
         onCanPlay={() => setAudioLoading(false)}
         onError={() => setAudioLoading(false)}
