@@ -400,31 +400,13 @@ export function LocationHistory() {
           <CardContent>
             {selectedLocationData.image && (
               <div className="mb-4">
-                {/* Utiliser une div avec background-image comme solution de secours */}
-                <div 
-                  className="w-full h-64 rounded-xl shadow-lg border-2 border-amber-200 relative"
-                  style={{
-                    backgroundImage: `url(${getImagePath(selectedLocationData.image)})`,
-                    backgroundPosition: 'center',
-                    backgroundRepeat: 'no-repeat',
-                    backgroundSize: 'cover',
-                  }}
-                >
-                  {/* Indicateur de chargement */}
-                  {imagesLoading[getImagePath(selectedLocationData.image)] && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-70">
-                      <Loader2 className="h-8 w-8 animate-spin text-[#4a5d94]" />
-                    </div>
-                  )}
-                  
-                  {/* Image cachée pour détecter les erreurs de chargement */}
-                  <img 
-                    src={getImagePath(selectedLocationData.image)} 
-                    alt={`Photo historique de ${selectedLocationData.name}`} 
-                    className="hidden"
-                    onError={(e) => {
-                      // Log l'erreur
-                      logger.error(`Erreur de chargement de l'image:`, { 
+                <div className="relative w-full rounded-xl shadow-lg border-2 border-amber-200 bg-amber-50/50 overflow-hidden flex items-center justify-center">
+                  <img
+                    src={getImagePath(selectedLocationData.image)}
+                    alt={`Photo historique de ${selectedLocationData.name}`}
+                    className="max-h-[70vh] w-full object-contain"
+                    onError={() => {
+                      logger.error(`Erreur de chargement de l'image:`, {
                         image: selectedLocationData.image,
                         online: isOnline()
                       });
@@ -435,6 +417,11 @@ export function LocationHistory() {
                       });
                     }}
                   />
+                  {imagesLoading[getImagePath(selectedLocationData.image)] && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-70">
+                      <Loader2 className="h-8 w-8 animate-spin text-[#4a5d94]" />
+                    </div>
+                  )}
                 </div>
                 <p className="text-xs text-center text-gray-500 mt-1">Photo de {selectedLocationData.name}</p>
               </div>
