@@ -24,7 +24,8 @@ import { createLogger } from "@/utils/logger";
 import { getBackgroundFallback } from "@/utils/backgroundUtils";
 import { LikeButton } from "@/components/community/LikeButton";
 import { getSavedEvents, saveEvent, removeSavedEvent } from "@/services/savedEvents";
-import { artists } from "@/data/artists";
+import { artists as fallbackArtists } from "@/data/artists";
+import { dataService } from "@/services/dataService";
 import { ShareButton } from "@/components/ShareButton";
 import { getLocationNameById } from "@/data/locations";
 
@@ -231,7 +232,9 @@ export const EventDetails = ({ event, isOpen, onClose, source }: EventDetailsPro
   if (!event || !isOpen) return null;
   
   // Récupérer l'artiste correspondant à l'événement
-  const artist = artists.find(artist => artist.id === event.artistId);
+  const artist =
+    dataService.getArtistById(event.artistId) ??
+    fallbackArtists.find(a => a.id === event.artistId);
   
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -345,8 +348,8 @@ export const EventDetails = ({ event, isOpen, onClose, source }: EventDetailsPro
             </div>
           )}
 
-          {/* Informations de contact pour les concerts */}
-          {event.type === "concert" && artist && (artist.email || artist.website) && (
+          {/* Informations de contact (concerts ET expos si renseigné) */}
+          {artist && (artist.email || artist.website) && (
             <div className="mb-6 p-4 bg-amber-50/70 rounded-xl border border-amber-200">
               <h3 className="font-semibold text-[#1a2138] mb-3 font-serif text-lg">
                 Contact

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { dataService, DataState } from '@/services/dataService';
 import { Event } from '@/data/events';
 import { Location } from '@/data/locations';
+import { Artist } from '@/data/artists';
 import { createLogger } from '@/utils/logger';
 
 // Créer un logger pour le hook
@@ -87,20 +88,34 @@ export const useData = () => {
     return dataService.importData(jsonData);
   };
 
+  // Force un fetch des Sheets et applique le résultat (pull-to-refresh).
+  const refreshProgram = (): Promise<boolean> => {
+    logger.info('Refresh manuel du programme distant');
+    return dataService.refreshProgram({ force: true });
+  };
+
+  const getArtists = (): Artist[] => state.artists;
+  const getArtistById = (id: string): Artist | undefined =>
+    state.artists.find(a => a.id === id);
+
   return {
     // État
     events: state.events,
     locations: state.locations,
+    artists: state.artists,
+    remoteApplied: state.remoteApplied,
     isLoading: state.isLoading,
     error: state.error,
-    
+
     // Getters
     getEvents,
     getLocations,
+    getArtists,
+    getArtistById,
     getEventById,
     getLocationById,
     getEventsByLocationId,
-    
+
     // Setters
     updateEvent,
     updateLocation,
@@ -108,7 +123,10 @@ export const useData = () => {
     addLocation,
     removeEvent,
     removeLocation,
-    
+
+    // Sync
+    refreshProgram,
+
     // Import/Export
     exportData,
     importData
