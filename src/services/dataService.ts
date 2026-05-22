@@ -1,7 +1,10 @@
 import { Event, events as initialEvents } from "@/data/events";
 import { Location, locations as initialLocations } from "@/data/locations";
+import { Artist, artists as initialArtists } from "@/data/artists";
 import { createLogger } from "@/utils/logger";
 import { validateEvent, validateLocation, formatValidationErrors } from "@/services/validationService";
+import { loadProgram, getCachedProgram, RemoteProgram } from "@/services/remoteContentService";
+import { REMOTE_REFRESH_INTERVAL_MS } from "@/config/remoteContent";
 
 // Créer un logger pour le service de données
 const logger = createLogger('DataService');
@@ -10,16 +13,21 @@ const logger = createLogger('DataService');
 export interface DataState {
   events: Event[];
   locations: Location[];
+  artists: Artist[];
   isLoading: boolean;
   error: string | null;
+  // True dès qu'on a chargé un programme depuis Google Sheets (cache ou fetch).
+  remoteApplied: boolean;
 }
 
 // État initial des données
 const initialState: DataState = {
   events: initialEvents,
   locations: initialLocations,
+  artists: initialArtists,
   isLoading: false,
-  error: null
+  error: null,
+  remoteApplied: false,
 };
 
 // Singleton pour le service de données
@@ -31,6 +39,56 @@ class DataService {
   private constructor() {
     logger.info('Initialisation du service de données');
     this.state = this.loadFromLocalStorage() || initialState;
+
+    // Hydratation immédiate depuis le cache du programme distant (synchrone),
+    // puis fetch asynchrone pour appliquer la dernière version au runtime.
+    const cached = getCachedProgram();
+    if (cached) {
+      this.applyRemoteProgram(cached, { silent: true });
+    }
+    void this.refreshProgram();
+
+    // Polling : refresh automatique toutes les heures tant que l'app reste
+    // ouverte. Pas de fenêtre ni de visibilité-API : on accepte qu'un onglet
+    // en arrière-plan continue à interroger Sheets, c'est très peu coûteux.
+    if (typeof window !== 'undefined') {
+      setInterval(() => {
+        void this.refreshProgram();
+      }, REMOTE_REFRESH_INTERVAL_MS);
+    }
+  }
+
+  // Applique un programme distant (depuis Sheets) en remplaçant events + artists.
+  // Les locations restent inchangées (gérées en TS).
+  private applyRemoteProgram(program: RemoteProgram, opts: { silent?: boolean } = {}): void {
+    const newState: DataState = {
+      ...this.state,
+      events: program.events,
+      artists: program.artists,
+      remoteApplied: true,
+      error: null,
+    };
+    if (opts.silent) {
+      this.state = newState;
+    } else {
+      this.setState(newState);
+    }
+  }
+
+  // Déclenche un fetch du programme distant et applique le résultat si OK.
+  // Appelé au boot et par le pull-to-refresh.
+  public async refreshProgram(opts: { force?: boolean } = {}): Promise<boolean> {
+    try {
+      const program = await loadProgram({ forceRefresh: opts.force });
+      if (program) {
+        this.applyRemoteProgram(program);
+        return true;
+      }
+      return false;
+    } catch (e) {
+      logger.warn('Refresh du programme distant échoué', e);
+      return false;
+    }
   }
 
   public static getInstance(): DataService {
@@ -51,6 +109,14 @@ class DataService {
 
   public getLocations(): Location[] {
     return [...this.state.locations];
+  }
+
+  public getArtists(): Artist[] {
+    return [...this.state.artists];
+  }
+
+  public getArtistById(id: string): Artist | undefined {
+    return this.state.artists.find(artist => artist.id === id);
   }
 
   public getEventById(id: string): Event | undefined {
@@ -360,12 +426,14 @@ class DataService {
       });
       
       logger.info('Données chargées avec succès depuis le localStorage');
-      
+
       return {
         events: parsedEvents,
         locations: parsedLocations,
+        artists: initialArtists,
         isLoading: false,
-        error: null
+        error: null,
+        remoteApplied: false,
       };
     } catch (error) {
       logger.error('Erreur lors du chargement des données', error);

@@ -32,7 +32,8 @@ import { LikeButton } from "@/components/community/LikeButton";
 import { useLikes } from "@/hooks/useLikes";
 import { getSavedEvents, saveEvent, removeSavedEvent } from "@/services/savedEvents";
 import { getEventsByLocation } from "@/data/events";
-import { artists } from "@/data/artists";
+import { artists as fallbackArtists } from "@/data/artists";
+import { dataService } from "@/services/dataService";
 import { ShareButton } from "@/components/ShareButton";
 import { getLocationNameById } from "@/data/locations";
 
@@ -314,8 +315,10 @@ export const EventDetailsNew = ({
   // Si pas d'événement ou si le dialogue n'est pas ouvert, ne rien afficher
   if (!event || !isOpen) return null;
   
-  // Récupérer l'artiste correspondant à l'événement
-  const artist = artists.find(artist => artist.id === event.artistId);
+  // Récupérer l'artiste correspondant à l'événement (programme distant si dispo, sinon fallback statique)
+  const artist =
+    dataService.getArtistById(event.artistId) ??
+    fallbackArtists.find(a => a.id === event.artistId);
   
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 z-[100] flex items-center justify-center p-4">
@@ -449,8 +452,8 @@ export const EventDetailsNew = ({
             </div>
           )}
 
-          {/* Informations de contact complètes pour les concerts */}
-          {event.type === "concert" && artist && (
+          {/* Informations de contact (concerts ET expos si renseigné) */}
+          {artist && (artist.email || artist.website || artist.phone || artist.instagram || artist.facebook || artist.youtube || artist.tiktok) && (
             <div className="mb-6 p-4 bg-gray-50 rounded-xl">
               <h3 className="font-semibold text-[#1a2138] mb-3 font-serif text-lg">
                 Contact & Réseaux
