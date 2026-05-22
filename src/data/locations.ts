@@ -115,7 +115,7 @@ export const locations: Location[] = [
   },
   {
     id: "rue-kervegan-17",
-    name: "17 rue Kervégan / 11 quai Turenne",
+    name: "17 rue Kervégan",
     x: 219,
     y: 371,
     description: "Immeuble de la 'galaxie Pierre Rousseau' (après 1775). Construit pour Pierre Lassalle, gendre de Pierre Rousseau. Particularité: corps de bâtiments indépendants sur quai et rue, avec cour commune. Façade sobre typique de la fin du 18ème siècle, mais intérieurs richement décorés.",
@@ -128,6 +128,36 @@ export const locations: Location[] = [
       longitude: -1.5562154487439073
     }
   },
+  {
+    id: "quai-turenne-11",
+    name: "11 quai Turenne",
+    x: 290,
+    y: 371,
+    description: "Immeuble de la 'galaxie Pierre Rousseau' (après 1775). Construit pour Pierre Lassalle, gendre de Pierre Rousseau. Particularité: corps de bâtiments indépendants sur quai et rue, avec cour commune. Façade sobre typique de la fin du 18ème siècle, mais intérieurs richement décorés.",
+    image: "/images/locations/17-rue-kervegan.jpg",
+    audio: "/audio/17-rue-Kervegan.mp3",
+    historyRef: "rue-kervegan-17",
+    visited: false,
+    gps: {
+      latitude: 47.21246,
+      longitude: -1.55580
+    }
+  },
+  // Désactivé pour l'édition 2026 — pas d'expo prévue à cette adresse.
+  // Réactiver (et compléter image/histoire) si le lieu participe à l'avenir.
+  // {
+  //   id: "quai-turenne-11-bis",
+  //   name: "11 bis quai Turenne",
+  //   x: 298,
+  //   y: 373,
+  //   description: "Lieu d'exposition des Journées du Patrimoine sur l'Île Feydeau.",
+  //   visited: false,
+  //   hasProgram: true,
+  //   gps: {
+  //     latitude: 47.21225892490218,
+  //     longitude: -1.5560249695222925
+  //   }
+  // },
   {
     id: "allee-duguay-trouin-11",
     name: "11 allée Duguay Trouin / 20 rue Kervégan",
@@ -257,7 +287,7 @@ export const locations: Location[] = [
     x: 105,
     y: 221,
     description: "Immeuble reconstruit après-guerre sur l'emplacement d'un édifice de 1747-48. Façade côté allée Duguay-Trouin inspirée du XVIIIe siècle, intègre un mascaron d'origine. Ancien garage transformé.",
-    image: "/images/placeholder-image.jpg",
+    image: "/images/locations/12-allee-duguay-trouin.jpg",
     audio: "/audio/allee-duguay-trouin-12.mp3",
     history: "Un premier immeuble fut édifié en 1747-48 pour le négociant Rapet, avec des façades identiques côté allée Duguay-Trouin et rue Kervégan. Les bombardements de la Seconde Guerre mondiale endommagèrent gravement l'édifice. Le corps de bâtiment rue Kervégan fut jugé irréparable et démoli. Pour la partie allée Duguay-Trouin, on envisagea de conserver les trois premiers niveaux et de reconstruire les étages supérieurs à l'identique, mais cette solution s'avéra impossible. La parcelle fut entièrement libérée et, profitant des comblements qui avaient transformé le bras de la Bourse en boulevard, une station-service avec garage fut construite en béton. La hauteur du nouvel immeuble respecte celle de l'ancien. La façade côté Duguay-Trouin, plus soignée, s'inspire de l'architecture du XVIIIe siècle. Un mascaron de l'immeuble d'origine a été intégré dans la maçonnerie d'un des escaliers. Un grand plan lumineux de Nantes datant de l'époque du garage est conservé au rez-de-chaussée. En 1968, l'immeuble voisin du 1 rue Du Guesclin fit l'objet d'un arrêté de péril et fut reconstruit à l'identique au début des années 1970. Le rez-de-chaussée des deux immeubles mitoyens fut alors aménagé en parking.",
     visited: false,
@@ -273,7 +303,7 @@ export const locations: Location[] = [
     x: 106,
     y: 142,
     description: "Deux immeubles jumeaux construits en 1747 par l'architecte Pierre Rousseau. Rez-de-chaussée en granit, trois étages. Matériaux différents : tuffeau pour la maison Rousseau, moellon enduit pour la maison Latouche.",
-    image: "/images/placeholder-image.jpg",
+    image: "/images/locations/9-10-allee-duguay-trouin.jpg",
     audio: "/audio/allee-duguay-trouin-9-10.mp3",
     history: "Charles Trochon, actionnaire fondateur de la compagnie de l'île Feydeau, acquiert cette parcelle en 1732 pour 9000 livres. En 1745, il la cède à l'architecte Pierre Rousseau qui la divise en deux et revend une moitié à François Crameux de Latouche. Deux ans plus tard, Rousseau édifie deux immeubles identiques sur un radier de bois. Chaque bâtiment présente un rez-de-chaussée en granit surmonté de trois étages. Les deux constructions se distinguent par leurs matériaux : tuffeau pour la maison Rousseau, moellon de schiste enduit pour la maison Latouche. Les parcelles étroites rappellent celles de la vieille ville, et la distribution des appartements se fait par des coursières extérieures. Pierre Rousseau habita sa maison plusieurs années et fit graver les emblèmes de sa profession d'architecte sur les ferronneries de son balcon.",
     visited: false,
