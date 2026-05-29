@@ -10,7 +10,7 @@ const CLOUDINARY_API_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_N
 
 // Configuration Firebase Realtime Database
 const FIREBASE_CONFIG = {
-  databaseURL: "https://collectif-feydeau-default-rtdb.europe-west1.firebasedatabase.app"
+  databaseURL: "https://collectif-ile-feydeau----app-default-rtdb.europe-west1.firebasedatabase.app"
 };
 
 export async function fetchCommunityEntries(): Promise<CommunityEntry[]> {

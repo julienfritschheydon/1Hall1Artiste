@@ -46,7 +46,7 @@ export const LikesStatsComponent: React.FC = () => {
           // Simuler la récupération des likes pour chaque contribution
           // En production, on pourrait optimiser avec une requête batch
           const response = await fetch(
-            `https://collectif-feydeau-default-rtdb.europe-west1.firebasedatabase.app/likes-data/${contribution.id}.json`
+            `https://collectif-ile-feydeau----app-default-rtdb.europe-west1.firebasedatabase.app/likes-data/${contribution.id}.json`
           );
           
           if (response.ok) {

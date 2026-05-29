@@ -14,7 +14,7 @@ export const LikesCounter: React.FC<LikesCounterProps> = ({ entryId, className }
     const fetchLikes = async () => {
       try {
         const response = await fetch(
-          `https://collectif-feydeau-default-rtdb.europe-west1.firebasedatabase.app/likes-data/${entryId}.json`
+          `https://collectif-ile-feydeau----app-default-rtdb.europe-west1.firebasedatabase.app/likes-data/${entryId}.json`
         );
         
         if (response.ok) {
