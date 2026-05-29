@@ -4,7 +4,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BackButton } from "@/components/ui/BackButton";
 import { analytics, EventAction } from "@/services/firebaseAnalytics";
 import "@/styles/decorations.css"; // Import des décorations
-import { getEventsByDay, type Event } from "@/data/events";
+import { type Event } from "@/data/events";
+import { useEvents } from "@/hooks/useData";
 import { EventFilter } from "@/components/EventFilter";
 import { ShareButton } from "@/components/ShareButton";
 import { BottomNavigation } from "@/components/BottomNavigation";
@@ -17,6 +18,9 @@ import { getImagePath } from "@/utils/imagePaths";
 const Program = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { events: allRemoteEvents } = useEvents();
+  const getEventsByDay = (day: "samedi" | "dimanche") =>
+    allRemoteEvents.filter(e => e.days.includes(day));
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [currentFilter, setCurrentFilter] = useState<string>("exposition");
   const [savedEventIds, setSavedEventIds] = useState<string[]>([]);
