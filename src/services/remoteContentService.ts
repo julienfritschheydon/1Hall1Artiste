@@ -158,7 +158,7 @@ function buildExpoRows(
     }
     const locationName = locations.find((l) => l.id === locationId)?.name ?? adresse;
 
-    const presentation = pick(row, "Présentation");
+    const presentation = pick(row, "Deux lignes pour vous présenter", "Présentation");
     const title = pick(row, "Titre", "Titre de l'exposition") || presentation.split(".")[0]?.slice(0, 80) || name;
 
     const artistId = ensureUniqueId(slugify(name), artistIds);
@@ -168,10 +168,10 @@ function buildExpoRows(
       type: "exposition",
       title,
       presentation,
-      email: pick(row, "Email") || undefined,
-      instagram: pick(row, "Compte Instagram", "Instagram") || undefined,
-      facebook: pick(row, "Compte Facebook", "Facebook") || undefined,
-      website: pick(row, "Site internet", "Website") || undefined,
+      email: pick(row, "Adresse e-mail", "Email") || undefined,
+      instagram: pick(row, "Compte Instagram (si vous en avez un)", "Compte Instagram", "Instagram") || undefined,
+      facebook: pick(row, "Compte Facebook (si vous en avez un)", "Compte Facebook", "Facebook") || undefined,
+      website: pick(row, "Site internet (si vous en avez un)", "Site internet", "Website") || undefined,
     };
     artists.push(artist);
 

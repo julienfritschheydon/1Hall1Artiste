@@ -8,8 +8,8 @@ export type RemoteSheetConfig = {
 
 export const REMOTE_SHEETS = {
   expositions: {
-    id: "1vplrT7GpDU7cJcIYmFMpZ5CUEj0bCE6owhwt0rdaKos",
-    gid: "151344496",
+    id: "1nNHSqXRpS4YOJ58tFtaTyizhR2J-Us9Uyx3rh99G_GE",
+    gid: "2034614073",
   },
   concerts: {
     id: "1bGPyPmm0BLo23JTZ_zMn_OY6x88nrUBfnpIKCTAVl2U",
