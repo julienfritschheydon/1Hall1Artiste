@@ -1,6 +1,6 @@
 import React from 'react';
 import { ActionButton } from '@/components/ui/ActionButton';
-import { exportAllData, exportEvents, exportEventsToCSV, importData, importEventsFromCSV } from '@/services/importExportService';
+import { exportAllData, exportEvents, exportEventsToCSV, exportEventsToOpenAgendaCSV, importData, importEventsFromCSV } from '@/services/importExportService';
 
 export const ImportExportPanel: React.FC = () => {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -30,6 +30,15 @@ export const ImportExportPanel: React.FC = () => {
       downloadFile(data, `feydeau-events-${new Date().toISOString().split('T')[0]}.csv`, 'text/csv;charset=utf-8');
     } catch (error) {
       console.error('Erreur d\'exportation des événements au format CSV', error);
+    }
+  };
+
+  const handleExportOpenAgenda = () => {
+    try {
+      const data = exportEventsToOpenAgendaCSV();
+      downloadFile(data, `feydeau-openagenda-${new Date().toISOString().split('T')[0]}.csv`, 'text/csv;charset=utf-8');
+    } catch (error) {
+      console.error('Erreur d\'exportation OpenAgenda', error);
     }
   };
 
@@ -156,6 +165,9 @@ export const ImportExportPanel: React.FC = () => {
           </ActionButton>
           <ActionButton variant="outline" onClick={handleExportEventsCSV}>
             Exporter les événements (CSV)
+          </ActionButton>
+          <ActionButton variant="outline" onClick={handleExportOpenAgenda}>
+            Exporter pour OpenAgenda
           </ActionButton>
         </div>
       </div>

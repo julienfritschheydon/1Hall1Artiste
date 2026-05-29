@@ -150,6 +150,96 @@ export const exportEventsToCSV = (): string => {
   }
 };
 
+// Dates du festival (troisième week-end de septembre 2026)
+const FESTIVAL_DATES: Record<string, string> = {
+  samedi: '2026-09-19',
+  dimanche: '2026-09-20',
+};
+const FESTIVAL_TIMEZONE = '+02:00';
+
+function parseEventTime(timeStr: string): { start: string; end: string } | null {
+  const match = timeStr.match(/(\d{1,2})h(\d{2})\s*-\s*(\d{1,2})h(\d{2})/);
+  if (!match) return null;
+  const [, sh, sm, eh, em] = match;
+  return {
+    start: `${sh.padStart(2, '0')}:${sm}`,
+    end: `${eh.padStart(2, '0')}:${em}`,
+  };
+}
+
+function buildOpenAgendaTimings(event: Event): string {
+  const times = parseEventTime(event.time);
+  if (!times) return '';
+  return event.days
+    .map(day => {
+      const date = FESTIVAL_DATES[day];
+      if (!date) return null;
+      return `${date}T${times.start}:00${FESTIVAL_TIMEZONE}/${date}T${times.end}:00${FESTIVAL_TIMEZONE}`;
+    })
+    .filter(Boolean)
+    .join(';');
+}
+
+function escapeCSV(value: string): string {
+  return `"${(value || '').replace(/"/g, '""')}"`;
+}
+
+/**
+ * Exporte les événements au format CSV OpenAgenda
+ */
+export const exportEventsToOpenAgendaCSV = (): string => {
+  logger.info('Exportation des événements au format OpenAgenda CSV');
+
+  try {
+    const { events, locations } = dataService.getState();
+
+    const headers = [
+      'title[fr]',
+      'description[fr]',
+      'timings',
+      'location.name',
+      'location.address',
+      'location.city',
+      'location.country',
+      'image.url',
+      'keywords[fr]',
+      'free',
+      'status',
+    ];
+
+    const rows = events.map(event => {
+      const location = locations.find(l => l.id === event.locationId);
+      const timings = buildOpenAgendaTimings(event);
+      const description = (event as any).artistBio || (event as any).presentation || '';
+      const imageUrl = event.image
+        ? `https://collectif-feydeau.fr${event.image.startsWith('/') ? '' : '/'}${event.image}`
+        : '';
+      const keyword = event.type === 'concert' ? 'concert' : 'exposition';
+
+      return [
+        escapeCSV(event.title),
+        escapeCSV(description),
+        escapeCSV(timings),
+        escapeCSV(location?.name || event.locationName),
+        escapeCSV('Île Feydeau'),
+        escapeCSV('Nantes'),
+        escapeCSV('FR'),
+        escapeCSV(imageUrl),
+        escapeCSV(keyword),
+        '1',
+        '1',
+      ].join(',');
+    });
+
+    const csv = '﻿' + [headers.join(','), ...rows].join('\n');
+    logger.info(`Exportation OpenAgenda réussie: ${events.length} événements`);
+    return csv;
+  } catch (error) {
+    logger.error('Erreur lors de l\'exportation OpenAgenda', error);
+    throw new Error('Erreur lors de l\'exportation OpenAgenda');
+  }
+};
+
 /**
  * Importe des données depuis un fichier JSON
  */
