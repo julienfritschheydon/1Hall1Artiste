@@ -24,13 +24,12 @@ jobs:
       - name: 📦 Install dependencies
         run: npm ci
 
-      # Lint informatif (non bloquant) : le codebase a des erreurs lint
-      # héritées. À rendre bloquant une fois nettoyé.
-      - name: 🔍 Lint (non bloquant)
+      # Gate dur : lint (0 erreur) + typecheck + tests doivent passer.
+      # NB: 176 warnings hérités tolérés (no-explicit-any en warn).
+      - name: 🔍 Lint
         run: npm run lint
-        continue-on-error: true
 
-      # Gate dur : typecheck + tests doivent passer pour déployer.
+
       - name: 🧠 Typecheck
         run: npm run typecheck
 

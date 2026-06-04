@@ -35,20 +35,22 @@ export const TabNavigation: React.FC<TabNavigationProps> = ({
     const currentIndex = tabIds.indexOf(tabId);
 
     switch (event.key) {
-      case 'ArrowLeft':
+      case 'ArrowLeft': {
         event.preventDefault();
         const prevIndex = currentIndex > 0 ? currentIndex - 1 : tabIds.length - 1;
         const prevTabId = tabIds[prevIndex];
         setFocusedTab(prevTabId);
         tabRefs.current[prevTabId]?.focus();
         break;
-      case 'ArrowRight':
+      }
+      case 'ArrowRight': {
         event.preventDefault();
         const nextIndex = currentIndex < tabIds.length - 1 ? currentIndex + 1 : 0;
         const nextTabId = tabIds[nextIndex];
         setFocusedTab(nextTabId);
         tabRefs.current[nextTabId]?.focus();
         break;
+      }
       case 'Enter':
       case ' ':
         event.preventDefault();

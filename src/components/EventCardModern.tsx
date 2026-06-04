@@ -29,9 +29,10 @@ export const EventCardModern: React.FC<EventCardModernProps> = ({
   priority = false,
   cardIndex
 }) => {
-  if (!event || !event.id) return null;
-
+  // Les hooks doivent être appelés avant tout return conditionnel.
   const [isLiked, setIsLiked] = React.useState(false);
+
+  if (!event || !event.id) return null;
 
   const handleActionClick = (e: React.MouseEvent, action: (e: React.MouseEvent) => void) => {
     e.stopPropagation();

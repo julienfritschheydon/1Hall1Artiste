@@ -24,6 +24,9 @@ export default tseslint.config(
         { allowConstantExport: true },
       ],
       "@typescript-eslint/no-unused-vars": "off",
+      // 137 occurrences héritées : signal conservé en warning, non bloquant.
+      // À durcir progressivement vers "error".
+      "@typescript-eslint/no-explicit-any": "warn",
     },
   }
 );

@@ -3,6 +3,7 @@
 // JSX Runtime
 declare module 'react/jsx-runtime' {
   export namespace JSX {
+    // eslint-disable-next-line @typescript-eslint/no-empty-object-type
     interface Element {}
     interface IntrinsicElements {
       [elemName: string]: any;

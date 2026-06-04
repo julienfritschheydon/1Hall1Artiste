@@ -323,7 +323,7 @@ class AudioGuideService {
       }
       
       let errorMessage = 'Erreur lors de la lecture du fichier audio';
-      let logDetails: any = { event };
+      const logDetails: any = { event };
       
       if (error) {
         logDetails.errorCode = error.code;

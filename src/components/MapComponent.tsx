@@ -161,7 +161,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     window.addEventListener('resize', debouncedResize);
     
     // Fonction de debounce pour limiter les appels fréquents
-    function debounce(fn: Function, delay: number) {
+    function debounce(fn: () => void, delay: number) {
       let timer: number | null = null;
       return function() {
         if (timer) window.clearTimeout(timer);

@@ -72,7 +72,7 @@ export async function submitContribution(params: SubmissionParams): Promise<Comm
   
   // Générer un ID unique
   const entryId = finalImageUrl 
-    ? (finalImageUrl.match(/\/v\d+\/([^\.]+)/)?.[1] || `photo_${Date.now()}`)
+    ? (finalImageUrl.match(/\/v\d+\/([^.]+)/)?.[1] || `photo_${Date.now()}`)
     : `text_${Date.now()}`;
 
   // Créer l'entrée (avec ou sans image)

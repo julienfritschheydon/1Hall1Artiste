@@ -4,7 +4,7 @@
  */
 
 import { Location } from "@/data/locations";
-import { referenceLocations } from "./gpsConverter";
+import { referenceLocations, gpsToMapCoordinatesAffine } from "./gpsConverter";
 
 /**
  * Convertit les coordonnées GPS en coordonnées de carte (x, y)
@@ -15,9 +15,6 @@ export function gpsToMapCoordinates(
   latitude: number, 
   longitude: number
 ): { x: number; y: number } {
-  // Importer la fonction affine depuis gpsConverter
-  const { gpsToMapCoordinatesAffine } = require('./gpsConverter');
-  
   // Utiliser directement la transformation affine
   return gpsToMapCoordinatesAffine(latitude, longitude);
 }
