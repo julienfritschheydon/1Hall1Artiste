@@ -24,7 +24,9 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    
+    permissions:
+      contents: write
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -35,12 +37,17 @@ jobs:
         run: |
           git config user.name "Admin Bot"
           git config user.email "admin@collectif-feydeau.fr"
+          git config --global url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
       
       - name: Update data files
+        env:
+          EVENTS_FILE: ${{ github.event.inputs.eventsFile }}
+          ARTISTS_FILE: ${{ github.event.inputs.artistsFile }}
+          LOCATIONS_FILE: ${{ github.event.inputs.locationsFile }}
         run: |
-          echo "${{ github.event.inputs.eventsFile }}" > src/data/events.ts
-          echo "${{ github.event.inputs.artistsFile }}" > src/data/artists.ts
-          echo "${{ github.event.inputs.locationsFile }}" > src/data/locations.ts
+          printf '%s' "$EVENTS_FILE" > src/data/events.ts
+          printf '%s' "$ARTISTS_FILE" > src/data/artists.ts
+          printf '%s' "$LOCATIONS_FILE" > src/data/locations.ts
       
       - name: Verify files
         run: |
@@ -54,6 +61,10 @@ jobs:
       - name: Commit changes
         run: |
           git add src/data/events.ts src/data/artists.ts src/data/locations.ts
+          if git diff --staged --quiet; then
+            echo "Aucun changement à publier."
+            exit 0
+          fi
           git commit -m "🎨 Mise à jour programme 2026 via interface admin
           
           - $(grep -c 'id:' src/data/events.ts) événements
@@ -81,12 +92,10 @@ jobs:
       
       - name: Deploy to production
         run: npm run deploy
-        env:
-          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
-      
+
       - name: Send success notification
         if: success()
+        continue-on-error: true
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
@@ -113,6 +122,7 @@ jobs:
       
       - name: Send failure notification
         if: failure()
+        continue-on-error: true
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
