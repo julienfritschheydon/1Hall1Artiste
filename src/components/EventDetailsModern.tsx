@@ -446,6 +446,18 @@ export const EventDetailsNew = ({
           </div>
           
           
+          {/* Vignette de l'artiste */}
+          {(artist?.thumbnail || artist?.image) && (
+            <div className="mb-6 rounded-xl overflow-hidden shadow-sm">
+              <img
+                src={getImagePath(artist.thumbnail || artist.image)}
+                alt={`Vignette de ${artist.name}`}
+                className="w-full max-h-64 object-cover"
+                loading="lazy"
+              />
+            </div>
+          )}
+
           {/* Description de l'artiste */}
           {artist?.presentation && (
             <div className="mb-6">
