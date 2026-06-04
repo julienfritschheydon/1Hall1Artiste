@@ -16,7 +16,7 @@ on:
         required: true
         type: string
       adminEmail:
-        description: 'Email de l\'administrateur pour notification'
+        description: 'Email de l''administrateur pour notification'
         required: false
         default: 'admin@collectif-feydeau.fr'
         type: string
