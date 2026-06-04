@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { defineConfig } from "vite";
@@ -5,7 +6,8 @@ import { defineConfig } from "vite";
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   // Utiliser le chemin du dépôt du collectif en production et une base vide en développement
-  base: mode === 'production' ? "/1Hall1Artiste/" : "/",
+  // Vercel: serve from root "/". GitHub Pages legacy used "/1Hall1Artiste/".
+  base: "/",
   // Assurer que les chemins d'assets sont correctement générés
   build: {
     outDir: 'dist',
@@ -50,5 +52,11 @@ export default defineConfig(({ mode }) => ({
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
+  },
+  test: {
+    environment: "jsdom",
+    globals: true,
+    include: ["src/**/*.test.ts"],
+    setupFiles: ["./src/test/setup.ts"],
   },
 }));

@@ -1,8 +1,8 @@
 name: 🚀 Version & Deploy
 
 on:
-  push:
-    branches: [ main ]
+  # Trigger push désactivé : le déploiement est géré par ci-deploy.yml (Vercel).
+  # Ce workflow (bump de version + GitHub Pages legacy) reste lançable manuellement.
   workflow_dispatch:
     inputs:
       version_type:
