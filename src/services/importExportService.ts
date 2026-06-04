@@ -27,6 +27,44 @@ export interface ImportResult {
 const EXPORT_VERSION = "1.0.0";
 
 /**
+ * Parse une ligne CSV en tableau de valeurs en tenant compte des guillemets.
+ * - Les virgules à l'intérieur de guillemets ne séparent pas les champs.
+ * - Les guillemets doublés ("") à l'intérieur d'un champ quoté sont un guillemet littéral.
+ */
+export const parseCSVLine = (line: string): string[] => {
+  const values: string[] = [];
+  let currentValue = '';
+  let insideQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+
+    if (char === '"') {
+      // Deux guillemets consécutifs à l'intérieur d'une chaîne entre guillemets
+      if (insideQuotes && i + 1 < line.length && line[i + 1] === '"') {
+        currentValue += '"';
+        i++; // Sauter le prochain guillemet
+      } else {
+        // Basculer l'état "à l'intérieur des guillemets"
+        insideQuotes = !insideQuotes;
+      }
+    } else if (char === ',' && !insideQuotes) {
+      // Fin d'une valeur
+      values.push(currentValue);
+      currentValue = '';
+    } else {
+      // Ajouter le caractère à la valeur actuelle
+      currentValue += char;
+    }
+  }
+
+  // Ajouter la dernière valeur
+  values.push(currentValue);
+
+  return values;
+};
+
+/**
  * Exporte toutes les données de l'application au format JSON
  */
 export const exportAllData = (): string => {
@@ -374,40 +412,6 @@ export const importEventsFromCSV = (csvData: string): ImportResult => {
         errors: [`En-têtes manquants: ${missingHeaders.join(', ')}`]
       };
     }
-    
-    // Fonction pour parser une ligne CSV en tenant compte des guillemets
-    const parseCSVLine = (line: string): string[] => {
-      const values: string[] = [];
-      let currentValue = '';
-      let insideQuotes = false;
-      
-      for (let i = 0; i < line.length; i++) {
-        const char = line[i];
-        
-        if (char === '"') {
-          // Si nous avons deux guillemets consécutifs à l'intérieur d'une chaîne entre guillemets
-          if (insideQuotes && i + 1 < line.length && line[i + 1] === '"') {
-            currentValue += '"';
-            i++; // Sauter le prochain guillemet
-          } else {
-            // Basculer l'état "à l'intérieur des guillemets"
-            insideQuotes = !insideQuotes;
-          }
-        } else if (char === ',' && !insideQuotes) {
-          // Fin d'une valeur
-          values.push(currentValue);
-          currentValue = '';
-        } else {
-          // Ajouter le caractère à la valeur actuelle
-          currentValue += char;
-        }
-      }
-      
-      // Ajouter la dernière valeur
-      values.push(currentValue);
-      
-      return values;
-    };
     
     // Convertir les lignes en événements
     const events: Event[] = [];
