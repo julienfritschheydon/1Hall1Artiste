@@ -45,6 +45,8 @@ jobs:
     env:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      # Le CLI Vercel lit automatiquement VERCEL_TOKEN depuis l'env.
+      VERCEL_TOKEN: ${{ secrets.COLL_VERCEL_TOKEN }}
     steps:
       - name: 📥 Checkout
         uses: actions/checkout@v4
@@ -60,8 +62,8 @@ jobs:
 
       - name: 🚀 Deploy to Vercel (production)
         if: github.ref == 'refs/heads/main'
-        run: npx vercel --prod --token ${{ secrets.VERCEL_TOKEN }} --yes
+        run: npx vercel --prod --yes
 
       - name: 🔎 Deploy to Vercel (preview)
         if: github.ref == 'refs/heads/staging'
-        run: npx vercel --token ${{ secrets.VERCEL_TOKEN }} --yes
+        run: npx vercel --yes
