@@ -72,8 +72,8 @@ export const runAnalyticsDiagnostics = async (): Promise<DiagnosticResult[]> => 
       }
       results.push({
         success: !!analytics,
-        message: !!analytics 
-          ? "Analytics a été initialisé avec succès" 
+        message: analytics
+          ? "Analytics a été initialisé avec succès"
           : "Échec de l'initialisation d'Analytics"
       });
     } catch (error) {

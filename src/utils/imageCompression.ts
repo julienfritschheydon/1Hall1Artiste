@@ -75,7 +75,7 @@ export const compressImage = async (
           }
 
           let finalBlob = blob;
-          let currentQuality = quality;
+          const currentQuality = quality;
 
           // Si l'image est encore trop grosse, réduire la qualité
           if (blob.size > maxSizeKB * 1024 && format !== 'png') {
@@ -128,7 +128,7 @@ const calculateDimensions = (
   maxWidth: number,
   maxHeight: number
 ): { width: number; height: number } => {
-  let { width, height } = { width: originalWidth, height: originalHeight };
+  const { width, height } = { width: originalWidth, height: originalHeight };
 
   // Si l'image est plus petite que les limites, ne pas l'agrandir
   if (width <= maxWidth && height <= maxHeight) {

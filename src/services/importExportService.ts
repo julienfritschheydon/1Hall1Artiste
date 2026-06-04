@@ -426,7 +426,7 @@ export const importEventsFromCSV = (csvData: string): ImportResult => {
         for (let j = 0; j < headers.length; j++) {
           if (j < values.length) {
             const header = headers[j];
-            let value = values[j];
+            const value = values[j];
             
             // Convertir certains champs en types spécifiques
             if (header === 'x' || header === 'y') {

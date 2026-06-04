@@ -62,7 +62,7 @@ const formatEventForCalendar = (event: Event): string => {
   const currentYear = now.getFullYear();
   
   // Trouver la date du prochain samedi ou dimanche en fonction des jours de l'événement
-  let eventDate = new Date();
+  const eventDate = new Date();
   if (event.days.includes('samedi')) {
     // Trouver le prochain samedi (jour 6)
     while (eventDate.getDay() !== 6) {
@@ -181,6 +181,7 @@ export const addToCalendar = async (event: Event): Promise<CalendarResult> => {
           return { success: true };
         }
       } catch (androidError) {
+        // Échec silencieux : on tente la méthode de partage suivante.
       }
     }
     

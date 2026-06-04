@@ -20,8 +20,8 @@ export const initGtagDebug = () => {
     window.dataLayer = window.dataLayer || [];
     
     // Définir la fonction gtag
-    window.gtag = function() {
-      window.dataLayer.push(arguments);
+    window.gtag = function (...args: unknown[]) {
+      window.dataLayer.push(args);
     };
     
     // Activer le mode debug

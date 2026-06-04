@@ -41,7 +41,7 @@ export const initFirebaseDebug = async () => {
     window.history.replaceState({}, document.title, url.toString());
     
     // Définir la variable globale pour le debug Firebase
-    // @ts-ignore - Cette propriété n'est pas dans les types mais est utilisée par Firebase
+    // @ts-expect-error - Cette propriété n'est pas dans les types mais est utilisée par Firebase
     window.self.FIREBASE_ANALYTICS_DEBUG_MODE = true;
     
     console.log("[FirebaseDebug] Mode debug activé pour Firebase Analytics");
