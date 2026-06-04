@@ -59,8 +59,9 @@ jobs:
       - name: 📦 Install dependencies
         run: npm ci
 
+      # Prod déployée uniquement à la main (workflow_dispatch), jamais auto sur push.
       - name: 🚀 Deploy to Vercel (production)
-        if: github.ref == 'refs/heads/main'
+        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
         run: npx vercel --prod --yes
 
       - name: 🔎 Deploy to Vercel (preview)
