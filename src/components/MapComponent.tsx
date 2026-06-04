@@ -11,7 +11,7 @@ import { IMAGE_PATHS } from '../constants/imagePaths';
 const originalLogger = createLogger('MapComponent');
 // Wrapper pour filtrer les logs indésirables
 const logger = {
-  info: (message: string, data?: any) => {
+  info: (message: string, data?: unknown) => {
     // Filtrer les logs de redimensionnement
     if (message.includes('redimensionné')) {
       return;

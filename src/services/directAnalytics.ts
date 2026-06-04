@@ -14,7 +14,7 @@ const GTAG_ENDPOINT = `https://www.google-analytics.com/collect`;
 // Interface pour les événements
 interface AnalyticsEvent {
   name: string;
-  parameters: Record<string, any>;
+  parameters: Record<string, unknown>;
 }
 
 interface AnalyticsPayload {
@@ -35,7 +35,7 @@ function getClientId(): string {
 /**
  * Envoie un événement directement à Google Analytics (méthode 1: Measurement Protocol)
  */
-export async function sendAnalyticsEvent(eventName: string, parameters: Record<string, any> = {}): Promise<boolean> {
+export async function sendAnalyticsEvent(eventName: string, parameters: Record<string, unknown> = {}): Promise<boolean> {
   try {
     const clientId = getClientId();
     
@@ -80,7 +80,7 @@ export async function sendAnalyticsEvent(eventName: string, parameters: Record<s
 /**
  * Envoie un événement via gtag (méthode 2: Global Site Tag)
  */
-export function sendGtagEvent(eventName: string, parameters: Record<string, any> = {}): void {
+export function sendGtagEvent(eventName: string, parameters: Record<string, unknown> = {}): void {
   try {
     // Initialiser gtag si nécessaire
     if (!window.gtag) {
@@ -170,7 +170,7 @@ export class DirectAnalyticsService {
   /**
    * Envoie un événement (méthode principale)
    */
-  public async trackEvent(eventName: string, parameters: Record<string, any> = {}): Promise<void> {
+  public async trackEvent(eventName: string, parameters: Record<string, unknown> = {}): Promise<void> {
     try {
       // Méthode 1: Gtag (plus fiable) - SEULE MÉTHODE UTILISÉE
       sendGtagEvent(eventName, parameters);
@@ -197,7 +197,7 @@ export class DirectAnalyticsService {
   /**
    * Track interaction
    */
-  public trackInteraction(action: string, element: string, properties: Record<string, any> = {}): void {
+  public trackInteraction(action: string, element: string, properties: Record<string, unknown> = {}): void {
     this.trackEvent('user_interaction', {
       interaction_type: action,
       element_name: element,
@@ -227,8 +227,8 @@ export const directAnalytics = new DirectAnalyticsService();
 
 // Exposer les fonctions globalement pour les tests (dev uniquement)
 if (typeof window !== 'undefined' && import.meta.env.DEV) {
-  (window as any).directAnalytics = directAnalytics;
-  (window as any).testDirectAnalytics = () => directAnalytics.testRealTime();
+  (window as unknown as Record<string, unknown>).directAnalytics = directAnalytics;
+  (window as unknown as Record<string, unknown>).testDirectAnalytics = () => directAnalytics.testRealTime();
   
   console.log('📊 [DirectAnalytics] Fonctions disponibles:');
   console.log('- directAnalytics.trackEvent(name, params)');
@@ -238,8 +238,8 @@ if (typeof window !== 'undefined' && import.meta.env.DEV) {
 // Déclarer gtag pour TypeScript
 declare global {
   interface Window {
-    gtag: (...args: any[]) => void;
-    dataLayer: any[];
+    gtag: (...args: unknown[]) => void;
+    dataLayer: unknown[];
   }
 }
 

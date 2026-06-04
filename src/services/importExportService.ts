@@ -248,7 +248,7 @@ export const exportEventsToOpenAgendaCSV = (): string => {
     const rows = events.map(event => {
       const location = locations.find(l => l.id === event.locationId);
       const timings = buildOpenAgendaTimings(event);
-      const description = (event as any).artistBio || (event as any).presentation || '';
+      const description = (event as { artistBio?: string; presentation?: string }).artistBio || (event as { artistBio?: string; presentation?: string }).presentation || '';
       const imageUrl = event.image
         ? `https://collectif-feydeau.fr${event.image.startsWith('/') ? '' : '/'}${event.image}`
         : '';
@@ -420,7 +420,7 @@ export const importEventsFromCSV = (csvData: string): ImportResult => {
     for (let i = 1; i < lines.length; i++) {
       try {
         const values = parseCSVLine(lines[i]);
-        const event: any = {};
+        const event: Record<string, unknown> = {};
         
         // Associer chaque valeur à son en-tête
         for (let j = 0; j < headers.length; j++) {
@@ -440,10 +440,10 @@ export const importEventsFromCSV = (csvData: string): ImportResult => {
         }
         
         // Valider l'événement
-        const validationResult = validateEvent(event as Event);
+        const validationResult = validateEvent(event as unknown as Event);
         
         if (validationResult.isValid) {
-          events.push(event as Event);
+          events.push(event as unknown as Event);
         } else {
           const errorFields = validationResult.errors.map(e => `${e.field}: ${e.message}`).join(', ');
           errors.push(`Ligne ${i + 1}: Validation échouée - ${errorFields}`);

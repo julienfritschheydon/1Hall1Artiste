@@ -20,7 +20,7 @@ export function initErrorHandlingSystem() {
     const logViewer = createLogViewer();
     
     // Exposer le logViewer dans la console pour le débogage
-    (window as any).__logViewer = logViewer;
+    (window as unknown as Record<string, unknown>).__logViewer = logViewer;
     
     logger.info('Système de visualisation des logs initialisé (appuyez sur le bouton "Logs" pour voir les logs)');
   }
@@ -33,7 +33,7 @@ export function initErrorHandlingSystem() {
  * @param error L'erreur à enregistrer
  * @param context Informations contextuelles supplémentaires
  */
-export function logError(error: Error, context?: Record<string, any>) {
+export function logError(error: Error, context?: Record<string, unknown>) {
   logger.error(`Erreur: ${error.message}`, {
     name: error.name,
     stack: error.stack,
@@ -46,7 +46,10 @@ export function logError(error: Error, context?: Record<string, any>) {
  * @param endpoint Point d'accès de l'API
  * @param error L'erreur à enregistrer
  */
-export function logApiError(endpoint: string, error: any) {
+export function logApiError(
+  endpoint: string,
+  error: { status?: number; statusText?: string; message?: string; data?: unknown }
+) {
   logger.error(`Erreur API (${endpoint})`, {
     status: error.status,
     statusText: error.statusText,

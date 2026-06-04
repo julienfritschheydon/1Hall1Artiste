@@ -10,7 +10,7 @@ type CacheItem<T> = {
 };
 
 class CacheManager {
-  private cache: Map<string, CacheItem<any>> = new Map();
+  private cache: Map<string, CacheItem<unknown>> = new Map();
   private defaultExpiry: number = 30 * 60 * 1000; // 30 minutes par défaut
 
   /**

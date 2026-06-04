@@ -295,12 +295,13 @@ export const EventDetailsNew = ({
         event_title: event.title,
         source
       });
-    } catch (error: any) {
+    } catch (error) {
+      const err = error as { type?: CalendarErrorType; cancelled?: boolean };
       let errorMessage = "Impossible d'ajouter l'événement au calendrier.";
-      
-      if (error.type === CalendarErrorType.NOT_SUPPORTED) {
+
+      if (err.type === CalendarErrorType.NOT_SUPPORTED) {
         errorMessage = "Votre navigateur ne supporte pas cette fonctionnalité.";
-      } else if (error.cancelled) {
+      } else if (err.cancelled) {
         return;
       }
       

@@ -33,8 +33,8 @@ export function BottomNavigation() {
   
   // Enregistrer le hook pour les tests globaux
   useEffect(() => {
-    if (typeof window !== 'undefined' && (window as any).registerNotificationHook) {
-      (window as any).registerNotificationHook(notificationHook);
+    if (typeof window !== 'undefined' && (window as unknown as { registerNotificationHook?: (hook: unknown) => void }).registerNotificationHook) {
+      (window as unknown as { registerNotificationHook?: (hook: unknown) => void }).registerNotificationHook(notificationHook);
     }
   }, [notificationHook]);
 

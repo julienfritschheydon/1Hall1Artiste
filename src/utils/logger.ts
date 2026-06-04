@@ -21,7 +21,7 @@ interface LogEntry {
   module: string;
   message: string;
   level: LogLevel;
-  data?: any;
+  data?: unknown;
 }
 
 // Tableau pour stocker les logs récents
@@ -39,7 +39,7 @@ export function log(
   module: string,
   message: string,
   level: LogLevel = 'info',
-  data?: any
+  data?: unknown
 ) {
   // Filtrer tous les logs indésirables
   if (level === 'info') {
@@ -110,10 +110,10 @@ export function log(
  */
 export function createLogger(moduleName: string) {
   return {
-    info: (message: string, data?: any) => log(moduleName, message, 'info', data),
-    warn: (message: string, data?: any) => log(moduleName, message, 'warn', data),
-    error: (message: string, data?: any) => log(moduleName, message, 'error', data),
-    debug: (message: string, data?: any) => log(moduleName, message, 'debug', data)
+    info: (message: string, data?: unknown) => log(moduleName, message, 'info', data),
+    warn: (message: string, data?: unknown) => log(moduleName, message, 'warn', data),
+    error: (message: string, data?: unknown) => log(moduleName, message, 'error', data),
+    debug: (message: string, data?: unknown) => log(moduleName, message, 'debug', data)
   };
 }
 

@@ -66,7 +66,7 @@ export const addOnlineStatusListener = (callback: (online: boolean) => void): ((
  * @param events Les événements à précharger
  * @param locations Les lieux associés aux événements
  */
-export const cacheEventsInServiceWorker = (events: any[], locations: any[]): void => {
+export const cacheEventsInServiceWorker = (events: unknown[], locations: unknown[]): void => {
   // Désactivé temporairement
   return;
 };

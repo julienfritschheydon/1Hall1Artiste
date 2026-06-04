@@ -320,7 +320,7 @@ async function updateGlobalStats(): Promise<void> {
     let topEntry = '';
     let maxLikes = 0;
     
-    Object.entries(allLikes || {}).forEach(([entryId, data]: [string, any]) => {
+    Object.entries(allLikes || {}).forEach(([entryId, data]: [string, { likes?: number }]) => {
       const likes = data?.likes || 0;
       totalLikes += likes;
       

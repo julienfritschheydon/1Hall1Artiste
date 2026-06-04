@@ -37,7 +37,7 @@ export const ContributionForm: React.FC<ContributionFormProps> = ({ onSubmit }) 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [contributionContext, setContributionContext] = useState<any>(null);
+  const [contributionContext, setContributionContext] = useState<{ type?: string; name?: string; [k: string]: unknown } | null>(null);
   const [selectedEventId, setSelectedEventId] = useState<string>("");
   const [selectedLocationId, setSelectedLocationId] = useState<string>("");
   const [isCompressing, setIsCompressing] = useState(false);
@@ -405,7 +405,7 @@ export const ContributionForm: React.FC<ContributionFormProps> = ({ onSubmit }) 
                       cameraInput.accept = 'image/*';
                       cameraInput.capture = 'environment';
                       cameraInput.onchange = (e) => {
-                        const event = e as any;
+                        const event = e as unknown as React.ChangeEvent<HTMLInputElement>;
                         handleImageChange(event);
                       };
                       cameraInput.click();

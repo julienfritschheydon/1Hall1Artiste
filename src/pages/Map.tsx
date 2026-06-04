@@ -116,7 +116,7 @@ const Map = ({ fullScreen = false }: MapProps) => {
         const parsedLocations = JSON.parse(savedLocations);
         // Fusionner les données sauvegardées avec les données actuelles
         const mergedLocations = locations.map(loc => {
-          const savedLoc = parsedLocations.find((saved: any) => saved.id === loc.id);
+          const savedLoc = parsedLocations.find((saved: { id: string; visited?: boolean }) => saved.id === loc.id);
           return savedLoc ? { ...loc, visited: savedLoc.visited } : loc;
         });
         setMapLocations(mergedLocations);

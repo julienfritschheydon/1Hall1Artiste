@@ -13,7 +13,7 @@ export function useCache<T>(
   fetcher: () => Promise<T>,
   options: {
     expiry?: number | null;
-    dependencies?: any[];
+    dependencies?: unknown[];
   } = {}
 ) {
   const { expiry = null, dependencies = [] } = options;

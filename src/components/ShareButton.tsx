@@ -48,9 +48,10 @@ export function ShareButton({ title, text, url, className }: ShareButtonProps) {
               text,
               url: absoluteUrl,
             });
-          } catch (error: any) {
+          } catch (error) {
+            const err = error as { name?: string; message?: string };
             // Ignorer silencieusement si l'utilisateur annule le partage
-            if (error?.name === 'AbortError' || error?.message?.includes('canceled') || error?.message?.includes('cancelled')) {
+            if (err?.name === 'AbortError' || err?.message?.includes('canceled') || err?.message?.includes('cancelled')) {
               console.log('[ShareButton] Share canceled by user');
               return;
             }

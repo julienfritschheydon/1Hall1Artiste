@@ -2,15 +2,15 @@ import { useEffect, useRef } from 'react';
 
 interface AutoSaveOptions {
   key: string; // Clé unique pour le localStorage
-  data: any; // Données à sauvegarder
+  data: unknown; // Données à sauvegarder
   delay?: number; // Délai en ms avant sauvegarde (défaut: 1000ms)
   enabled?: boolean; // Activer/désactiver l'auto-save
 }
 
 // Fonction debounce native
-function debounce<T extends (...args: any[]) => any>(func: T, delay: number): T & { cancel: () => void } {
+function debounce<T extends (...args: unknown[]) => unknown>(func: T, delay: number): T & { cancel: () => void } {
   let timeoutId: NodeJS.Timeout;
-  const debouncedFunc = ((...args: any[]) => {
+  const debouncedFunc = ((...args: unknown[]) => {
     clearTimeout(timeoutId);
     timeoutId = setTimeout(() => func(...args), delay);
   }) as T & { cancel: () => void };
@@ -26,7 +26,7 @@ export const useAutoSave = ({ key, data, delay = 1000, enabled = true }: AutoSav
   const debouncedSaveRef = useRef<ReturnType<typeof debounce> | null>(null);
 
   // Fonction de sauvegarde
-  const saveToLocalStorage = (dataToSave: any) => {
+  const saveToLocalStorage = (dataToSave: unknown) => {
     try {
       const serializedData = JSON.stringify({
         data: dataToSave,
@@ -41,7 +41,7 @@ export const useAutoSave = ({ key, data, delay = 1000, enabled = true }: AutoSav
   };
 
   // Fonction de récupération
-  const loadFromLocalStorage = (): any | null => {
+  const loadFromLocalStorage = (): unknown | null => {
     try {
       const serializedData = localStorage.getItem(`draft_${key}`);
       if (!serializedData) return null;

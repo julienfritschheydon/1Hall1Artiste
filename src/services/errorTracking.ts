@@ -13,7 +13,7 @@ export interface ErrorInfo {
   userAgent: string;
   path: string;
   componentName?: string;
-  additionalInfo?: Record<string, any>;
+  additionalInfo?: Record<string, unknown>;
 }
 
 // Stockage local des erreurs
@@ -56,7 +56,7 @@ const shouldIgnoreError = (message: string, stack?: string): boolean => {
 export const captureError = (
   error: Error | string,
   componentName?: string,
-  additionalInfo?: Record<string, any>
+  additionalInfo?: Record<string, unknown>
 ): void => {
   try {
     const message = typeof error === 'string' ? error : error.message;
@@ -308,8 +308,8 @@ export const testErrorFiltering = (): void => {
 
 // Exposer les fonctions de test globalement pour la console (dev uniquement)
 if (typeof window !== 'undefined' && import.meta.env.DEV) {
-  (window as any).testErrorReporting = testErrorReporting;
-  (window as any).testErrorFiltering = testErrorFiltering;
+  (window as unknown as Record<string, unknown>).testErrorReporting = testErrorReporting;
+  (window as unknown as Record<string, unknown>).testErrorFiltering = testErrorFiltering;
   
   console.log('🔧 [ErrorTracking] Fonctions de test disponibles:');
   console.log('- testErrorReporting() : Tester le système complet');

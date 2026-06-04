@@ -21,7 +21,7 @@ import { LikesCounter } from "@/components/admin/LikesCounter";
 const logger = createLogger('CommunityManagement');
 
 export function CommunityManagement() {
-  const [entries, setEntries] = useState<any[]>([]);
+  const [entries, setEntries] = useState<Awaited<ReturnType<typeof fetchCommunityEntries>>>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
 
@@ -36,7 +36,7 @@ export function CommunityManagement() {
       setLoading(true);
       const data = await fetchCommunityEntries();
       logger.info(`${data.length} contributions chargées`);
-      setEntries(data as any[]);
+      setEntries(data);
     } catch (error) {
       logger.error('Erreur lors du chargement des contributions', error);
       toast({

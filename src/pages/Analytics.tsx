@@ -20,7 +20,13 @@ export default function Analytics() {
   const analytics = useAnalytics();
   const [activeTab, setActiveTab] = useState('overview');
   const [isLoading, setIsLoading] = useState(false);
-  const [analyticsData, setAnalyticsData] = useState<any>(null);
+  type AnalyticsData = {
+    overview: { totalUsers: number; activeUsers: number; sessionsToday: number; averageSessionDuration: string; bounceRate: string };
+    events: Array<{ name: string; count: number; users: number }>;
+    topPages: Array<{ path: string; views: number; users: number }>;
+    userRetention: { day1: string; day7: string; day30: string };
+  };
+  const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
 
   // Suivre la vue de la page analytics
   useEffect(() => {
@@ -222,7 +228,7 @@ export default function Analytics() {
                       </tr>
                     </thead>
                     <tbody>
-                      {analyticsData.events.map((event: any, index: number) => (
+                      {analyticsData.events.map((event, index) => (
                         <tr key={index} className="border-b">
                           <td className="py-2">{event.name}</td>
                           <td className="text-right py-2">{event.count}</td>
@@ -248,7 +254,7 @@ export default function Analytics() {
                       </tr>
                     </thead>
                     <tbody>
-                      {analyticsData.topPages.map((page: any, index: number) => (
+                      {analyticsData.topPages.map((page, index) => (
                         <tr key={index} className="border-b">
                           <td className="py-2">{page.path}</td>
                           <td className="text-right py-2">{page.views}</td>
