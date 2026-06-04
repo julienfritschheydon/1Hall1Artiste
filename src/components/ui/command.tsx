@@ -6,7 +6,10 @@ import Search from "lucide-react/dist/esm/icons/search"
 import { cn } from "@/lib/utils"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 
+// Wrappers génériques cmdk : `any` volontaire pour le spread de props/ref.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyProps = Record<string, any>
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyRef = any
 
 const Command = React.forwardRef(({ className, ...props }: AnyProps, ref: AnyRef) => (

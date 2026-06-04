@@ -10,7 +10,7 @@
  */
 export const getBasePath = (): string => {
   // Récupérer la configuration de l'application si elle existe
-  const appConfig = (window as any).APP_CONFIG;
+  const appConfig = (window as unknown as { APP_CONFIG?: { BASE_URL?: string } }).APP_CONFIG;
   
   // Si la configuration existe et contient un chemin de base, l'utiliser
   if (appConfig && appConfig.BASE_URL) {

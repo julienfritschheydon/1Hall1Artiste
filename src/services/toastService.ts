@@ -14,7 +14,7 @@ export type ToastOptions = {
   duration?: number;
   action?: ToastActionElement;
   source?: string; // Composant ou fonction qui a déclenché le toast
-  context?: Record<string, any>; // Contexte supplémentaire pour le logging
+  context?: Record<string, unknown>; // Contexte supplémentaire pour le logging
 };
 
 /**
@@ -84,7 +84,7 @@ class ToastService {
     type: ToastType,
     description?: string,
     source?: string,
-    context?: Record<string, any>
+    context?: Record<string, unknown>
   ): void {
     // Ne logger que les toasts d'erreur pour réduire le bruit dans la console
     if (type === 'error') {

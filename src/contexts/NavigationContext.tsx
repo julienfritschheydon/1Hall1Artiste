@@ -7,7 +7,7 @@ const logger = createLogger('NavigationContext');
 // Définir le type pour un élément d'historique
 interface HistoryEntry {
   path: string;
-  state: any;
+  state: unknown;
   timestamp: number;
   title?: string;
 }
@@ -18,7 +18,7 @@ interface NavigationContextType {
   currentIndex: number;
   goBack: () => void;
   goForward: () => void;
-  navigateTo: (path: string, state?: any, title?: string) => void;
+  navigateTo: (path: string, state?: unknown, title?: string) => void;
   canGoBack: boolean;
   canGoForward: boolean;
   getPreviousPath: () => string | null;
@@ -120,7 +120,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
   
   // Fonction pour naviguer vers une nouvelle page
-  const navigateTo = (path: string, state?: any, title?: string) => {
+  const navigateTo = (path: string, state?: unknown, title?: string) => {
     navigate(path, { state });
     
     // L'historique sera mis à jour via l'effet useEffect qui surveille location

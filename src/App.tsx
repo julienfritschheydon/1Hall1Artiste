@@ -277,7 +277,7 @@ const App: React.FC = () => {
   // Register service worker and initialize error reporting
   useEffect(() => {
     // Afficher la base URL détectée
-    console.log('[App] Base URL détectée:', (window as any).APP_CONFIG?.BASE_URL || '/');
+    console.log('[App] Base URL détectée:', (window as unknown as { APP_CONFIG?: { BASE_URL?: string } }).APP_CONFIG?.BASE_URL || '/');
     
     // Initialiser le service worker
     registerServiceWorker();
@@ -334,8 +334,8 @@ const App: React.FC = () => {
         if (isFinite(loadTime) && loadTime >= 0) {
           analytics.trackPerformance(EventAction.LOAD_TIME, Math.round(loadTime));
         }
-      } else if ((performance as any).timing) {
-        const t = (performance as any).timing as PerformanceTiming;
+      } else if ((performance as Performance & { timing?: PerformanceTiming }).timing) {
+        const t = (performance as Performance & { timing?: PerformanceTiming }).timing as PerformanceTiming;
         const loadTime = t.loadEventEnd - t.navigationStart;
         if (isFinite(loadTime) && loadTime >= 0) {
           analytics.trackPerformance(EventAction.LOAD_TIME, Math.round(loadTime));
@@ -346,7 +346,7 @@ const App: React.FC = () => {
       if ('PerformanceObserver' in window) {
         const paintObserver = new PerformanceObserver((list) => {
           for (const entry of list.getEntries()) {
-            const name = (entry as any).name;
+            const name = entry.name;
             if (name === 'first-paint') {
               analytics.trackPerformance(EventAction.FIRST_PAINT, Math.round(entry.startTime));
             } else if (name === 'first-contentful-paint') {

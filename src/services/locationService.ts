@@ -8,7 +8,7 @@ const originalLogger = createLogger('locationService');
 
 // Wrapper pour filtrer les logs indésirables
 const logger = {
-  info: (message: string, data?: any) => {
+  info: (message: string, data?: unknown) => {
     // Filtrer les logs liés à la position et au marqueur utilisateur
     if (message.includes('Position utilisateur') || 
         message.includes('Rendu du marqueur') || 
@@ -24,7 +24,7 @@ const logger = {
   },
   warn: originalLogger.warn,
   error: originalLogger.error,
-  debug: (message: string, data?: any) => {
+  debug: (message: string, data?: unknown) => {
     // Filtrer les logs de debug liés à la position et au marqueur
     if (message.includes('Position utilisateur') || 
         message.includes('Rendu du marqueur') || 

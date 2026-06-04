@@ -39,7 +39,7 @@ export interface ErrorEvent {
   componentStack?: string;
   category: ErrorCategory;
   metadata: AppMetadata;
-  context?: Record<string, any>;
+  context?: Record<string, unknown>;
   fingerprint: string;
   count: number;
   lastOccurrence: string;
@@ -49,7 +49,7 @@ export interface ErrorEvent {
 export interface UsageEvent {
   eventName: string;
   timestamp: string;
-  properties?: Record<string, any>;
+  properties?: Record<string, unknown>;
   metadata: AppMetadata;
 }
 
@@ -155,8 +155,8 @@ function detectDeviceInfo(): DeviceInfo {
   
   // Obtenir des informations sur la mémoire si disponibles
   let memoryInfo: string | undefined;
-  if ((navigator as any).deviceMemory) {
-    memoryInfo = `${(navigator as any).deviceMemory}GB`;
+  if ((navigator as Navigator & { deviceMemory?: number }).deviceMemory) {
+    memoryInfo = `${(navigator as Navigator & { deviceMemory?: number }).deviceMemory}GB`;
   }
   
   // Détecter la version du système d'exploitation
@@ -263,7 +263,7 @@ function generateUniqueId(): string {
 /**
  * Calcule une empreinte digitale pour une erreur afin de regrouper les erreurs similaires
  */
-function generateErrorFingerprint(error: Error, context?: Record<string, any>): string {
+function generateErrorFingerprint(error: Error, context?: Record<string, unknown>): string {
   // Extraire le nom de l'erreur et le message
   const errorName = error.name || 'Error';
   const errorMessage = error.message || '';
@@ -313,7 +313,7 @@ function generateErrorFingerprint(error: Error, context?: Record<string, any>): 
 /**
  * Détermine la catégorie d'une erreur en fonction de son message et de sa stack trace
  */
-function categorizeError(error: Error, context?: Record<string, any>): ErrorCategory {
+function categorizeError(error: Error, context?: Record<string, unknown>): ErrorCategory {
   const errorMessage = error.message.toLowerCase();
   const errorStack = (error.stack || '').toLowerCase();
   
@@ -402,7 +402,7 @@ function categorizeError(error: Error, context?: Record<string, any>): ErrorCate
  * Suit une erreur, la catégorise et la déduplique
  * Intègre avec le système EmailJS existant
  */
-export function trackError(error: Error, context?: Record<string, any>): string {
+export function trackError(error: Error, context?: Record<string, unknown>): string {
   try {
     if (!appMetadata) {
       // Initialiser les métadonnées si ce n'est pas déjà fait
@@ -523,7 +523,7 @@ export function trackError(error: Error, context?: Record<string, any>): string 
 /**
  * Suit un événement d'utilisation
  */
-export function trackEvent(eventName: string, properties?: Record<string, any>): void {
+export function trackEvent(eventName: string, properties?: Record<string, unknown>): void {
   try {
     if (!appMetadata) {
       // Initialiser les métadonnées si ce n'est pas déjà fait

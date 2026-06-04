@@ -7,7 +7,7 @@ import { getFirebaseConfig } from '@/config/firebase-prod';
 const firebaseConfig = getFirebaseConfig();
 
 // Variable pour stocker l'instance Firebase
-let firebaseApp: any = null;
+let firebaseApp: ReturnType<typeof initializeApp> | null = null;
 
 // Fonction pour initialiser Firebase de manière conditionnelle
 const initializeFirebase = () => {
@@ -35,7 +35,7 @@ export const getFirebaseApp = () => {
 };
 
 // Initialiser Analytics (uniquement côté client et si Firebase est initialisé)
-let analyticsInstance: any = null;
+let analyticsInstance: ReturnType<typeof getAnalytics> | null = null;
 
 export const initFirebaseAnalytics = () => {
   if (typeof window !== 'undefined') {

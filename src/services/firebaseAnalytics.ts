@@ -101,7 +101,7 @@ export enum EventAction {
 
 // Interface pour les propriétés d'événement
 export interface EventProperties {
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 // Classe principale pour l'analytique
@@ -114,7 +114,7 @@ class AnalyticsService {
 
       // Préparer les propriétés de l'événement
       const eventName = `${category}_${action}`;
-      const eventParams: Record<string, any> = {
+      const eventParams: Record<string, unknown> = {
         event_category: category,
         event_action: action,
         timestamp: new Date().toISOString(),

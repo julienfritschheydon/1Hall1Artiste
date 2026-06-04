@@ -168,7 +168,7 @@ if (typeof window !== 'undefined') {
   let globalNotificationHook: NewPhotosNotification | null = null;
   
   // Fonction pour enregistrer le hook
-  (window as any).registerNotificationHook = (hook: NewPhotosNotification) => {
+  (window as unknown as Record<string, unknown>).registerNotificationHook = (hook: NewPhotosNotification) => {
     globalNotificationHook = hook;
     if (import.meta.env.DEV) {
       console.log('📸 [NewPhotosNotification] Hook enregistré pour les tests');
@@ -176,7 +176,7 @@ if (typeof window !== 'undefined') {
   };
   
   // Fonctions de test globales
-  (window as any).testNewPhotos = (count: number = 1) => {
+  (window as unknown as Record<string, unknown>).testNewPhotos = (count: number = 1) => {
     if (globalNotificationHook) {
       globalNotificationHook.simulateNewPhotos(count);
     } else {
@@ -184,7 +184,7 @@ if (typeof window !== 'undefined') {
     }
   };
   
-  (window as any).resetPhotoNotifications = () => {
+  (window as unknown as Record<string, unknown>).resetPhotoNotifications = () => {
     if (globalNotificationHook) {
       globalNotificationHook.resetNotification();
     } else {
@@ -192,7 +192,7 @@ if (typeof window !== 'undefined') {
     }
   };
   
-  (window as any).checkPhotoNotifications = () => {
+  (window as unknown as Record<string, unknown>).checkPhotoNotifications = () => {
     if (globalNotificationHook) {
       globalNotificationHook.forceCheck();
     } else {

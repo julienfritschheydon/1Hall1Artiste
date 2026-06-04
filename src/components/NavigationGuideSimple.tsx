@@ -136,7 +136,7 @@ function NavigationGuideSimple(props: NavigationGuideSimpleProps) {
           direction,
           isNearby
         });
-      } catch (error: any) {
+      } catch (error) {
         logger.error('[NavigationGuideSimple] Erreur lors du calcul de la navigation', error);
       }
     }
