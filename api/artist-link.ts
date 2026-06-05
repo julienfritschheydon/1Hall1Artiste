@@ -2,8 +2,8 @@
 // Réponse toujours générique pour ne pas divulguer la liste des emails.
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { buildEmailToArtistId } from "./_sheets";
-import { createToken } from "./_token";
+import { buildEmailToArtistId } from "./_sheets.js";
+import { createToken } from "./_token.js";
 
 function appBaseUrl(req: VercelRequest): string {
   if (process.env.APP_BASE_URL) return process.env.APP_BASE_URL.replace(/\/+$/, "");

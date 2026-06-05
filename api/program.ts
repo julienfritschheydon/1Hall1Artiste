@@ -13,8 +13,8 @@ import {
   fetchCsv,
   parseCsv,
   locationSet,
-} from "./_sheets";
-import { fetchArtistOverrides, applyOverrides } from "./_overrides";
+} from "./_sheets.js";
+import { fetchArtistOverrides, applyOverrides } from "./_overrides.js";
 
 const EXPO_DEFAULT_TIME = "12h00 - 19h00, samedi et dimanche";
 

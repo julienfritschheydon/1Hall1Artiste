@@ -2,8 +2,8 @@
 // L'artistId provient UNIQUEMENT du token : un artiste ne peut éditer que sa propre fiche.
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { verifyToken } from "./_token";
-import { EDITABLE_FIELDS, ArtistOverride, putArtistOverride } from "./_overrides";
+import { verifyToken } from "./_token.js";
+import { EDITABLE_FIELDS, ArtistOverride, putArtistOverride } from "./_overrides.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader("Access-Control-Allow-Origin", "*");
