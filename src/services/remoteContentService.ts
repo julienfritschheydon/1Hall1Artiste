@@ -300,7 +300,8 @@ export async function fetchRemoteProgram(): Promise<RemoteProgram> {
   // (présentation, vignette, réseaux) stockés dans Firebase par-dessus le Google Sheet.
   try {
     logger.info("Fetch du programme distant (/api/program)");
-    const res = await fetch(`/api/program?cb=${Date.now()}`, { cache: "no-cache" });
+    // Pas de cache-buster : on s'appuie sur le cache edge Vercel (s-maxage=60s).
+    const res = await fetch(`/api/program`, { cache: "no-cache" });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     if (data && Array.isArray(data.events) && Array.isArray(data.artists)) {

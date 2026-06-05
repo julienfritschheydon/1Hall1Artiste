@@ -117,6 +117,7 @@ export default function ArtistEdit() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!artist) return; // évite d'écraser les overrides avec un formulaire non pré-rempli
     setSaving(true);
     try {
       await saveArtistFields(token, form);
@@ -179,8 +180,8 @@ export default function ArtistEdit() {
           <Input id="website" value={form.website} onChange={set("website")} placeholder="https://…" />
         </div>
 
-        <Button type="submit" className="w-full" disabled={saving || uploading}>
-          {saving ? "Enregistrement…" : "Enregistrer"}
+        <Button type="submit" className="w-full" disabled={saving || uploading || !artist}>
+          {saving ? "Enregistrement…" : !artist ? "Chargement…" : "Enregistrer"}
         </Button>
 
         {saved && (

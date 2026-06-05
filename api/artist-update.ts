@@ -5,6 +5,25 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { verifyToken } from "./_token.js";
 import { EDITABLE_FIELDS, ArtistOverride, putArtistOverride } from "./_overrides.js";
 
+const URL_FIELDS = new Set(["instagram", "facebook", "website", "thumbnail"]);
+const MAX_LEN: Record<string, number> = {
+  presentation: 2000,
+  instagram: 500,
+  facebook: 500,
+  website: 500,
+  thumbnail: 1000,
+};
+
+// Garde uniquement les URLs http(s) (bloque javascript:, data: → anti-XSS).
+function safeHttpUrl(v: string): string {
+  try {
+    const u = new URL(v);
+    return u.protocol === "http:" || u.protocol === "https:" ? v : "";
+  } catch {
+    return "";
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -22,8 +41,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const fields = (req.body?.fields || {}) as Record<string, unknown>;
     const override: ArtistOverride = { updatedAt: Date.now() };
     for (const field of EDITABLE_FIELDS) {
-      const v = fields[field];
-      if (typeof v === "string") override[field] = v.trim();
+      const raw = fields[field];
+      if (typeof raw !== "string") continue;
+      let v = raw.trim().slice(0, MAX_LEN[field] ?? 1000);
+      // Champs URL : on n'accepte que http(s). Une valeur non-vide invalide est rejetée (ignorée).
+      if (URL_FIELDS.has(field) && v !== "") {
+        v = safeHttpUrl(v);
+        if (v === "") continue;
+      }
+      override[field] = v;
     }
 
     await putArtistOverride(result.artistId, override);

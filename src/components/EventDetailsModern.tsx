@@ -9,6 +9,7 @@ import { useNavigate } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
 import { getImagePath } from "@/utils/imagePaths";
 import { cloudinaryThumb } from "@/utils/cloudinary";
+import { safeHttpUrl } from "@/utils/url";
 import { setEventContributionContext } from "@/services/contextualContributionService";
 import ReactMarkdown from "react-markdown";
 import { Event } from "@/data/events";
@@ -485,13 +486,13 @@ export const EventDetailsNew = ({
                 )}
                 
                 {/* Site web */}
-                {artist.website && (
+                {safeHttpUrl(artist.website) && (
                   <div className="flex items-center text-sm text-gray-700">
                     <span className="font-medium mr-2 min-w-[80px]">Site web:</span>
-                    <a 
-                      href={artist.website} 
-                      target="_blank" 
-                      rel="noopener noreferrer" 
+                    <a
+                      href={safeHttpUrl(artist.website)}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className="text-blue-600 hover:underline"
                     >
                       {artist.website.replace(/^https?:\/\//, '').replace(/\/$/, '')}
@@ -521,13 +522,13 @@ export const EventDetailsNew = ({
                 )}
 
                 {/* YouTube */}
-                {artist.youtube && (
+                {safeHttpUrl(artist.youtube) && (
                   <div className="flex items-center text-sm text-gray-700">
                     <span className="font-medium mr-2 min-w-[80px]">YouTube:</span>
-                    <a 
-                      href={artist.youtube} 
-                      target="_blank" 
-                      rel="noopener noreferrer" 
+                    <a
+                      href={safeHttpUrl(artist.youtube)}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className="text-blue-600 hover:underline"
                     >
                       {artist.youtube.replace(/^https?:\/\//, '').replace(/\/$/, '')}
@@ -536,13 +537,13 @@ export const EventDetailsNew = ({
                 )}
 
                 {/* TikTok */}
-                {artist.tiktok && (
+                {safeHttpUrl(artist.tiktok) && (
                   <div className="flex items-center text-sm text-gray-700">
                     <span className="font-medium mr-2 min-w-[80px]">TikTok:</span>
-                    <a 
-                      href={artist.tiktok} 
-                      target="_blank" 
-                      rel="noopener noreferrer" 
+                    <a
+                      href={safeHttpUrl(artist.tiktok)}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className="text-blue-600 hover:underline"
                     >
                       {artist.tiktok.replace(/^https?:\/\//, '').replace(/\/$/, '')}

@@ -53,7 +53,7 @@ export function verifyToken(token: string): TokenResult {
     const exp = Number(expStr);
     if (!Number.isFinite(exp)) return { valid: false };
 
-    if (Date.now() > exp) return { valid: true, expired: true, artistId, email };
+    if (Date.now() >= exp) return { valid: true, expired: true, artistId, email };
     return { valid: true, expired: false, artistId, email };
   } catch {
     return { valid: false };
