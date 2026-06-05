@@ -122,21 +122,23 @@ export function useNewPhotosNotification(): NewPhotosNotification {
   useEffect(() => {
     // Vérification initiale avec initialisation si nécessaire
     const initializeAndCheck = async () => {
-      const lastKnown = getLastKnownCount();
-      if (lastKnown === 0) {
-        // Premier chargement - afficher toujours 2 nouvelles photos pour inciter à découvrir
+      // On distingue "jamais initialisé" (clé absente) de "0 photo".
+      const neverInitialized = (() => {
+        try { return localStorage.getItem(STORAGE_KEY) === null; } catch { return true; }
+      })();
+
+      if (neverInitialized) {
+        // Première visite : on mémorise le nombre réel de photos, sans badge factice.
         try {
           const entries = await fetchCommunityEntries();
           setTotalPhotos(entries.length);
-          setNewPhotosCount(2);
-          setHasNewPhotos(true);
-          console.log(`[NewPhotosNotification] Premier chargement: Affichage de 2 nouvelles photos pour inciter à découvrir`);
-          // Ne pas sauvegarder le count pour maintenir l'état "nouvelles photos"
+          saveCurrentCount(entries.length);
+          console.log(`[NewPhotosNotification] Init: ${entries.length} photos mémorisées (pas de badge)`);
         } catch (error) {
           console.error('[NewPhotosNotification] Erreur initialisation:', error);
         }
       } else {
-        // Vérification normale
+        // Vérification normale : badge seulement si vraies nouvelles photos.
         checkForNewPhotos();
       }
     };
