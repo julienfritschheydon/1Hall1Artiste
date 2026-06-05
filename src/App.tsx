@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, lazy, Suspense } from "react";
 import { initEmailJS, checkAndSendErrors, setupGlobalErrorHandler } from "./services/errorTracking";
 import { initFirebaseAnalytics } from "./services/firebaseConfig";
 import { analytics, EventAction } from "./services/firebaseAnalytics";
@@ -27,22 +27,23 @@ import OfflineIndicator from "./components/OfflineIndicator";
 import { registerServiceWorker } from "./utils/serviceWorkerRegistration";
 import { preloadAllOfflineData } from "./services/offlineService";
 
-// Pages
-import Map from "./pages/Map";
-import Program from "./pages/Program";
-import Donate from "./pages/Donate";
-import NotFound from "./pages/NotFound";
+// Pages — chargées à la demande (code-splitting par route).
+// SplashScreen reste en statique car affiché au tout premier rendu.
 import SplashScreen from "./pages/SplashScreen";
-import Admin from "./pages/Admin";
-import SavedEvents from "./pages/SavedEvents";
-import { LocationHistory } from "@/pages/LocationHistory";
-import Analytics from "./pages/Analytics";
-import Gallery from "./pages/Gallery";
-import AnalyticsDebugger from "./debug/AnalyticsDebugger";
-import About from "./pages/About";
-import CoordinatesPicker from "./pages/CoordinatesPicker";
-import ArtistLogin from "./pages/ArtistLogin";
-import ArtistEdit from "./pages/ArtistEdit";
+const Map = lazy(() => import("./pages/Map"));
+const Program = lazy(() => import("./pages/Program"));
+const Donate = lazy(() => import("./pages/Donate"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const Admin = lazy(() => import("./pages/Admin"));
+const SavedEvents = lazy(() => import("./pages/SavedEvents"));
+const LocationHistory = lazy(() => import("@/pages/LocationHistory").then(m => ({ default: m.LocationHistory })));
+const Analytics = lazy(() => import("./pages/Analytics"));
+const Gallery = lazy(() => import("./pages/Gallery"));
+const AnalyticsDebugger = lazy(() => import("./debug/AnalyticsDebugger"));
+const About = lazy(() => import("./pages/About"));
+const CoordinatesPicker = lazy(() => import("./pages/CoordinatesPicker"));
+const ArtistLogin = lazy(() => import("./pages/ArtistLogin"));
+const ArtistEdit = lazy(() => import("./pages/ArtistEdit"));
 
 const queryClient = new QueryClient();
 
@@ -159,6 +160,11 @@ const AnimatedRoutes: React.FC = () => {
   }
   
   return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="w-8 h-8 border-2 border-gray-300 border-t-[#ff7a45] rounded-full animate-spin" />
+      </div>
+    }>
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
         {/* Rediriger vers la dernière page visitée ou la carte */}
@@ -196,6 +202,7 @@ const AnimatedRoutes: React.FC = () => {
         <Route path="*" element={renderRouteElement(NotFound)} />
       </Routes>
     </AnimatePresence>
+    </Suspense>
   );
 };
 
