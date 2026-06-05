@@ -115,61 +115,21 @@ export async function toggleLike(entryId: string, sessionId?: string): Promise<L
     const userSessionId = sessionId || getSessionId();
     console.log(`🔄 Toggle like pour ${entryId} par ${userSessionId}`);
 
-    // Récupérer les données actuelles avec retry
-    const response = await fetchWithRetry(`${FIREBASE_URL}/${LIKES_PATH}/${entryId}.json`);
-    const currentData = response.ok ? await response.json() : null;
-    
-    const data = currentData || {
-      likes: 0,
-      likedBy: [],
-      lastLiked: null
-    };
-
-    const hasLiked = data.likedBy?.includes(userSessionId) || false;
-    let newLikedBy = data.likedBy || [];
-    let newLikes = data.likes || 0;
-
-    if (hasLiked) {
-      // Retirer le like
-      newLikedBy = newLikedBy.filter((id: string) => id !== userSessionId);
-      newLikes = Math.max(0, newLikes - 1);
-      console.log(`❤️ Like retiré pour ${entryId}`);
-    } else {
-      // Ajouter le like
-      newLikedBy.push(userSessionId);
-      newLikes += 1;
-      console.log(`💖 Like ajouté pour ${entryId}`);
-    }
-
-    // Mise à jour Firebase
-    const updatedData = {
-      likes: newLikes,
-      likedBy: newLikedBy,
-      lastLiked: new Date().toISOString()
-    };
-
-    const updateResponse = await fetchWithRetry(`${FIREBASE_URL}/${LIKES_PATH}/${entryId}.json`, {
-      method: 'PUT',
+    // Écriture déléguée au serveur (/api/likes) : les règles RTDB restent en .write:false.
+    const response = await fetchWithRetry(`/api/likes`, {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updatedData)
+      body: JSON.stringify({ entryId, sessionId: userSessionId })
     });
 
-    if (!updateResponse.ok) {
-      throw new Error('Erreur lors de la mise à jour des likes');
+    const result = response.ok ? await response.json() : null;
+    if (!result?.success) {
+      throw new Error(result?.error || 'Erreur lors de la mise à jour des likes');
     }
 
-    // Invalidate cache for this entry
     invalidateCache(entryId);
-    
-    // Mise à jour des stats globales
-    await updateGlobalStats();
 
-    return {
-      success: true,
-      liked: !hasLiked,
-      total: newLikes
-    };
-
+    return { success: true, liked: !!result.liked, total: result.total || 0 };
   } catch (error) {
     console.error('❌ Erreur toggle like:', error);
     return {

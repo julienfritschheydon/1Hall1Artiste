@@ -2,7 +2,7 @@
  * Service de galerie communautaire - Cloudinary + Firebase
  */
 
-import { CommunityEntry, SubmissionParams, ModerationStatus } from "../types/communityTypes";
+import { CommunityEntry, SubmissionParams } from "../types/communityTypes";
 
 // Configuration Cloudinary
 const CLOUDINARY_CLOUD_NAME = 'dpatqkgsc';
@@ -69,58 +69,46 @@ export function clearAllContributions(): void {
  */
 export async function submitContribution(params: SubmissionParams): Promise<CommunityEntry> {
   const finalImageUrl = params.cloudinaryUrl || params.imageUrl;
-  
-  // Générer un ID unique
-  const entryId = finalImageUrl 
-    ? (finalImageUrl.match(/\/v\d+\/([^.]+)/)?.[1] || `photo_${Date.now()}`)
-    : `text_${Date.now()}`;
 
-  // Créer l'entrée (avec ou sans image)
-  const newEntry: CommunityEntry = {
-    id: entryId,
-    type: finalImageUrl ? 'photo' : 'testimonial',
-    displayName: params.displayName?.trim() || 'Anonyme',
-    content: params.content?.trim() || '',
-    imageUrl: finalImageUrl || '',
-    thumbnailUrl: finalImageUrl || '',
-    description: params.description?.trim() || '',
-    createdAt: new Date().toISOString(),
-    timestamp: new Date().toISOString(),
-    moderation: {
-      status: 'approved' as ModerationStatus,
-      moderatedAt: new Date().toISOString()
-    }
-  };
-  
-  // 🔥 SAUVEGARDER dans Firebase
-  const response = await fetch(`${FIREBASE_CONFIG.databaseURL}/community-photos/${newEntry.id}.json`, {
-    method: 'PUT',
+  // Écriture déléguée au serveur (/api/community) : les règles RTDB restent en .write:false.
+  const response = await fetch(`/api/community`, {
+    method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(newEntry)
+    body: JSON.stringify({
+      displayName: params.displayName,
+      content: params.content,
+      imageUrl: finalImageUrl,
+      description: params.description,
+    })
   });
-  
+
   if (!response.ok) {
     throw new Error('Impossible de sauvegarder la photo. Vérifiez votre connexion.');
   }
-  
-  console.log('[CloudinaryService] Photo sauvegardée');
-  
+
+  const newEntry: CommunityEntry = await response.json();
+  console.log('[CloudinaryService] Contribution sauvegardée');
   return newEntry;
 }
 
 /**
- * 🗑️ Suppression admin via tags Cloudinary
+ * 🗑️ Suppression (modération) — nécessite la clé de modération (x-mod-key).
+ * La clé est saisie par l'admin et stockée en sessionStorage.
  */
 export async function deleteCommunityEntry(entryId: string): Promise<void> {
-  // 🗑️ SUPPRESSION dans Firebase
-  const response = await fetch(`${FIREBASE_CONFIG.databaseURL}/community-photos/${entryId}.json`, {
-    method: 'DELETE'
+  const modKey = (() => { try { return sessionStorage.getItem('moderationKey') || ''; } catch { return ''; } })();
+  const response = await fetch(`/api/community?id=${encodeURIComponent(entryId)}`, {
+    method: 'DELETE',
+    headers: { 'x-mod-key': modKey }
   });
-  
+
+  if (response.status === 401) {
+    throw new Error('Clé de modération manquante ou invalide.');
+  }
   if (!response.ok) {
     throw new Error('Impossible de supprimer la photo');
   }
-  
-  console.log('[CloudinaryService] ✅ Photo supprimée');
+
+  console.log('[CloudinaryService] ✅ Contribution supprimée');
 }
 

@@ -52,9 +52,18 @@ export function CommunityManagement() {
   // Fonction pour supprimer une contribution
   const handleDelete = async (entryId: string) => {
     try {
+      // Clé de modération (vérifiée côté serveur). Demandée une fois, gardée en session.
+      let modKey = '';
+      try { modKey = sessionStorage.getItem('moderationKey') || ''; } catch { /* noop */ }
+      if (!modKey) {
+        modKey = window.prompt('Clé de modération (pour supprimer) :') || '';
+        if (!modKey) return;
+        try { sessionStorage.setItem('moderationKey', modKey); } catch { /* noop */ }
+      }
+
       setDeleting(entryId);
       logger.info(`Suppression de la contribution ${entryId}`);
-      
+
       await deleteCommunityEntry(entryId);
       
       // Mettre à jour la liste des contributions
@@ -67,9 +76,13 @@ export function CommunityManagement() {
       });
     } catch (error) {
       logger.error(`Erreur lors de la suppression de la contribution ${entryId}`, error);
+      // Clé invalide → on l'oublie pour re-demander au prochain essai.
+      if (error instanceof Error && /modération/i.test(error.message)) {
+        try { sessionStorage.removeItem('moderationKey'); } catch { /* noop */ }
+      }
       toast({
         title: "Erreur",
-        description: "Impossible de supprimer la contribution",
+        description: error instanceof Error ? error.message : "Impossible de supprimer la contribution",
         variant: "destructive"
       });
     } finally {
