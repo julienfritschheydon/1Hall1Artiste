@@ -135,7 +135,7 @@ export const clearStoredErrors = (): void => {
 };
 
 // Configuration EmailJS
-const EMAIL_SERVICE_ID = 'service_3l31ox3';
+const EMAIL_SERVICE_ID = 'service_14prhl5';
 const EMAIL_TEMPLATE_ID = 'template_q7nh8h2';
 
 /**
