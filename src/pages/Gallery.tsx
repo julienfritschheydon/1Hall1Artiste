@@ -224,8 +224,8 @@ const Gallery: React.FC = () => {
     if (filter === "all") return true;
     if (filter === "historical") return entry.type === 'historical';
     if (filter === "photo") {
-      // Inclure les photos communautaires ET les photos historiques
-      return entry.type === 'photo' || entry.type === 'historical';
+      // Seulement les photos communautaires (les historiques ont leur propre onglet)
+      return entry.type === 'photo';
     }
     if (filter === "testimonial") {
       // Seulement les témoignages communautaires
