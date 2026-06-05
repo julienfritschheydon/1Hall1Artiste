@@ -289,8 +289,27 @@ export function getCachedProgram(): RemoteProgram | null {
 }
 
 export async function fetchRemoteProgram(): Promise<RemoteProgram> {
-  logger.info("Fetch du programme distant (Google Sheets)");
+  // Source primaire : /api/program (Vercel Function) — applique les overrides artistes
+  // (présentation, vignette, réseaux) stockés dans Firebase par-dessus le Google Sheet.
+  try {
+    logger.info("Fetch du programme distant (/api/program)");
+    const res = await fetch(`/api/program?cb=${Date.now()}`, { cache: "no-cache" });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (data && Array.isArray(data.events) && Array.isArray(data.artists)) {
+      const program: RemoteProgram = { events: data.events, artists: data.artists };
+      logger.info(
+        `Programme distant (/api/program) : ${program.events.length} events, ${program.artists.length} artistes`
+      );
+      writeCache(program);
+      return program;
+    }
+    throw new Error("Réponse /api/program invalide");
+  } catch (apiErr) {
+    logger.warn("/api/program indisponible, fallback Google Sheets (sans overrides)", apiErr);
+  }
 
+  // Fallback : parse Google Sheets directement (overrides non appliqués).
   const [expoCsv, concertCsv] = await Promise.all([
     fetchCsv(buildCsvUrl(REMOTE_SHEETS.expositions)),
     fetchCsv(buildCsvUrl(REMOTE_SHEETS.concerts)),
@@ -309,7 +328,7 @@ export async function fetchRemoteProgram(): Promise<RemoteProgram> {
   };
 
   logger.info(
-    `Programme distant : ${program.events.length} events, ${program.artists.length} artistes`
+    `Programme distant (Sheets fallback) : ${program.events.length} events, ${program.artists.length} artistes`
   );
 
   writeCache(program);
