@@ -46,7 +46,7 @@ function buildExpos(rows: Record<string, string>[], artistIds: Set<string>, even
     const presentation = pick(row, "Deux lignes pour vous présenter", "Présentation");
     // Titre = "Titre de l'expo" si renseigné, sinon le nom de l'artiste (jamais la description).
     const title = pick(row, "Titre", "Titre de l'exposition") || name;
-    const category = pick(row, "Type d'événement", "Type d'evenement", "Type") || "Exposition";
+    const category = pick(row, "Type d'évènement", "Type d'événement", "Type d'evenement", "Type") || "Exposition";
 
     const artistId = ensureUniqueId(slugify(name), artistIds);
     artists.push({
@@ -106,7 +106,7 @@ function buildConcerts(rows: Record<string, string>[], artistIds: Set<string>, e
       pick(row, "Liens vers une troisième photo", "Photo 3"),
     ].filter(Boolean);
 
-    const category = pick(row, "Type d'événement", "Type d'evenement", "Type") || "Concert";
+    const category = pick(row, "Type d'évènement", "Type d'événement", "Type d'evenement", "Type") || "Concert";
 
     const artistId = ensureUniqueId(slugify(name), artistIds);
     artists.push({

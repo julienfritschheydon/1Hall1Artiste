@@ -160,7 +160,7 @@ function buildExpoRows(
 
     const presentation = pick(row, "Deux lignes pour vous présenter", "Présentation");
     const title = pick(row, "Titre", "Titre de l'exposition") || name;
-    const category = pick(row, "Type d'événement", "Type d'evenement", "Type") || "Exposition";
+    const category = pick(row, "Type d'évènement", "Type d'événement", "Type d'evenement", "Type") || "Exposition";
 
     const artistId = ensureUniqueId(slugify(name), artistIds);
     const artist: Artist = {
@@ -229,7 +229,7 @@ function buildConcertRows(
       pick(row, "Liens vers une troisième photo", "Photo 3"),
     ].filter(Boolean);
 
-    const category = pick(row, "Type d'événement", "Type d'evenement", "Type") || "Concert";
+    const category = pick(row, "Type d'évènement", "Type d'événement", "Type d'evenement", "Type") || "Concert";
 
     const artistId = ensureUniqueId(slugify(name), artistIds);
     const artist: Artist = {
