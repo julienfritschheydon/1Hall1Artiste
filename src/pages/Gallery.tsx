@@ -252,7 +252,7 @@ const Gallery: React.FC = () => {
             <button
               aria-label="Retour"
               title="Retour"
-              onClick={() => navigate("/")}
+              onClick={() => navigate("/map")}
               className="w-10 h-10 flex items-center justify-center rounded-full border-2 bg-white/70 border-gray-300 text-gray-600 hover:border-amber-500 hover:text-amber-500 transition-colors"
             >
               <ArrowLeft className="h-5 w-5" />

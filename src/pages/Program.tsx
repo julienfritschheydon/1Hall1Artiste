@@ -161,7 +161,7 @@ const Program = () => {
         }}>
           <div className="container mx-auto px-4 py-4 max-w-4xl">
             <header className="mb-4 flex items-center justify-between">
-              <BackButton to="/" />
+              <BackButton to="/map" />
               <h1 className="text-2xl font-bold text-[#1a2138]">Programme</h1>
               <ShareButton 
                 title="Programme - Collectif Île Feydeau"

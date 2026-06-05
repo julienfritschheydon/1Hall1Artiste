@@ -167,7 +167,7 @@ export default function SavedEvents() {
       
       <div className="relative z-10 max-w-md mx-auto">
         <header className="mb-4 flex items-center justify-between">
-          <BackButton onClick={() => { analytics.trackInteraction(EventAction.BACK, "button", { from: "saved_events" }); navigate("/"); }} />
+          <BackButton onClick={() => { analytics.trackInteraction(EventAction.BACK, "button", { from: "saved_events" }); navigate("/map"); }} />
           <h1 className="text-xl font-bold text-[#4a5d94]">Événements enregistrés</h1>
           <div className="w-20"></div>
         </header>
