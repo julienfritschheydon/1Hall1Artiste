@@ -159,13 +159,15 @@ function buildExpoRows(
     const locationName = locations.find((l) => l.id === locationId)?.name ?? adresse;
 
     const presentation = pick(row, "Deux lignes pour vous présenter", "Présentation");
-    const title = pick(row, "Titre", "Titre de l'exposition") || presentation.split(".")[0]?.slice(0, 80) || name;
+    const title = pick(row, "Titre", "Titre de l'exposition") || name;
+    const category = pick(row, "Type d'événement", "Type d'evenement", "Type") || "Exposition";
 
     const artistId = ensureUniqueId(slugify(name), artistIds);
     const artist: Artist = {
       id: artistId,
       name,
       type: "exposition",
+      category,
       title,
       presentation,
       email: pick(row, "Adresse e-mail", "Email") || undefined,
@@ -186,6 +188,7 @@ function buildExpoRows(
       locationName,
       artistName: name,
       type: "exposition",
+      category,
       image: artist.image,
     });
   }
@@ -226,11 +229,14 @@ function buildConcertRows(
       pick(row, "Liens vers une troisième photo", "Photo 3"),
     ].filter(Boolean);
 
+    const category = pick(row, "Type d'événement", "Type d'evenement", "Type") || "Concert";
+
     const artistId = ensureUniqueId(slugify(name), artistIds);
     const artist: Artist = {
       id: artistId,
       name,
       type: "concert",
+      category,
       title: name,
       presentation: pick(row, "Présentation"),
       email: pick(row, "Email") || undefined,
@@ -255,6 +261,7 @@ function buildConcertRows(
         locationName,
         artistName: name,
         type: "concert",
+        category,
         image: artist.image,
       });
     }
@@ -297,7 +304,12 @@ export async function fetchRemoteProgram(): Promise<RemoteProgram> {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     if (data && Array.isArray(data.events) && Array.isArray(data.artists)) {
-      const program: RemoteProgram = { events: data.events, artists: data.artists };
+      // /api/program renvoie locationName = locationId ; on résout le vrai nom côté client.
+      const events = (data.events as Event[]).map((e) => ({
+        ...e,
+        locationName: locations.find((l) => l.id === e.locationId)?.name ?? e.locationName,
+      }));
+      const program: RemoteProgram = { events, artists: data.artists };
       logger.info(
         `Programme distant (/api/program) : ${program.events.length} events, ${program.artists.length} artistes`
       );

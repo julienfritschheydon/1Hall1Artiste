@@ -86,11 +86,11 @@ export const EventCardSimple: React.FC<EventCardSimpleProps> = ({
         <div className="flex justify-between items-start">
           <div className="flex-1 min-w-0">
             <h3 className='font-bold text-lg leading-tight text-[#1a2138]'>
-              {event.title}
+              {event.artistName || event.title}
             </h3>
-            {event.artistName && (
+            {event.title && event.artistName && event.title !== event.artistName && (
               <p className="text-sm text-[#1a2138] mt-1 font-medium">
-                {event.artistName}
+                {event.title}
               </p>
             )}
           </div>
@@ -117,7 +117,7 @@ export const EventCardSimple: React.FC<EventCardSimpleProps> = ({
           <div className="flex items-center gap-2 mt-2">
             <div className="w-3 h-3 bg-gray-400 rounded-full"></div>
             <span className="text-sm text-gray-600 font-medium">
-              {event.type === 'exposition' ? 'Exposition' : 'Concert'}
+              {event.category || (event.type === 'exposition' ? 'Exposition' : 'Concert')}
             </span>
           </div>
         </div>

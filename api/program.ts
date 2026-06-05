@@ -44,16 +44,16 @@ function buildExpos(rows: Record<string, string>[], artistIds: Set<string>, even
     }
 
     const presentation = pick(row, "Deux lignes pour vous présenter", "Présentation");
-    const title =
-      pick(row, "Titre", "Titre de l'exposition") ||
-      presentation.split(".")[0]?.slice(0, 80) ||
-      name;
+    // Titre = "Titre de l'expo" si renseigné, sinon le nom de l'artiste (jamais la description).
+    const title = pick(row, "Titre", "Titre de l'exposition") || name;
+    const category = pick(row, "Type d'événement", "Type d'evenement", "Type") || "Exposition";
 
     const artistId = ensureUniqueId(slugify(name), artistIds);
     artists.push({
       id: artistId,
       name,
       type: "exposition",
+      category,
       title,
       presentation,
       email: pick(row, "Adresse e-mail", "Email") || undefined,
@@ -73,6 +73,7 @@ function buildExpos(rows: Record<string, string>[], artistIds: Set<string>, even
       locationName: locationId,
       artistName: name,
       type: "exposition",
+      category,
     });
   }
 
@@ -105,11 +106,14 @@ function buildConcerts(rows: Record<string, string>[], artistIds: Set<string>, e
       pick(row, "Liens vers une troisième photo", "Photo 3"),
     ].filter(Boolean);
 
+    const category = pick(row, "Type d'événement", "Type d'evenement", "Type") || "Concert";
+
     const artistId = ensureUniqueId(slugify(name), artistIds);
     artists.push({
       id: artistId,
       name,
       type: "concert",
+      category,
       title: name,
       presentation: pick(row, "Présentation") || undefined,
       email: pick(row, "Email") || undefined,
@@ -132,6 +136,7 @@ function buildConcerts(rows: Record<string, string>[], artistIds: Set<string>, e
         locationName: locationId,
         artistName: name,
         type: "concert",
+        category,
         image: photos[0] || undefined,
       });
     }

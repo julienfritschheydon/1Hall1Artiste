@@ -28,6 +28,7 @@ export type Event = {
   // Fields from Artist (kept for compatibility)
   artistName: Artist['name'];
   type: Artist['type']; // 'exposition' or 'concert'
+  category?: string; // Type d'événement libre (Google Sheet) — badge + onglets dynamiques
   image?: Artist['image'];
   imageUrl?: string; // Vignette résolue (thumbnail artiste prioritaire) — lue par EventImage
 };

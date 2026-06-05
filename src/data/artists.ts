@@ -3,6 +3,7 @@ export type Artist = {
   id: string;
   name: string;
   type: "exposition" | "concert";
+  category?: string; // Type d'événement libre (Google Sheet) — affichage + filtre. Défaut: label de `type`.
   title: string;
   instagram?: string;
   image?: string;

@@ -22,7 +22,7 @@ const Program = () => {
   const getEventsByDay = (day: "samedi" | "dimanche") =>
     allRemoteEvents.filter(e => e.days.includes(day));
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
-  const [currentFilter, setCurrentFilter] = useState<string>("exposition");
+  const [currentFilter, setCurrentFilter] = useState<string>("");
   const [savedEventIds, setSavedEventIds] = useState<string[]>([]);
   const [eventSwipeIndex, setEventSwipeIndex] = useState<number>(0);
   
@@ -69,10 +69,27 @@ const Program = () => {
     setCurrentFilter(filter);
     analytics.trackProgramInteraction(EventAction.FILTER, { filter });
   };
-  
+
+  // Catégorie d'affichage d'un event : "Type d'événement" (Sheet) sinon label du type technique.
+  const catOf = (e: Event) => e.category || (e.type === 'exposition' ? 'Exposition' : 'Concert');
+
+  // Onglets dynamiques : une catégorie par valeur présente. Expositions/Concerts en tête.
+  const categories = useMemo(() => {
+    const set = new Set(allRemoteEvents.map(catOf));
+    const order = (c: string) => (c === 'Exposition' || c === 'Expositions' ? 0 : c === 'Concert' || c === 'Concerts' ? 1 : 2);
+    return Array.from(set).sort((a, b) => order(a) - order(b) || a.localeCompare(b));
+  }, [allRemoteEvents]);
+
+  // Sélectionne le premier onglet dès que les catégories sont connues.
+  useEffect(() => {
+    if (categories.length && !categories.includes(currentFilter)) {
+      setCurrentFilter(categories[0]);
+    }
+  }, [categories, currentFilter]);
+
   const filterEvents = (events: Event[], filter: string) => {
-    if (filter === "all") return events; // Gardé pour la logique, même si le bouton est retiré
-    return events.filter(event => event.type === filter);
+    if (!filter || filter === "all") return events;
+    return events.filter(event => catOf(event) === filter);
   };
   
   const startMinutes = (timeRange: string): number => {
@@ -123,8 +140,8 @@ const Program = () => {
       <div 
         className="fixed bottom-14 right-0 pointer-events-none z-20 transition-all duration-500"
         style={{
-          width: currentFilter === 'concert' ? '75px' : '201px',
-          height: currentFilter === 'concert' ? '210px' : '259px',
+          width: currentFilter.toLowerCase().includes('concert') ? '75px' : '201px',
+          height: currentFilter.toLowerCase().includes('concert') ? '210px' : '259px',
           backgroundImage: currentFilter === 'concert' 
             ? `url('${getImagePath('/images/Petite Clef 50.png')}')`
             : `url('${getImagePath('/images/Pinceaux.png')}')`,
@@ -154,7 +171,7 @@ const Program = () => {
             </header>
             
             <div className="mb-3 fade-in">
-              <EventFilter onFilterChange={handleFilterChange} currentFilter={currentFilter} />
+              <EventFilter filters={categories} onFilterChange={handleFilterChange} currentFilter={currentFilter} />
             </div>
             
             {/* Onglets jours directement sous les filtres, toujours visibles */}

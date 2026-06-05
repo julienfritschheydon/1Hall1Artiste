@@ -2,6 +2,7 @@ import { getImagePath } from '@/utils/imagePaths';
 import React from 'react';
 import { ImageWithFallback } from './ui/ImageWithFallback';
 import { IMAGE_PATHS } from '../constants/imagePaths';
+import { cloudinaryThumb } from '@/utils/cloudinary';
 
 interface EventImageProps {
   event: {
@@ -27,7 +28,8 @@ export const EventImage: React.FC<EventImageProps> = ({
   // Utilisation de imageExemple pour toutes les images d'événements
   const generateImagePath = (event: EventImageProps['event']): string => {
     if (event.imageUrl) {
-      return event.imageUrl;
+      // Vignette recadrée/optimisée via Cloudinary (g_auto) quand applicable.
+      return cloudinaryThumb(event.imageUrl, 400, 400) || event.imageUrl;
     }
 
     // Utiliser imageExemple.jpg pour tous les événements

@@ -8,6 +8,7 @@ import { SwipeIndicator } from "@/components/ui/SwipeIndicator";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
 import { getImagePath } from "@/utils/imagePaths";
+import { cloudinaryThumb } from "@/utils/cloudinary";
 import { setEventContributionContext } from "@/services/contextualContributionService";
 import ReactMarkdown from "react-markdown";
 import { Event } from "@/data/events";
@@ -424,10 +425,11 @@ export const EventDetailsNew = ({
           {/* Header avec titre - Style épuré */}
           <div className="mb-6 pb-4">
             <h2 className="text-2xl font-bold text-[#1a2138] font-serif mb-2">
-              {event.title}
+              {event.artistName || event.title}
             </h2>
             <p className="text-sm text-gray-600 font-medium">
-              {event.artistName} • {event.type === 'exposition' ? 'Exposition' : 'Concert'}
+              {event.title && event.artistName && event.title !== event.artistName ? `${event.title} • ` : ''}
+              {event.category || (event.type === 'exposition' ? 'Exposition' : 'Concert')}
             </p>
           </div>
           
@@ -450,7 +452,7 @@ export const EventDetailsNew = ({
           {(artist?.thumbnail || artist?.image) && (
             <div className="mb-6 rounded-xl overflow-hidden shadow-sm">
               <img
-                src={getImagePath(artist.thumbnail || artist.image)}
+                src={cloudinaryThumb(artist.thumbnail || artist.image, 800, 512) || getImagePath(artist.thumbnail || artist.image)}
                 alt={`Vignette de ${artist.name}`}
                 className="w-full max-h-64 object-cover"
                 loading="lazy"
