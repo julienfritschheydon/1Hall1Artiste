@@ -96,7 +96,7 @@ export async function submitContribution(params: SubmissionParams): Promise<Comm
  * La clé est saisie par l'admin et stockée en sessionStorage.
  */
 export async function deleteCommunityEntry(entryId: string): Promise<void> {
-  const modKey = (() => { try { return sessionStorage.getItem('moderationKey') || ''; } catch { return ''; } })();
+  const modKey = (() => { try { return localStorage.getItem('moderationKey') || ''; } catch { return ''; } })();
   const response = await fetch(`/api/community?id=${encodeURIComponent(entryId)}`, {
     method: 'DELETE',
     headers: { 'x-mod-key': modKey }

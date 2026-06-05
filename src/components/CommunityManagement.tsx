@@ -54,11 +54,11 @@ export function CommunityManagement() {
     try {
       // Clé de modération (vérifiée côté serveur). Demandée une fois, gardée en session.
       let modKey = '';
-      try { modKey = sessionStorage.getItem('moderationKey') || ''; } catch { /* noop */ }
+      try { modKey = localStorage.getItem('moderationKey') || ''; } catch { /* noop */ }
       if (!modKey) {
-        modKey = window.prompt('Clé de modération (pour supprimer) :') || '';
+        modKey = window.prompt('Clé de modération (demandée une seule fois sur ce navigateur) :') || '';
         if (!modKey) return;
-        try { sessionStorage.setItem('moderationKey', modKey); } catch { /* noop */ }
+        try { localStorage.setItem('moderationKey', modKey); } catch { /* noop */ }
       }
 
       setDeleting(entryId);
@@ -78,7 +78,7 @@ export function CommunityManagement() {
       logger.error(`Erreur lors de la suppression de la contribution ${entryId}`, error);
       // Clé invalide → on l'oublie pour re-demander au prochain essai.
       if (error instanceof Error && /modération/i.test(error.message)) {
-        try { sessionStorage.removeItem('moderationKey'); } catch { /* noop */ }
+        try { localStorage.removeItem('moderationKey'); } catch { /* noop */ }
       }
       toast({
         title: "Erreur",
