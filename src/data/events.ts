@@ -29,6 +29,7 @@ export type Event = {
   artistName: Artist['name'];
   type: Artist['type']; // 'exposition' or 'concert'
   image?: Artist['image'];
+  imageUrl?: string; // Vignette résolue (thumbnail artiste prioritaire) — lue par EventImage
 };
 
 // Données vides — le programme est chargé dynamiquement depuis /api/program (Vercel Function).

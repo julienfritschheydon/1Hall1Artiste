@@ -6,6 +6,7 @@ export type Artist = {
   title: string;
   instagram?: string;
   image?: string;
+  thumbnail?: string; // Vignette éditable par l'artiste (portail), prioritaire sur image à l'affichage
   // Nouveaux champs pour les concerts
   email?: string;
   photos?: string[];

@@ -41,6 +41,8 @@ import Gallery from "./pages/Gallery";
 import AnalyticsDebugger from "./debug/AnalyticsDebugger";
 import About from "./pages/About";
 import CoordinatesPicker from "./pages/CoordinatesPicker";
+import ArtistLogin from "./pages/ArtistLogin";
+import ArtistEdit from "./pages/ArtistEdit";
 
 const queryClient = new QueryClient();
 
@@ -89,7 +91,7 @@ const AnimatedRoutes: React.FC = () => {
 
   // Sauvegarder la dernière page visitée (sauf admin et pages techniques)
   useEffect(() => {
-    const excludedPaths = ['/admin', '/coordinates', '/analytics', '/location-history'];
+    const excludedPaths = ['/admin', '/coordinates', '/analytics', '/location-history', '/artiste', '/artiste/edit'];
     if (location.pathname !== '/' && !showSplash && !excludedPaths.includes(location.pathname)) {
       try {
         localStorage.setItem('lastVisitedPath', location.pathname);
@@ -133,6 +135,8 @@ const AnimatedRoutes: React.FC = () => {
     { path: '/coordinates', component: CoordinatesPicker },
     { path: '/location-history', component: LocationHistory },
     { path: '/analytics', component: Analytics },
+    { path: '/artiste', component: ArtistLogin },
+    { path: '/artiste/edit', component: ArtistEdit },
   ];
   
   // Vérifier si la page actuelle supporte la navigation par gestes
