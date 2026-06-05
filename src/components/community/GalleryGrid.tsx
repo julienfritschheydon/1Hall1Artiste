@@ -247,13 +247,13 @@ export const GalleryGrid: React.FC<GalleryGridProps> = ({ entries, onEntryClick 
 
           {/* Plus de badge "En cours" - Système instantané ! */}
 
-          {/* Bouton de like - TEMPORAIREMENT DÉSACTIVÉ POUR TEST */}
-          {/* {entry.type !== 'historical' && (
-            <LikeButton 
-              entryId={entry.id} 
+          {/* Bouton de like (desktop) */}
+          {entry.type !== 'historical' && (
+            <LikeButton
+              entryId={entry.id}
               variant="compact"
             />
-          )} */}
+          )}
 
           {/* Informations communes */}
           <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white p-2 text-xs">
