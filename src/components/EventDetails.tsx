@@ -27,6 +27,7 @@ import { getSavedEvents, saveEvent, removeSavedEvent } from "@/services/savedEve
 import { artists as fallbackArtists } from "@/data/artists";
 import { dataService } from "@/services/dataService";
 import { ShareButton } from "@/components/ShareButton";
+import { buildShareUrl } from "@/utils/url";
 import { getLocationNameById } from "@/data/locations";
 
 interface EventDetailsProps {
@@ -290,7 +291,7 @@ export const EventDetails = ({ event, isOpen, onClose, source }: EventDetailsPro
               <ShareButton
                 title={`${event.title} - Île Feydeau`}
                 text={`Découvrez ${event.title} par ${event.artistName} sur l'Île Feydeau à Nantes!`}
-                url={window.location.href}
+                url={buildShareUrl(`/map?event=${event.id}`)}
               />
               
               {/* Bouton fermer */}

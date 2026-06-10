@@ -38,6 +38,7 @@ import { artists as fallbackArtists } from "@/data/artists";
 import { dataService } from "@/services/dataService";
 import { ShareButton } from "@/components/ShareButton";
 import { getLocationNameById } from "@/data/locations";
+import { buildShareUrl } from "@/utils/url";
 
 
 interface EventDetailsProps {
@@ -377,14 +378,15 @@ export const EventDetailsNew = ({
             <button
               onClick={(e) => {
                 e.stopPropagation();
+                const shareUrl = buildShareUrl(`/map?event=${event.id}`);
                 if (navigator.share) {
                   navigator.share({
                     title: `${event.title} - Île Feydeau`,
                     text: `Découvrez ${event.title} par ${event.artistName} sur l'Île Feydeau à Nantes!`,
-                    url: window.location.href
+                    url: shareUrl
                   });
                 } else {
-                  navigator.clipboard.writeText(window.location.href);
+                  navigator.clipboard.writeText(shareUrl);
                   alert('Lien copié !');
                 }
               }}

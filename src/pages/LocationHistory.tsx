@@ -21,6 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { isOnline } from "@/utils/serviceWorkerRegistration";
 import { preloadSingleHistoryImage, isHistoryImageCached } from "@/services/offlineService";
 import { createLogger } from "@/utils/logger";
+import { buildShareUrl } from "@/utils/url";
 import { Slider } from "@/components/ui/slider";
 import { analytics, EventAction } from "@/services/firebaseAnalytics";
 import {
@@ -52,8 +53,9 @@ export function LocationHistory() {
   const [currentTime, setCurrentTime] = useState(0);
   const [audioLoading, setAudioLoading] = useState(false);
   
-  // Récupérer le locationId depuis l'état de navigation s'il existe
-  const locationIdFromState = location.state?.selectedLocationId;
+  // Récupérer le locationId depuis l'état de navigation ou l'URL (?location=) s'il existe
+  const locationIdFromUrl = new URLSearchParams(location.search).get('location');
+  const locationIdFromState = location.state?.selectedLocationId || locationIdFromUrl;
   
   // Vérifier d'abord si l'ID reçu correspond à un lieu existant
   const locationFromState = locationIdFromState ? locations.find(loc => loc.id === locationIdFromState) : null;
@@ -374,14 +376,15 @@ export function LocationHistory() {
                   {/* Bouton partager */}
                   <button
                     onClick={() => {
+                      const shareUrl = buildShareUrl(`/location-history?location=${selectedLocationData.id}`);
                       if (navigator.share) {
                         navigator.share({
                           title: `${selectedLocationData.name} - Île Feydeau`,
                           text: `Découvrez l'histoire de ${selectedLocationData.name} sur l'Île Feydeau à Nantes!`,
-                          url: window.location.href
+                          url: shareUrl
                         });
                       } else {
-                        navigator.clipboard.writeText(window.location.href);
+                        navigator.clipboard.writeText(shareUrl);
                         alert('Lien copié !');
                       }
                     }}

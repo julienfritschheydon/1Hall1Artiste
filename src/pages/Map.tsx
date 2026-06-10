@@ -195,7 +195,9 @@ const Map = ({ fullScreen = false }: MapProps) => {
     const fromHistory = location.state?.fromHistory === true;
     
     // Vérifier si on a un ID de lieu à mettre en évidence dans les paramètres d'URL
-    const searchParams = new URLSearchParams(window.location.search);
+    // HashRouter : les paramètres sont dans le hash (location.search du router),
+    // mais on garde window.location.search en secours pour les anciens liens
+    const searchParams = new URLSearchParams(location.search || window.location.search);
     const highlightParam = searchParams.get('highlight');
     const locationParam = searchParams.get('location');
     const eventParam = searchParams.get('event');

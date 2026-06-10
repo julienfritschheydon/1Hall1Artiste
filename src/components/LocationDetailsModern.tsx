@@ -32,6 +32,7 @@ import { useSwipeNavigation } from "@/hooks/useSwipeNavigation";
 import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
 import { SwipeIndicator } from "@/components/ui/SwipeIndicator";
 import { AudioGuide } from "@/components/AudioGuide";
+import { buildShareUrl } from "@/utils/url";
 
 // Composant Like simple avec logique partagée
 interface LikeButtonSimpleProps {
@@ -251,14 +252,15 @@ export const LocationDetailsModern: React.FC<LocationDetailsModernProps> = ({
               {/* Bouton share */}
               <button
                 onClick={() => {
+                  const shareUrl = buildShareUrl(`/map?location=${location.id}`);
                   if (navigator.share) {
                     navigator.share({
                       title: `${location.name} - Île Feydeau`,
                       text: `Découvrez ${location.name} sur l'Île Feydeau à Nantes!`,
-                      url: window.location.href
+                      url: shareUrl
                     });
                   } else {
-                    navigator.clipboard.writeText(window.location.href);
+                    navigator.clipboard.writeText(shareUrl);
                     alert('Lien copié !');
                   }
                 }}
