@@ -378,7 +378,10 @@ export const EventDetailsNew = ({
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                const shareUrl = buildShareUrl(`/map?event=${event.id}`);
+                // Partage contextuel : depuis la carte -> carte, sinon -> programme
+                const shareUrl = buildShareUrl(
+                  source === "map" ? `/map?event=${event.id}` : `/program?event=${event.id}`
+                );
                 if (navigator.share) {
                   navigator.share({
                     title: `${event.title} - Île Feydeau`,

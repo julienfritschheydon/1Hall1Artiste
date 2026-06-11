@@ -291,7 +291,7 @@ export const EventDetails = ({ event, isOpen, onClose, source }: EventDetailsPro
               <ShareButton
                 title={`${event.title} - Île Feydeau`}
                 text={`Découvrez ${event.title} par ${event.artistName} sur l'Île Feydeau à Nantes!`}
-                url={buildShareUrl(`/map?event=${event.id}`)}
+                url={buildShareUrl(source === "map" ? `/map?event=${event.id}` : `/program?event=${event.id}`)}
               />
               
               {/* Bouton fermer */}

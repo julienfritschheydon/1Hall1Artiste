@@ -14,11 +14,12 @@ import { EventCardModern } from "@/components/EventCardModern";
 import { getSavedEvents, saveEvent, removeSavedEvent } from "../services/savedEvents";
 import { IMAGE_PATHS } from "../constants/imagePaths";
 import { getImagePath } from "@/utils/imagePaths";
+import { toast } from "sonner";
 
 const Program = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { events: allRemoteEvents } = useEvents();
+  const { events: allRemoteEvents, isLoading: eventsLoading } = useEvents();
   const getEventsByDay = (day: "samedi" | "dimanche") =>
     allRemoteEvents.filter(e => e.days.includes(day));
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
@@ -36,20 +37,29 @@ const Program = () => {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const eventId = params.get('event');
-    if (eventId) {
-      // Chercher l'événement dans tous les jours
-      const allEvents = [...getEventsByDay("samedi"), ...getEventsByDay("dimanche")];
-      const event = allEvents.find(e => e.id === eventId);
-      if (event) {
-        // Petit délai pour s'assurer que le composant est monté
-        setTimeout(() => {
-          setSelectedEvent(event);
-        }, 100);
-        // Nettoyer le paramètre de l'URL
-        navigate('/program', { replace: true });
-      }
+    if (!eventId) return;
+
+    // Le programme est chargé dynamiquement : attendre les données avant de résoudre le lien
+    if (eventsLoading) {
+      toast.loading("Chargement de l'événement…", { id: 'deep-link-event' });
+      return;
     }
-  }, [location.search, navigate]);
+    toast.dismiss('deep-link-event');
+
+    const event = allRemoteEvents.find(e => e.id === eventId);
+    if (event) {
+      // Petit délai pour s'assurer que le composant est monté
+      setTimeout(() => {
+        setSelectedEvent(event);
+      }, 100);
+    } else {
+      toast.error("Événement introuvable", {
+        description: "Cet événement n'est plus au programme ou le lien est invalide.",
+      });
+    }
+    // Nettoyer le paramètre de l'URL
+    navigate('/program', { replace: true });
+  }, [location.search, navigate, allRemoteEvents, eventsLoading]);
 
   const handleSaveEvent = (event: Event, e: React.MouseEvent) => {
     e.stopPropagation();

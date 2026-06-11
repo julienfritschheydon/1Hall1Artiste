@@ -27,7 +27,8 @@ import { ShareButton } from "@/components/ShareButton";
 import { BottomNavigation } from "@/components/BottomNavigation";
 import { EventDetailsNew as EventDetails } from "@/components/EventDetailsModern";
 import { LocationDetailsModern } from "@/components/LocationDetailsModern";
-import { type Event, events, getLocationIdForEvent } from "@/data/events";
+import { type Event } from "@/data/events";
+import { toast } from "sonner";
 import { useData, useEvents, useLocations } from "@/hooks/useData";
 import { toast } from "@/components/ui/use-toast";
 import { saveEvent, removeSavedEvent, getSavedEvents } from "../services/savedEvents";
@@ -49,7 +50,7 @@ const Map = ({ fullScreen = false }: MapProps) => {
   
   // Utiliser les hooks pour accéder aux données centralisées
   const { locations } = useLocations();
-  const { getEventById, getEventsByLocationId } = useEvents();
+  const { events: allEvents, isLoading: eventsLoading, getEventById, getEventsByLocationId } = useEvents();
   
   // Utiliser directement les emplacements du service de données
   const [mapLocations, setMapLocations] = useState(locations);
@@ -211,22 +212,35 @@ const Map = ({ fullScreen = false }: MapProps) => {
     }
     
     logger.info(`Mise en évidence du lieu avec ID: ${locationIdToHighlight}`);
-    
+
+    // Le programme est chargé dynamiquement : attendre les données avant de résoudre un lien partagé
+    if (eventParam && eventsLoading) {
+      toast.loading("Chargement de l'événement…", { id: 'deep-link-event' });
+      return;
+    }
+    toast.dismiss('deep-link-event');
+
     // Convertir l'ID d'événement en ID de lieu si nécessaire
     let locationIdToUse = locationIdToHighlight;
-    
+
     // Si c'est un ID d'événement, le convertir en ID de lieu
     if (eventParam && locationIdToHighlight === eventParam) {
-      const event = events.find(e => e.id === eventParam);
+      const event = allEvents.find(e => e.id === eventParam);
       if (event) {
         locationIdToUse = event.locationId;
         logger.debug(`Conversion de l'ID d'événement ${eventParam} en ID de lieu ${locationIdToUse}`);
-        
+
         // Ouvrir automatiquement les détails de l'événement
         setTimeout(() => {
           setSelectedEvent(event);
           logger.info(`Ouverture automatique des détails de l'événement ${event.id}`);
         }, 500); // Petit délai pour permettre à la carte de se charger d'abord
+      } else {
+        logger.warn(`Événement ${eventParam} introuvable dans le programme chargé`);
+        toast.error("Événement introuvable", {
+          description: "Cet événement n'est plus au programme ou le lien est invalide.",
+        });
+        return;
       }
     }
     
@@ -263,8 +277,13 @@ const Map = ({ fullScreen = false }: MapProps) => {
       logger.debug(`Mise en évidence permanente du lieu ${locationIdToUse} jusqu'à la prochaine action utilisateur`);
     } else {
       logger.warn(`Lieu avec ID ${locationIdToHighlight} non trouvé dans mapLocations`);
+      if (locationParam || highlightParam) {
+        toast.error("Lieu introuvable", {
+          description: "Ce lieu n'existe plus ou le lien est invalide.",
+        });
+      }
     }
-  }, [location, mapLocations, events]);
+  }, [location, mapLocations, allEvents, eventsLoading]);
   
   const handleLocationClick = (locationId: string) => {
     logger.info(`Clic sur l'emplacement ${locationId}`);
