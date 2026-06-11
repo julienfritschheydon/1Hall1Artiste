@@ -13,6 +13,8 @@ import { CommunityEntry } from "../../types/communityTypes";
 import { cn } from "../../lib/utils";
 import { LocalImage } from "./LocalImage";
 import { LikeButton } from "./LikeButton";
+import { buildShareUrl } from "@/utils/url";
+import Share2 from "lucide-react/dist/esm/icons/share-2";
 
 // Interface pour les photos historiques
 interface HistoricalPhoto {
@@ -203,12 +205,33 @@ export const EntryDetail: React.FC<EntryDetailProps> = ({ entry, entries, curren
 
           </div>
 
-          {/* Pied de page avec like et date */}
+          {/* Pied de page avec like, partage et date */}
           <div className="p-3 border-t flex items-center justify-between">
-            <LikeButton 
-              entryId={entry.id} 
-              variant="full"
-            />
+            <div className="flex items-center gap-2">
+              <LikeButton
+                entryId={entry.id}
+                variant="full"
+              />
+              <button
+                onClick={() => {
+                  const shareUrl = buildShareUrl(`/community?entry=${entry.id}`);
+                  if (navigator.share) {
+                    navigator.share({
+                      title: `Photo - Île Feydeau`,
+                      text: `Découvrez cette photo de l'Île Feydeau à Nantes!`,
+                      url: shareUrl
+                    });
+                  } else {
+                    navigator.clipboard.writeText(shareUrl);
+                    alert('Lien copié !');
+                  }
+                }}
+                className="h-10 w-10 flex items-center justify-center rounded-full border-2 bg-white/70 border-gray-300 text-gray-600 hover:border-amber-500 hover:text-amber-500 transition-colors"
+                title="Partager"
+              >
+                <Share2 className="h-5 w-5" />
+              </button>
+            </div>
             <span className="text-sm text-slate-500">
               {(() => {
                 try {

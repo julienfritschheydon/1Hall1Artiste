@@ -62,13 +62,33 @@ const Gallery: React.FC = () => {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const tabParam = params.get('tab');
-    
+
     if (tabParam === 'contribute') {
       setShowContributeModal(true);
       // Analytics: user landed directly on contribute tab
       analytics.trackCommunityInteraction(EventAction.CONTRIBUTION, { stage: 'start', source: 'url_param' });
     }
   }, [location]);
+
+  // Gérer l'ouverture d'une photo depuis un lien partagé (?entry=<id>)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const entryParam = params.get('entry');
+
+    if (!entryParam || allEntries.length === 0) return;
+
+    const entryIndex = allEntries.findIndex(e => e.id === entryParam);
+    if (entryIndex !== -1) {
+      setSelectedEntry(allEntries[entryIndex]);
+      setSelectedIndex(entryIndex);
+    } else {
+      toast({
+        title: "Photo introuvable",
+        description: "Cette photo n'existe plus ou le lien est invalide.",
+        variant: "destructive"
+      });
+    }
+  }, [location.search, allEntries, toast]);
 
   // Fonction pour charger les photos historiques (avec limite)
   const loadHistoricalPhotos = (limit?: number): HistoricalPhoto[] => {
