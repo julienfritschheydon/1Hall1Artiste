@@ -41,10 +41,9 @@ const Program = () => {
 
     // Le programme est chargé dynamiquement : attendre les données avant de résoudre le lien
     if (eventsLoading) {
-      toast.loading("Chargement de l'événement…", { id: 'deep-link-event' });
+      toast.loading("Chargement de l'événement…");
       return;
     }
-    toast.dismiss('deep-link-event');
 
     const event = allRemoteEvents.find(e => e.id === eventId);
     if (event) {

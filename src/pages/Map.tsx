@@ -215,10 +215,9 @@ const Map = ({ fullScreen = false }: MapProps) => {
 
     // Le programme est chargé dynamiquement : attendre les données avant de résoudre un lien partagé
     if (eventParam && eventsLoading) {
-      toast.loading("Chargement de l'événement…", { id: 'deep-link-event' });
+      toast.loading("Chargement de l'événement…");
       return;
     }
-    toast.dismiss('deep-link-event');
 
     // Convertir l'ID d'événement en ID de lieu si nécessaire
     let locationIdToUse = locationIdToHighlight;
