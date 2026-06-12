@@ -147,10 +147,10 @@ const ArtistDescription = ({ text }: ArtistDescriptionProps) => {
   );
 };
 
-export const EventDetailsNew = ({ 
-  event, 
-  isOpen, 
-  onClose, 
+export const EventDetailsNew = ({
+  event,
+  isOpen,
+  onClose,
   source,
   navigableEvents = [],
   currentIndex = 0,
@@ -158,10 +158,11 @@ export const EventDetailsNew = ({
 }: EventDetailsProps) => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  
+
   const [savedEvents, setSavedEvents] = useState<Event[]>([]);
   const [calendarSupported, setCalendarSupported] = useState<boolean>(false);
   const [relatedEvents, setRelatedEvents] = useState<Event[]>([]);
+  const [isSharing, setIsSharing] = useState(false);
   
   // Tracking: ouverture du panneau de détails
   useEffect(() => {
@@ -378,22 +379,25 @@ export const EventDetailsNew = ({
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                // Partage contextuel : depuis la carte -> carte, sinon -> programme
+                if (isSharing) return;
+
                 const shareUrl = buildShareUrl(
                   source === "map" ? `/map?event=${event.id}` : `/program?event=${event.id}`
                 );
                 if (navigator.share) {
+                  setIsSharing(true);
                   navigator.share({
                     title: `${event.title} - Île Feydeau`,
                     text: `Découvrez ${event.title} par ${event.artistName} sur l'Île Feydeau à Nantes!`,
                     url: shareUrl
-                  });
+                  }).finally(() => setIsSharing(false));
                 } else {
                   navigator.clipboard.writeText(shareUrl);
                   alert('Lien copié !');
                 }
               }}
-              className="h-10 w-10 flex items-center justify-center rounded-full border-2 bg-white/70 border-gray-300 text-gray-600 hover:border-amber-500 hover:text-amber-500 transition-colors"
+              disabled={isSharing}
+              className="h-10 w-10 flex items-center justify-center rounded-full border-2 bg-white/70 border-gray-300 text-gray-600 hover:border-amber-500 hover:text-amber-500 transition-colors disabled:opacity-50"
               title="Partager"
             >
               <Share2 className="h-5 w-5" />

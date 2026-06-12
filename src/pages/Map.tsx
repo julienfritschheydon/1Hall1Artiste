@@ -30,7 +30,6 @@ import { LocationDetailsModern } from "@/components/LocationDetailsModern";
 import { type Event } from "@/data/events";
 import { toast } from "sonner";
 import { useData, useEvents, useLocations } from "@/hooks/useData";
-import { toast } from "@/components/ui/use-toast";
 import { saveEvent, removeSavedEvent, getSavedEvents } from "../services/savedEvents";
 import { LikeButton } from "@/components/community/LikeButton";
 import { unlockAchievement, AchievementType } from "../services/achievements";
