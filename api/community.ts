@@ -59,7 +59,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!process.env.MODERATION_SECRET || key !== process.env.MODERATION_SECRET) {
         return res.status(401).json({ error: "Non autorisé" });
       }
-      const id = String((req.query.id as string) || (req.body as { id?: string })?.id || "").replace(/[.#$/\[\]]/g, "");
+      const id = String((req.query.id as string) || (req.body as { id?: string })?.id || "").replace(/[.#$/[\]]/g, "");
       if (!id) return res.status(400).json({ error: "id requis" });
       await rtdbDelete(`${PATH}/${id}`);
       return res.status(200).json({ ok: true });

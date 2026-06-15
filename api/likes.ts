@@ -7,7 +7,7 @@ import { rtdbGet, rtdbPut } from "./_firebase.js";
 const LIKES_PATH = "likes-data";
 
 function sanitizeId(v: unknown): string {
-  return String(v || "").replace(/[.#$/\[\]]/g, "").slice(0, 200);
+  return String(v || "").replace(/[.#$/[\]]/g, "").slice(0, 200);
 }
 
 async function updateGlobalStats(): Promise<void> {
