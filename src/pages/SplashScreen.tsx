@@ -70,7 +70,7 @@ const SplashScreen = ({ onComplete }: SplashScreenProps) => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5, duration: 0.5 }}
         >
-          1 Hall 1 Artiste 2025
+          1 Hall 1 Artiste 2026
         </motion.h1>
         <motion.img 
           src={getImagePath('/Logo.png')} 
