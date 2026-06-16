@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import QRCode as QRCodeReact from 'qrcode.react';
+import { QRCodeCanvas } from 'qrcode.react';
 import { Button } from '@/components/ui/button';
 import Download from 'lucide-react/dist/esm/icons/download';
 
@@ -38,7 +38,7 @@ export const QRCode: React.FC<QRCodeProps> = ({
         ref={qrRef}
         className="p-4 bg-white rounded-lg border-2 border-gray-200"
       >
-        <QRCodeReact
+        <QRCodeCanvas
           value={url}
           size={size}
           level={level}
