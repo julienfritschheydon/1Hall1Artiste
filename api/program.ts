@@ -96,7 +96,6 @@ function buildConcerts(rows: Record<string, string>[], artistIds: Set<string>, e
     if (samedi) days.push("samedi");
     if (dimanche) days.push("dimanche");
 
-    const time = pick(row, "Horaires", "Horaire") || "";
     const adresse = pick(row, "Adresse concert", "Adresse");
     const locationId = locationSet.has(adresse) ? adresse : "quai-turenne-9-concert";
 
@@ -125,6 +124,9 @@ function buildConcerts(rows: Record<string, string>[], artistIds: Set<string>, e
     });
 
     for (const day of days) {
+      const dayCapitalized = day.charAt(0).toUpperCase() + day.slice(1);
+      const time = pick(row, `Horaires ${dayCapitalized}`, "Horaires", "Horaire") || "";
+
       const eventId = ensureUniqueId(`concert-${artistId}-${day}`, eventIds);
       events.push({
         id: eventId,

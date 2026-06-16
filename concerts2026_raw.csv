@@ -1,15 +1,24 @@
-"Samedi","Dimanche","Horaires","Adresse concert","Nom du groupe","Téléphone","Email","Présentation","Compte Instagram","Compte Facebook","Site internet","Liens vers une photo","Responsable le jour J"
-"Oui","","14:00 - 14:30","Cour ovale","Semaphore Omega","","bardoul.olivier@netcourrier.com","Lectures poétiques en musique","","","","","Julien"
-"Oui","","14:45 - 15:15","Cour ovale","Barrañ","06 13 27 21 38","phlppbrunel@gmail.com","","","","","","Patricia"
-"Oui","","15:30 - 16:00","Cour ovale","Choeur de femmes Nota bene","06 61 83 38 10","mallet_martine@yahoo.fr","Notre chœur est dirigé par Nelly ABRAN-FEVAI depuis 2013. Le répertoire est varié (classique, extraits d’opéra, chanson française/étrangère...). Nous répétons tous les lundis de 20h à 22h au Restaurant Inter générationnel du Breil, rue de Malville à Nantes, ainsi que 5 dimanches par saison. Nous serons heureuses de vous accueillir !","","","","","François "
-"Oui","","16:00 - 16:45","Cour ovale","EVA choeur de femmes","06 85 47 03 64","catherine.geisz@gmail.com","L'Ensemble Vocal EVA, dirigé depuis 2023 par Pascale GARCIA, fait le choix d'un répertoire ouvert sur différentes époques, incluant des œuvres profanes ou sacrées, peu connues ou inédites. L'Ensemble Vocal EVA propose des créations de compositeurs emblématiques des XXe et XXIe siècles, qui savent magnifier des textes poétiques ou bibliques, chantés à 3, 4, 5 ou même 6 voix, a cappella ou accompagnés d'instruments.","","","","","Julien"
-"Oui","","17:00 - 17:30","Cour ovale","Les Scarabées Rôdent","06 84 63 42 19","mbohy@free.fr","","","","","","Patricia"
-"Oui","","17:45 - 18:15","Cour ovale","Chorale Label Diva (Choeur mixte)","06 87 29 52 48","labeldivachorale@gmail.com","","","","https://padlet.com/PaulineCourt/choeur-label-diva-j4986286hhxhclod","","François "
-"Oui","","18:30 - 19:00","Cour ovale","Chorale Label Diva (Choeur de femmes)","06 87 29 52 48","labeldivachorale@gmail.com","","","","https://padlet.com/PaulineCourt/choeur-label-diva-j4986286hhxhclod","","Julien"
-"","Oui","14:00 - 14:30","Cour ovale","Semaphore Omega","","bardoul.olivier@netcourrier.com","Lectures poétiques en musique","","","","","Julien"
-"","Oui","14:45 - 15:15","Cour ovale","Barrañ","06 13 27 21 38","phlppbrunel@gmail.com","","","","","","Patricia"
-"","Oui","15:30 - 16:00","Cour ovale","Ensemble Choral Jean-Baptiste Daviais","","martine.biard.delanoe@gmail.com","","","","","","François "
-"","Oui","16:00 - 16:45","Cour ovale","Studio Aperto","06 30 86 94 68","gilles.de.talhouet@wanadoo.fr","Le mot Aperto signifie « ouvert » en italien.
+Adresse concert,Nom du groupe,Téléphone,Email,Présentation,Compte Instagram,Compte Facebook,Site internet,Liens vers une photo,Horaires,Samedi,Horaires Samedi,Responsable Samedi,Dimanche,Horaires Dimanche,Responsable Dimanche
+Cour ovale,Semaphore Omega,,bardoul.olivier@netcourrier.com,"Lectures poétiques en musique ;
+
+Olivier Bardoul – Voix, textes
+Jean-Yves Redor – Didgeridoo
+
+Un spectacle où la poésie devient souffle, onde, vibration.
+Lectures mises en scène et paysage sonore s'entrelacent pour créer une expérience sensible et immersive.
+
+Des textes originaux portés par des vagues musicales, entre intime, engagement et décalage.
+Voix, didgeridoo et rythmes tissent un univers libre, hypnotique et habité.
+
+Un espace de jeu et de partage, où mots, sons et émotions dialoguent dans une énergie vivante et vibrante.",,https://www.facebook.com/semaphoreomega/,,https://res.cloudinary.com/dpatqkgsc/image/upload/v1781600935/ez8k1rqg6v0vhnvua27k.jpg,14:00 - 14:30,Oui,14:00 - 14:30,Patricia,Oui,14:00 - 14:30,Patricia
+Cour ovale,Barrañ,06 13 27 21 38,phlppbrunel@gmail.com,,,,,,14:45 - 15:15,Oui,14:45 - 15:15,François,Oui,14:45 - 15:15,François
+Cour ovale,Choeur de femmes Nota bene,06 61 83 38 10,mallet_martine@yahoo.fr,"Notre chœur est dirigé par Nelly ABRAN-FEVAI depuis 2013. Le répertoire est varié (classique, extraits d’opéra, chanson française/étrangère...). Nous répétons tous les lundis de 20h à 22h au Restaurant Inter générationnel du Breil, rue de Malville à Nantes, ainsi que 5 dimanches par saison. Nous serons heureuses de vous accueillir !",,,,,15:30 - 16:00,Oui,15:30 - 16:00,Julien,,,
+Cour ovale,EVA choeur de femmes,06 85 47 03 64,catherine.geisz@gmail.com,"L'Ensemble Vocal EVA, dirigé depuis 2023 par Pascale GARCIA, fait le choix d'un répertoire ouvert sur différentes époques, incluant des œuvres profanes ou sacrées, peu connues ou inédites. L'Ensemble Vocal EVA propose des créations de compositeurs emblématiques des XXe et XXIe siècles, qui savent magnifier des textes poétiques ou bibliques, chantés à 3, 4, 5 ou même 6 voix, a cappella ou accompagnés d'instruments.",,,,,16:00 - 16:45,Oui,16:00 - 16:45,Patricia,,,
+Cour ovale,Les Scarabées Rôdent,06 84 63 42 19,mbohy@free.fr,,,,,,17:00 - 17:30,Oui,17:00 - 17:30,François,,,
+Cour ovale,Chorale Label Diva (Choeur mixte),06 87 29 52 48,labeldivachorale@gmail.com,,,,https://padlet.com/PaulineCourt/choeur-label-diva-j4986286hhxhclod,,17:45 - 18:15,Oui,17:45 - 18:15,Julien,,,
+Cour ovale,Chorale Label Diva (Choeur de femmes),06 87 29 52 48,labeldivachorale@gmail.com,,,,https://padlet.com/PaulineCourt/choeur-label-diva-j4986286hhxhclod,,18:30 - 19:00,Oui,18:30 - 19:00,François,,,
+Cour ovale,Ensemble Choral Jean-Baptiste Daviais,,martine.biard.delanoe@gmail.com,,,,,,15:30 - 16:00,,,,Oui,15:30 - 16:00,Julien
+Cour ovale,Studio Aperto,06 30 86 94 68,gilles.de.talhouet@wanadoo.fr,"Le mot Aperto signifie « ouvert » en italien.
 
 L'ensemble est ouvert à tou.te.s les flûtistes : élèves du conservatoire, anciens élèves, amateurs et musiciens professionnels.
 
@@ -17,6 +26,6 @@ Il est également ouvert à toutes les musiques :
 
 musique classique : de Bach à Bartok
 musiques du monde : Irlande (reels et jigs), Europe centrale (klezmer), Espagne (sardanes), Brésil (choros), Grèce (kalamatianos), etc.
-chansons populaires : Beatles, Simon & Garfunkel, comédies musicales, films Disney, etc.","","","","","Patricia"
-"","Oui","17:00 - 17:30","Cour ovale","Quatuor Liger","06 89 49 88 91 ","solenne.guilbert@quatuorliger.fr","","","","","","François "
-"","Oui","17:45 - 18:15","Cour ovale","Ensemble de violoncelle du Conservatoire","06 87 84 22 99","francois.j.girard@wanadoo.fr","","","","","","Julien"
+chansons populaires : Beatles, Simon & Garfunkel, comédies musicales, films Disney, etc.",,,,,16:00 - 16:45,,,,Oui,16:00 - 16:45,Patricia
+Cour ovale,Quatuor Liger,06 89 49 88 91,solenne.guilbert@quatuorliger.fr,,,,,,17:00 - 17:30,,,,Oui,17:00 - 17:30,François
+Cour ovale,Ensemble de violoncelle du Conservatoire,06 87 84 22 99,francois.j.girard@wanadoo.fr,,,,,,17:45 - 18:15,,,,Oui,17:45 - 18:15,Julien
