@@ -1,6 +1,7 @@
 import { Event } from "@/data/events";
 import { Location } from "@/data/locations";
 import { createLogger } from "@/utils/logger";
+import { getFestivalDates } from "@/utils/festival";
 import { dataService } from "./dataService";
 import { validateEvent, validateLocation } from "./validationService";
 
@@ -188,11 +189,8 @@ export const exportEventsToCSV = (): string => {
   }
 };
 
-// Dates du festival (troisième week-end de septembre 2026)
-const FESTIVAL_DATES: Record<string, string> = {
-  samedi: '2026-09-19',
-  dimanche: '2026-09-20',
-};
+// Dates du festival (troisième week-end de septembre), calculées automatiquement.
+const FESTIVAL_DATES: Record<string, string> = getFestivalDates();
 const FESTIVAL_TIMEZONE = '+02:00';
 
 function parseEventTime(timeStr: string): { start: string; end: string } | null {
