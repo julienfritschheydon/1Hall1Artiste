@@ -121,6 +121,7 @@ export default function ArtistEdit() {
     setSaving(true);
     try {
       await saveArtistFields(token, form);
+      dataService.refreshProgram({ force: true });
       setSaved(true);
       toast({ title: "Modifications enregistrées", description: "En ligne d'ici environ 1 minute." });
     } catch (err) {
