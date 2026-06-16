@@ -670,22 +670,27 @@ export const EventDetailsNew = ({
           )}
 
           {/* Widget Instagram */}
-          {artist && artist.instagram && artist.instagram.includes('instagram') && (() => {
+          {artist && artist.instagram && (() => {
             const extractInstagramHandle = (url: string): string => {
+              if (!url) return "";
+
               try {
                 const u = new URL(url);
                 const cleanedPath = u.pathname.replace(/\/$/, "");
                 const parts = cleanedPath.split('/').filter(Boolean);
                 return parts.pop() || "";
               } catch {
-                const cleaned = url.split('?')[0].replace(/\/$/, "");
+                const cleaned = url.split('?')[0].replace(/\/$/, "").trim();
+                if (cleaned.startsWith('@')) {
+                  return cleaned.substring(1);
+                }
                 const parts = cleaned.split('/').filter(Boolean);
-                return parts.pop() || "";
+                return parts.pop() || cleaned;
               }
             };
-            
+
             const handle = extractInstagramHandle(artist.instagram);
-            if (!handle) return null;
+            if (!handle || !/^[a-zA-Z0-9._]{1,30}$/.test(handle)) return null;
             
             return (
               <div className="mb-6">
