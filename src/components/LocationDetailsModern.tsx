@@ -405,7 +405,7 @@ export const LocationDetailsModern: React.FC<LocationDetailsModernProps> = ({
                         <div className="flex items-center gap-1 mt-0.5">
                           <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
                           <span className="text-xs text-gray-600 font-medium">
-                            {event.type === 'exposition' ? 'Exposition' : 'Concert'}
+                            {event.category || (event.type === 'exposition' ? 'Exposition' : 'Concert')}
                           </span>
                         </div>
                       </div>

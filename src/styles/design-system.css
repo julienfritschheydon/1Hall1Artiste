@@ -216,13 +216,12 @@
   bottom: 0;
   width: 100px;
   background-image: url('/images/background/small/Pinceaux.png');
-  background-size: 60px;
+  background-size: 80px;
   background-repeat: no-repeat;
   background-position: top right;
   opacity: 0.08;
   pointer-events: none;
   z-index: 0;
-  transform: rotate(45deg);
 }
 
 /* === CLASSES UTILITAIRES === */
