@@ -535,19 +535,30 @@ export const EventDetailsNew = ({
                 )}
 
                 {/* Instagram */}
-                {safeHttpUrl(artist.instagram) && (
-                  <div className="flex items-center text-sm text-gray-700">
-                    <span className="font-medium mr-2 min-w-[80px]">Instagram:</span>
-                    <a
-                      href={safeHttpUrl(artist.instagram)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline"
-                    >
-                      {artist.instagram.replace(/^https?:\/\//, '').replace(/\/$/, '')}
-                    </a>
-                  </div>
-                )}
+                {artist.instagram && (() => {
+                  const handle = artist.instagram.startsWith('@')
+                    ? artist.instagram.substring(1)
+                    : artist.instagram.split('/').filter(Boolean).pop() || artist.instagram;
+                  const instagramUrl = artist.instagram.includes('instagram.com')
+                    ? safeHttpUrl(artist.instagram)
+                    : `https://www.instagram.com/${handle}`;
+
+                  if (!instagramUrl || !/^[a-zA-Z0-9._]{1,30}$/.test(handle)) return null;
+
+                  return (
+                    <div className="flex items-center text-sm text-gray-700">
+                      <span className="font-medium mr-2 min-w-[80px]">Instagram:</span>
+                      <a
+                        href={instagramUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline"
+                      >
+                        @{handle}
+                      </a>
+                    </div>
+                  );
+                })()}
 
                 {/* YouTube */}
                 {safeHttpUrl(artist.youtube) && (
