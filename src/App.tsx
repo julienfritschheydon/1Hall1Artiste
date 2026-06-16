@@ -7,7 +7,6 @@ import { toast } from "@/components/ui/use-toast";
 import { Celebration } from "./components/Celebration";
 import { AchievementType, getAchievementCelebrationMessage } from "./services/achievements";
 import { AudioPlayer } from "./components/AudioPlayer";
-import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Routes, Route, useLocation, Navigate, useNavigate } from "react-router-dom";
@@ -452,7 +451,6 @@ const App: React.FC = () => {
       <LoadingProvider>
         <TooltipProvider>
           <Toaster />
-          <Sonner />
             <HashRouter>
               <NavigationProvider>
                 <AppContent />

@@ -28,7 +28,7 @@ import { BottomNavigation } from "@/components/BottomNavigation";
 import { EventDetailsNew as EventDetails } from "@/components/EventDetailsModern";
 import { LocationDetailsModern } from "@/components/LocationDetailsModern";
 import { type Event } from "@/data/events";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/use-toast";
 import { useData, useEvents, useLocations } from "@/hooks/useData";
 import { saveEvent, removeSavedEvent, getSavedEvents } from "../services/savedEvents";
 import { LikeButton } from "@/components/community/LikeButton";
@@ -214,7 +214,6 @@ const Map = ({ fullScreen = false }: MapProps) => {
 
     // Le programme est chargé dynamiquement : attendre les données avant de résoudre un lien partagé
     if (eventParam && eventsLoading) {
-      toast.loading("Chargement de l'événement…");
       return;
     }
 
@@ -235,8 +234,10 @@ const Map = ({ fullScreen = false }: MapProps) => {
         }, 500); // Petit délai pour permettre à la carte de se charger d'abord
       } else {
         logger.warn(`Événement ${eventParam} introuvable dans le programme chargé`);
-        toast.error("Événement introuvable", {
+        toast({
+          title: "Événement introuvable",
           description: "Cet événement n'est plus au programme ou le lien est invalide.",
+          variant: "destructive"
         });
         return;
       }
@@ -276,8 +277,10 @@ const Map = ({ fullScreen = false }: MapProps) => {
     } else {
       logger.warn(`Lieu avec ID ${locationIdToHighlight} non trouvé dans mapLocations`);
       if (locationParam || highlightParam) {
-        toast.error("Lieu introuvable", {
+        toast({
+          title: "Lieu introuvable",
           description: "Ce lieu n'existe plus ou le lien est invalide.",
+          variant: "destructive"
         });
       }
     }

@@ -14,7 +14,7 @@ import { EventCardModern } from "@/components/EventCardModern";
 import { getSavedEvents, saveEvent, removeSavedEvent } from "../services/savedEvents";
 import { IMAGE_PATHS } from "../constants/imagePaths";
 import { getImagePath } from "@/utils/imagePaths";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/use-toast";
 
 const Program = () => {
   const location = useLocation();
@@ -41,7 +41,6 @@ const Program = () => {
 
     // Le programme est chargé dynamiquement : attendre les données avant de résoudre le lien
     if (eventsLoading) {
-      toast.loading("Chargement de l'événement…");
       return;
     }
 
@@ -52,8 +51,10 @@ const Program = () => {
         setSelectedEvent(event);
       }, 100);
     } else {
-      toast.error("Événement introuvable", {
+      toast({
+        title: "Événement introuvable",
         description: "Cet événement n'est plus au programme ou le lien est invalide.",
+        variant: "destructive"
       });
     }
     // Nettoyer le paramètre de l'URL
