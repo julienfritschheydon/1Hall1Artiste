@@ -25,7 +25,8 @@
     "release": "node scripts/release.js",
     "release:patch": "echo 1 | node scripts/release.js",
     "release:minor": "echo 2 | node scripts/release.js",
-    "release:major": "echo 3 | node scripts/release.js"
+    "release:major": "echo 3 | node scripts/release.js",
+    "generate-qr": "node scripts/generate-qr.js"
   },
   "dependencies": {
     "@emailjs/browser": "^4.4.1",
@@ -79,6 +80,7 @@
     "lucide-react": "^0.462.0",
     "next-themes": "^0.3.0",
     "papaparse": "^5.5.3",
+    "qrcode": "^1.5.4",
     "qrcode.react": "^4.2.0",
     "react": "^18.3.1",
     "react-confetti": "^6.4.0",

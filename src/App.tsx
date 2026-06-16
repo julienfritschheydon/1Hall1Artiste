@@ -44,6 +44,7 @@ const About = lazy(() => import("./pages/About"));
 const CoordinatesPicker = lazy(() => import("./pages/CoordinatesPicker"));
 const ArtistLogin = lazy(() => import("./pages/ArtistLogin"));
 const ArtistEdit = lazy(() => import("./pages/ArtistEdit"));
+const QRCodePage = lazy(() => import("./pages/QRCodePage"));
 
 const queryClient = new QueryClient();
 
@@ -92,7 +93,7 @@ const AnimatedRoutes: React.FC = () => {
 
   // Sauvegarder la dernière page visitée (sauf admin et pages techniques)
   useEffect(() => {
-    const excludedPaths = ['/admin', '/coordinates', '/analytics', '/location-history', '/artiste', '/artiste/edit'];
+    const excludedPaths = ['/admin', '/coordinates', '/analytics', '/location-history', '/artiste', '/artiste/edit', '/qr'];
     if (location.pathname !== '/' && !showSplash && !excludedPaths.includes(location.pathname)) {
       try {
         localStorage.setItem('lastVisitedPath', location.pathname);
@@ -138,6 +139,7 @@ const AnimatedRoutes: React.FC = () => {
     { path: '/analytics', component: Analytics },
     { path: '/artiste', component: ArtistLogin },
     { path: '/artiste/edit', component: ArtistEdit },
+    { path: '/qr', component: QRCodePage },
   ];
   
   // Vérifier si la page actuelle supporte la navigation par gestes
