@@ -390,6 +390,10 @@ export const EventDetailsNew = ({
                     title: `${event.title} - Île Feydeau`,
                     text: `Découvrez ${event.title} par ${event.artistName} sur l'Île Feydeau à Nantes!`,
                     url: shareUrl
+                  }).catch((err: any) => {
+                    if (err?.name !== 'AbortError') {
+                      console.error('Error sharing:', err);
+                    }
                   }).finally(() => setIsSharing(false));
                 } else {
                   navigator.clipboard.writeText(shareUrl);

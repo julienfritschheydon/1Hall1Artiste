@@ -258,6 +258,10 @@ export const LocationDetailsModern: React.FC<LocationDetailsModernProps> = ({
                       title: `${location.name} - Île Feydeau`,
                       text: `Découvrez ${location.name} sur l'Île Feydeau à Nantes!`,
                       url: shareUrl
+                    }).catch((err: any) => {
+                      if (err?.name !== 'AbortError') {
+                        console.error('Error sharing:', err);
+                      }
                     });
                   } else {
                     navigator.clipboard.writeText(shareUrl);

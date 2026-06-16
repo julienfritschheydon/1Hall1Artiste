@@ -382,6 +382,10 @@ export function LocationHistory() {
                           title: `${selectedLocationData.name} - Île Feydeau`,
                           text: `Découvrez l'histoire de ${selectedLocationData.name} sur l'Île Feydeau à Nantes!`,
                           url: shareUrl
+                        }).catch((err: any) => {
+                          if (err?.name !== 'AbortError') {
+                            console.error('Error sharing:', err);
+                          }
                         });
                       } else {
                         navigator.clipboard.writeText(shareUrl);

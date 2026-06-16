@@ -220,6 +220,10 @@ export const EntryDetail: React.FC<EntryDetailProps> = ({ entry, entries, curren
                       title: `Photo - Île Feydeau`,
                       text: `Découvrez cette photo de l'Île Feydeau à Nantes!`,
                       url: shareUrl
+                    }).catch((err: any) => {
+                      if (err?.name !== 'AbortError') {
+                        console.error('Error sharing:', err);
+                      }
                     });
                   } else {
                     navigator.clipboard.writeText(shareUrl);
