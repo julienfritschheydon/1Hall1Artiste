@@ -534,6 +534,21 @@ export const EventDetailsNew = ({
                   </div>
                 )}
 
+                {/* Instagram */}
+                {safeHttpUrl(artist.instagram) && (
+                  <div className="flex items-center text-sm text-gray-700">
+                    <span className="font-medium mr-2 min-w-[80px]">Instagram:</span>
+                    <a
+                      href={safeHttpUrl(artist.instagram)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline"
+                    >
+                      {artist.instagram.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+                    </a>
+                  </div>
+                )}
+
                 {/* YouTube */}
                 {safeHttpUrl(artist.youtube) && (
                   <div className="flex items-center text-sm text-gray-700">
