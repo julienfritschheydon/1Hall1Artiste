@@ -18,7 +18,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { CommunityManagement } from "@/components/CommunityManagement";
 import { LikesTestComponent } from "@/components/test/LikesTestComponent";
 import { LikesStatsComponent } from "@/components/admin/LikesStatsComponent";
-import { RealTimeStatsComponent } from "@/components/admin/RealTimeStatsComponent";
 import { EventManagement } from "@/components/admin/EventManagement";
 
 // Créer un logger pour le composant Admin
@@ -297,7 +296,6 @@ export default function Admin() {
             <TabsTrigger value="locations" className="text-xs md:text-sm px-2 py-1 flex-shrink-0">Lieux</TabsTrigger>
             <TabsTrigger value="community" className="text-xs md:text-sm px-2 py-1 flex-shrink-0">Contributions</TabsTrigger>
             <TabsTrigger value="likes-stats" className="text-xs md:text-sm px-2 py-1 flex-shrink-0">👍 Likes</TabsTrigger>
-            <TabsTrigger value="analytics-stats" className="text-xs md:text-sm px-2 py-1 flex-shrink-0">📊 Analytics</TabsTrigger>
             <TabsTrigger value="likes-test" className="text-xs md:text-sm px-2 py-1 flex-shrink-0">🧪 Test</TabsTrigger>
             <TabsTrigger value="import-export" className="text-xs md:text-sm px-2 py-1 flex-shrink-0">Import/Export</TabsTrigger>
             <TabsTrigger value="reset" className="text-xs md:text-sm px-2 py-1 flex-shrink-0">Reset</TabsTrigger>
@@ -421,11 +419,6 @@ export default function Admin() {
           {/* Onglet des statistiques de likes */}
           <TabsContent value="likes-stats" className="space-y-4">
             <LikesStatsComponent />
-          </TabsContent>
-          
-          {/* Onglet des statistiques Analytics temps réel */}
-          <TabsContent value="analytics-stats" className="space-y-4">
-            <RealTimeStatsComponent />
           </TabsContent>
           
           {/* Onglet de test du système de likes */}

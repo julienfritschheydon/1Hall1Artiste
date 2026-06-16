@@ -12,6 +12,13 @@ dist
 dist-ssr
 *.local
 
+# Vite : fichiers de config temporaires générés au build/dev
+vite.config.ts.timestamp-*.mjs
+
+# Fichiers de sauvegarde / temporaires
+*.bak
+*.temp
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

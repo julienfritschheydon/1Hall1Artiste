@@ -3,7 +3,6 @@ import { initEmailJS, checkAndSendErrors, setupGlobalErrorHandler } from "./serv
 import { initFirebaseAnalytics } from "./services/firebaseConfig";
 import { analytics, EventAction } from "./services/firebaseAnalytics";
 import { Toaster } from "@/components/ui/toaster";
-import { toast } from "@/components/ui/use-toast";
 import { Celebration } from "./components/Celebration";
 import { AchievementType, getAchievementCelebrationMessage } from "./services/achievements";
 import { AudioPlayer } from "./components/AudioPlayer";
@@ -319,13 +318,7 @@ const App: React.FC = () => {
     
     // Vérifier et envoyer les erreurs stockées
     checkAndSendErrors();
-    
-    // Configurer le gestionnaire d'erreurs global
-    setupGlobalErrorHandler();
-    
-    // Enregistrer le service worker pour le mode hors ligne
-    registerServiceWorker();
-    
+
     // Précharger les données hors ligne
     preloadAllOfflineData();
     
@@ -392,51 +385,6 @@ const App: React.FC = () => {
       }
     }
   }, []);
-
-  
-  // Fonction pour tester les confettis
-  const testConfetti = () => {
-    console.log('[App] Test manuel des confettis');
-    setCelebration({
-      show: true,
-      message: 'Test des confettis!'
-    });
-  };
-  
-  // Fonction pour tester les achievements
-  const testAchievement = (type: AchievementType) => {
-    console.log(`[App] Test manuel de l'achievement ${type}`);
-    // Déclencher directement l'événement global
-    const message = getAchievementCelebrationMessage(type);
-    if (message) {
-      const event = new CustomEvent('app-achievement', {
-        detail: { type, message }
-      });
-      window.dispatchEvent(event);
-    }
-  };
-  
-  // Fonction pour vider le localStorage
-  const clearLocalStorage = () => {
-    console.log('[App] Nettoyage du localStorage...');
-    localStorage.clear();
-    toast({
-      title: "LocalStorage vidé",
-      description: "Toutes les données locales ont été effacées.",
-      variant: "destructive"
-    });
-    setTimeout(() => {
-      try {
-        if (window.location && window.location.reload) {
-          window.location.reload();
-        } else {
-          window.location.href = window.location.origin + window.location.pathname;
-        }
-      } catch (error) {
-        console.error('[App] Error reloading page:', error);
-      }
-    }, 1500);
-  };
 
   // Aucun code de gestion de localisation n'est nécessaire ici
   // La gestion de la localisation est maintenant gérée directement dans le composant AudioActivator
