@@ -106,7 +106,7 @@ function TourDetail({ tour, onBack }: { tour: Tour; onBack: () => void }) {
 
       <div className="mb-4 p-4 bg-gray-100 rounded">
         <p className="font-semibold">
-          📍 Départ : {tour.startLocationName || `${tour.startLocationLat}, ${tour.startLocationLng}`}
+          Départ : {tour.startLocationName || `${tour.startLocationLat}, ${tour.startLocationLng}`}
         </p>
         {tour.labels.length > 0 && (
           <div className="flex flex-wrap gap-2 mt-2">
@@ -273,10 +273,10 @@ function RegistrationForm({ tour, placesLeft }: { tour: Tour; placesLeft: number
             <button
               type="button"
               onClick={() => removeCompanion(i)}
-              className="px-3 bg-gray-200 rounded hover:bg-gray-300"
+              className="px-3 bg-gray-200 rounded hover:bg-gray-300 text-sm"
               aria-label="Retirer"
             >
-              ✕
+              Retirer
             </button>
           </div>
         ))}

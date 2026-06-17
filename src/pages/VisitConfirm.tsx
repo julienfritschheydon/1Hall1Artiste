@@ -193,14 +193,12 @@ export default function VisitConfirm() {
 
       {status === "success" && (
         <div className="p-6 bg-green-100 text-green-800 rounded-lg">
-          <p className="text-4xl mb-3">✅</p>
           <p className="font-semibold">{message}</p>
         </div>
       )}
 
       {status === "error" && (
         <div className="p-6 bg-red-100 text-red-800 rounded-lg">
-          <p className="text-4xl mb-3">⚠️</p>
           <p className="font-semibold">{message}</p>
         </div>
       )}

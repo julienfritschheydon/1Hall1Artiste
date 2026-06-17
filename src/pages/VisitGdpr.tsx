@@ -41,7 +41,6 @@ export default function VisitGdpr() {
 
       {status === "success" ? (
         <div className="p-6 bg-green-100 text-green-800 rounded-lg text-center">
-          <p className="text-4xl mb-3">✅</p>
           <p className="font-semibold">{message}</p>
         </div>
       ) : (

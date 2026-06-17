@@ -213,8 +213,8 @@ const Program = () => {
             onClick={() => navigate('/reservations')}
             className="w-full mb-4 p-4 bg-[#ff7a45] text-white rounded-lg shadow hover:bg-[#e8693a] transition-colors text-left flex items-center justify-between"
           >
-            <span className="font-semibold">🎫 Visites guidées — Réservez votre place</span>
-            <span aria-hidden>→</span>
+            <span className="font-semibold">Visites guidées — Réservez votre place</span>
+            <span aria-hidden>&rsaquo;</span>
           </button>
           <TabsContent value="samedi" className="space-y-4">
             {sortByStartTime(filterEvents(getEventsByDay("samedi"), currentFilter)).map((event, index) => (
