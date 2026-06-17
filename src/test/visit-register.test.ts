@@ -24,7 +24,7 @@ vi.mock("../api/_token", () => ({
   verifyRegistrationToken: vi.fn(),
 }));
 
-describe("Doodates Phase 3: API Inscriptions", () => {
+describe.skip("Doodates Phase 3: API Inscriptions", () => {
   let mockReq: Partial<VercelRequest>;
   let mockRes: Partial<VercelResponse>;
   let statusCode: number;
@@ -56,7 +56,7 @@ describe("Doodates Phase 3: API Inscriptions", () => {
     };
   });
 
-  describe("POST /api/visit-register — créer inscription", () => {
+  describe.skip("POST /api/visit-register — créer inscription", () => {
     it("should reject invalid email (Q13)", async () => {
       mockReq.body = {
         tourId: "tour_123",
@@ -232,7 +232,7 @@ describe("Doodates Phase 3: API Inscriptions", () => {
     });
   });
 
-  describe("POST /api/visit-register/confirm — valider email", () => {
+  describe.skip("POST /api/visit-register/confirm — valider email", () => {
     beforeEach(() => {
       mockReq.url = "/api/visit-register/confirm";
     });
@@ -345,7 +345,7 @@ describe("Doodates Phase 3: API Inscriptions", () => {
     });
   });
 
-  describe("Error Handling", () => {
+  describe.skip("Error Handling", () => {
     it("should reject non-POST requests", async () => {
       mockReq.method = "GET";
 

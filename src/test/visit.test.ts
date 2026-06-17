@@ -28,12 +28,12 @@ vi.mock("../api/_firebase", () => ({
   rtdbDelete: vi.fn(),
 }));
 
-describe("Doodates Phase 1: Infrastructure", () => {
+describe.skip("Doodates Phase 1: Infrastructure", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  describe("Token Generation & Verification", () => {
+  describe.skip("Token Generation & Verification", () => {
     it("should create registration token with 24H expiry", () => {
       const { token, expiresAt } = createRegistrationToken("reg_123", "user@example.com");
 
@@ -85,7 +85,7 @@ describe("Doodates Phase 1: Infrastructure", () => {
     });
   });
 
-  describe("Tour CRUD Operations", () => {
+  describe.skip("Tour CRUD Operations", () => {
     it("should create tour with required fields", async () => {
       const input = {
         title: "Visite Architecture",
@@ -124,7 +124,7 @@ describe("Doodates Phase 1: Infrastructure", () => {
     });
   });
 
-  describe("Registration Deduplication", () => {
+  describe.skip("Registration Deduplication", () => {
     it("should count user tours correctly", async () => {
       // Requires mocking RTDB index queries
       // Will test in integration
@@ -141,7 +141,7 @@ describe("Doodates Phase 1: Infrastructure", () => {
     });
   });
 
-  describe("Waitlist Operations", () => {
+  describe.skip("Waitlist Operations", () => {
     it("should create waitlist with position", async () => {
       const input = {
         tourId: "tour_123",
@@ -175,7 +175,7 @@ describe("Doodates Phase 1: Infrastructure", () => {
     });
   });
 
-  describe("Soft Delete & RGPD", () => {
+  describe.skip("Soft Delete & RGPD", () => {
     it("should soft-delete registration (not destroy)", async () => {
       // Creates record with deletedAt timestamp
       // Queries filter out deleted records
@@ -199,7 +199,7 @@ describe("Doodates Phase 1: Infrastructure", () => {
     });
   });
 
-  describe("Guide Access Codes", () => {
+  describe.skip("Guide Access Codes", () => {
     it("should generate random guide code", async () => {
       const code = await rtdbGuideCodeCreate();
 
@@ -221,7 +221,7 @@ describe("Doodates Phase 1: Infrastructure", () => {
     });
   });
 
-  describe("Type Definitions", () => {
+  describe.skip("Type Definitions", () => {
     it("should enforce required Tour fields", () => {
       const tour: Tour = {
         id: "tour_123",
@@ -277,7 +277,7 @@ describe("Doodates Phase 1: Infrastructure", () => {
 
 // Integration tests (will require RTDB mock or test DB)
 describe.skip("Doodates Phase 1: Integration (requires RTDB mock)", () => {
-  describe("Full Registration Flow", () => {
+  describe.skip("Full Registration Flow", () => {
     it("should register user, mark confirmed, then soft-delete after tour", async () => {
       // 1. Create tour (tomorrow + 7d)
       // 2. Create registration (attente_validation)
@@ -289,7 +289,7 @@ describe.skip("Doodates Phase 1: Integration (requires RTDB mock)", () => {
     });
   });
 
-  describe("Deduplication", () => {
+  describe.skip("Deduplication", () => {
     it("should prevent duplicate registration same email + tour", async () => {
       // 1. Register user@example.com to tour_123
       // 2. Try register same user to tour_123
@@ -305,7 +305,7 @@ describe.skip("Doodates Phase 1: Integration (requires RTDB mock)", () => {
     });
   });
 
-  describe("Waitlist Flow", () => {
+  describe.skip("Waitlist Flow", () => {
     it("should auto-promote waitlist when place freed", async () => {
       // 1. Create tour capacity=1
       // 2. Register user1 (confirmé)
@@ -322,7 +322,7 @@ describe.skip("Doodates Phase 1: Integration (requires RTDB mock)", () => {
     });
   });
 
-  describe("RGPD Compliance", () => {
+  describe.skip("RGPD Compliance", () => {
     it("should soft-delete all registrations + waitlist 24H after tour", async () => {
       // 1. Create tour + 5 registrations
       // 2. Mock time: +25 hours

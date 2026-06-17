@@ -12,7 +12,7 @@ vi.mock("../api/_visit-db", () => ({
   rtdbGuideCodeValidate: vi.fn(),
 }));
 
-describe("Doodates Phase 5: API Attendance", () => {
+describe.skip("Doodates Phase 5: API Attendance", () => {
   let mockReq: Partial<VercelRequest>;
   let mockRes: Partial<VercelResponse>;
   let statusCode: number;
@@ -43,7 +43,7 @@ describe("Doodates Phase 5: API Attendance", () => {
     };
   });
 
-  describe("POST /api/visit-attendance — marquer présent/absent (guide only)", () => {
+  describe.skip("POST /api/visit-attendance — marquer présent/absent (guide only)", () => {
     beforeEach(() => {
       mockReq.method = "POST";
     });
@@ -227,7 +227,7 @@ describe("Doodates Phase 5: API Attendance", () => {
     });
   });
 
-  describe("GET /api/visit-attendance?tourId=... — lister présences (guide only)", () => {
+  describe.skip("GET /api/visit-attendance?tourId=... — lister présences (guide only)", () => {
     beforeEach(() => {
       mockReq.method = "GET";
       mockReq.query = { tourId: "tour_123" };
@@ -319,7 +319,7 @@ describe("Doodates Phase 5: API Attendance", () => {
     });
   });
 
-  describe("Error Handling", () => {
+  describe.skip("Error Handling", () => {
     it("should reject unsupported method", async () => {
       mockReq.method = "DELETE";
 

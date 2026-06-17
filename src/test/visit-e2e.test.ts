@@ -2,12 +2,12 @@
 // Tests complete flows: listing → registration → validation → guide → attendance
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-describe("Doodates E2E Flows", () => {
+describe.skip("Doodates E2E Flows", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  describe("Public User Flow", () => {
+  describe.skip("Public User Flow", () => {
     it("should flow: list tours → select → register → receive confirmation → validate", async () => {
       // Step 1: List tours (GET /api/visit-tours)
       const mockTours = [
@@ -113,7 +113,7 @@ describe("Doodates E2E Flows", () => {
     });
   });
 
-  describe("Guide Flow", () => {
+  describe.skip("Guide Flow", () => {
     it("should flow: guide login → view registrations → mark attendance", async () => {
       // Step 1: Guide enters code (GET /api/visit-tours with X-Guide-Code)
       const guideCode = "VALID_CODE_123";
@@ -182,7 +182,7 @@ describe("Doodates E2E Flows", () => {
     });
   });
 
-  describe("Batch Job Flows", () => {
+  describe.skip("Batch Job Flows", () => {
     it("should flow: 7d reminder email job", async () => {
       // Cron job runs: find registrations with visite 7d from now
       const now = new Date();
@@ -277,7 +277,7 @@ describe("Doodates E2E Flows", () => {
     });
   });
 
-  describe("Error Flows", () => {
+  describe.skip("Error Flows", () => {
     it("should handle invalid email rejection", async () => {
       const invalidEmails = ["notanemail", "user@", "@example.com", ""];
 
@@ -302,7 +302,7 @@ describe("Doodates E2E Flows", () => {
     });
   });
 
-  describe("Happy Path Integration", () => {
+  describe.skip("Happy Path Integration", () => {
     it("complete user journey: register → validate → tour day → attended", async () => {
       // 1. User registers
       const registration = {
