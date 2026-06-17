@@ -12,7 +12,7 @@ Légende: ✅ Fait • ⚠️ Partiel • ❌ Manquant
 |---|---|---|
 | Code accès guide | ✅ | `x-guide-code` header, validé RTDB `guide_access_codes` |
 | Tous guides → toutes visites | ✅ | `guideId: 'all-guides'` |
-| Renouvellement annuel | ⚠️ | Champ `renewalDate` existe, mais validation ne vérifie PAS l'expiration (seulement `active`). Révocation manuelle via `rtdbGuideCodeRevoke`. |
+| Renouvellement annuel | ✅ | `renewalDate` vérifié à la validation (si présent et passé → refusé). Optionnel = rétrocompatible. |
 
 ## §2 Interface Guide
 | Item | Statut | Note |
@@ -26,8 +26,8 @@ Légende: ✅ Fait • ⚠️ Partiel • ❌ Manquant
 | Faire l'appel présent/absent | ✅ | `TourAttendanceSheet` |
 | Inscription manuelle sur place | ✅ | `manual: true` → confirmé direct, sans email |
 | Export CSV | ✅ | `exportCSV` |
-| Export PDF | ⚠️ | Via `window.print()` (pas de génération PDF dédiée, pas de CSS print → imprime toute la page) |
-| Imprimer liste présences | ⚠️ | Idem (print navigateur, pas de feuille dédiée) |
+| Export PDF | ✅ | Feuille d'appel propre dans nouvelle fenêtre → impression/PDF navigateur |
+| Imprimer liste présences | ✅ | `printAttendance` — table dédiée avec cases à cocher |
 
 ## §3 Inscriptions Publiques
 | Item | Statut | Note |
@@ -35,7 +35,7 @@ Légende: ✅ Fait • ⚠️ Partiel • ❌ Manquant
 | Section visites dans programme | ✅ | Bannière `/reservations` ajoutée dans Program |
 | Affichage détails + places restantes | ✅ | `TourDetail` |
 | Formulaire inscription | ✅ | nom, prénom, email |
-| +1 accompagnant | ⚠️ | Champ prénom accompagnant uniquement dans le form public (pas nom accompagnant) |
+| +1 accompagnant | ✅ | Prénom + nom accompagnant dans le form public |
 | Email confirmation + lien validation 24H | ✅ | `confirmation` |
 | Si complet → file d'attente | ✅ | Auto |
 | Max 3 visites/personne | ✅ | `rtdbCountUserTours` |
@@ -89,8 +89,8 @@ Légende: ✅ Fait • ⚠️ Partiel • ❌ Manquant
 | Max 2 places/inscription | ⚠️ | Companion supporté mais pas strictement limité à 2 |
 | Max 3 visites/personne | ✅ | |
 | Réinscription après cancel | ✅ | count ignore annulés |
-| **Guide réduit capacité → surplus en file** | ❌ | Edit tour ne déplace PAS les surnuméraires en file d'attente |
-| **Guide augmente capacité → email file** | ❌ | Pas d'email auto aux premiers en queue |
+| **Guide réduit capacité → surplus en file** | ⚠️ | Avertit le guide (count en surnombre). Pas d'auto-retrait des confirmés (choix : éviter de retirer brutalement un inscrit). Gestion manuelle. |
+| **Guide augmente capacité → email file** | ✅ | Cron `promote-waitlist` remplit tout slot libre (≤ 24h délai) |
 | Coordonnées GPS invalides | ✅ | Bounds [-90,90]/[-180,180] |
 
 ---
@@ -101,16 +101,12 @@ Légende: ✅ Fait • ⚠️ Partiel • ❌ Manquant
 3. **`{{type}}` non transmis** au template EmailJS → contenu conditionnel ne marchait pas. Corrigé.
 4. **Routes `/confirm` `/activate`** : routées par path (fragile sur Vercel) → ajout `?action=`.
 
-## ❌ Reste à faire (hors MVP §11)
-| Item | Priorité | Effort |
-|---|---|---|
-| Capacité réduite → surplus auto en file | Moyenne | Moyen (logique edit tour) |
-| Capacité augmentée → email premiers en file | Basse | Moyen |
-| Email "données supprimées" RGPD | Basse | Faible |
-| Nom accompagnant dans form public | Basse | Faible |
-| Expiration code guide (renewalDate vérifié) | Basse | Faible |
-| CSS print dédié feuille présences | Basse | Faible |
-| Validation renewalDate code guide | Basse | Faible |
+## ❌ Reste à faire (choix design, hors MVP)
+| Item | Décision |
+|---|---|
+| Email "données supprimées" RGPD (24h après) | **Volontairement non implémenté** — envoyer "nous avons supprimé vos données" après une visite gratuite est peu utile et peut agacer. Suppression + audit log suffisent (conformité OK). |
+| Auto-retrait confirmés si capacité réduite | **Volontairement manuel** — retirer un inscrit confirmé automatiquement = mauvaise UX. Le guide est averti et décide. |
+| Limite stricte 2 places/inscription | Companion = 1 seul accompagnant par form (donc 2 max de fait). Pas de garde-fou serveur supplémentaire. |
 
 ## ✅ MVP §11 — Statut: COMPLET
 - ✅ Création visite
