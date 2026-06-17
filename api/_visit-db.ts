@@ -20,10 +20,11 @@ function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substr(2);
 }
 
-// Firebase RTDB keys cannot contain . # $ [ ] /  → encode email for use as a key.
-// Deterministic (index only stores ids; real email lives in the doc), collision-free.
+// Firebase RTDB keys cannot contain . # $ [ ] /  (and the REST URL decodes %xx,
+// so percent-encoding doesn't help). Replace illegal chars with ',' (legal). '@' is OK.
+// Index-only key — real email lives in the doc — so collisions are harmless.
 export function emailKey(email: string): string {
-  return encodeURIComponent(email.toLowerCase()).replace(/\./g, "%2E");
+  return email.toLowerCase().replace(/[.#$\[\]/]/g, ",");
 }
 
 // ============ TOURS ============
