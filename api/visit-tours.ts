@@ -4,7 +4,7 @@
 // PUT /api/visit-tours/{id} — modifier visite (guide)
 
 import { VercelRequest, VercelResponse } from "@vercel/node";
-import { rtdbTourCreate, rtdbTourGet, rtdbTourUpdate, rtdbToursListFuture, rtdbToursListAll, rtdbGuideCodeValidate } from "./_visit-db.js";
+import { rtdbTourCreate, rtdbTourGet, rtdbTourUpdate, rtdbToursListFuture, rtdbToursListAll, rtdbGuideCodeValidate, rtdbCountRegisteredByTour } from "./_visit-db.js";
 import { Tour, TourCreateInput } from "../src/types/visitTypes.js";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -176,7 +176,18 @@ async function handlePut(req: VercelRequest, res: VercelResponse) {
     }
 
     await rtdbTourUpdate(id, updates);
-    return res.status(200).json({ ok: true });
+
+    // Spec §9: capacity reduced below confirmed count → warn guide (no auto-removal).
+    // Capacity increase auto-fills via promote-waitlist cron (free-slot logic).
+    let warning: string | undefined;
+    if (updates.capacity !== undefined && updates.capacity < tour.capacity) {
+      const confirmedCount = await rtdbCountRegisteredByTour(id);
+      if (updates.capacity < confirmedCount) {
+        warning = `Nouvelle capacité (${updates.capacity}) < inscrits confirmés (${confirmedCount}). ${confirmedCount - updates.capacity} personne(s) en surnombre — à gérer manuellement (annuler des inscriptions).`;
+      }
+    }
+
+    return res.status(200).json({ ok: true, ...(warning ? { warning } : {}) });
   } catch (e) {
     console.error("[visit-tours PUT]", e);
     return res.status(500).json({ error: "update failed" });

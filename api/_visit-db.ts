@@ -324,8 +324,12 @@ export async function rtdbGuideCodeCreate(): Promise<GuideAccessCode> {
 export async function rtdbGuideCodeValidate(code: string): Promise<boolean> {
   const codes = await rtdbGet<Record<string, GuideAccessCode>>("guide_access_codes");
   if (!codes) return false;
+  const now = new Date();
   for (const gac of Object.values(codes)) {
-    if (gac.code === code && gac.active) return true;
+    if (gac.code !== code || !gac.active) continue;
+    // renewalDate optional: if present and past → expired (spec §1 annual renewal)
+    if (gac.renewalDate && new Date(gac.renewalDate) < now) return false;
+    return true;
   }
   return false;
 }

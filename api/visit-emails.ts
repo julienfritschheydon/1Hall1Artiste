@@ -15,12 +15,11 @@ import {
   rtdbWaitlistListByTour,
   rtdbWaitlistSoftDelete,
   rtdbAuditLog,
-  rtdbRegistrationsListByCancelledSince,
-  rtdbWaitlistGetNext,
   rtdbWaitlistUpdate,
   rtdbTourGet,
-  rtdbRegistrationCreate,
   rtdbToursListAll,
+  rtdbToursListFuture,
+  rtdbCountRegisteredByTour,
 } from "./_visit-db.js";
 import { createRegistrationToken } from "./_token.js";
 
@@ -301,74 +300,78 @@ async function batchDeletePostTour(): Promise<{ deletedRegs: number; deletedWait
 }
 
 // ==== JOB 4: Promote from waitlist (Q4, Q5) ====
+// Fills ANY free slot — handles cancellations AND capacity increase (spec §9).
 async function promoteFromWaitlist(): Promise<{ promoted: number; rejected: number }> {
-  // Find recently cancelled registrations (last 1h) → promote their replacements
-  const onHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-  const cancelled = await rtdbRegistrationsListByCancelledSince(onHourAgo);
-
+  const now = new Date();
   let promoted = 0,
     rejected = 0;
 
-  for (const reg of cancelled) {
-    // Get next in waitlist for this tour
-    const next = await rtdbWaitlistGetNext(reg.tourId);
-    if (!next) {
-      continue; // No one in waitlist
-    }
-
-    // Q5: Check if already rejected
-    if (next.rejectedAt) {
-      continue; // Already rejected, skip
-    }
-
-    const tour = await rtdbTourGet(reg.tourId);
-    if (!tour) continue;
-
-    // Create token for offer
-    const token = createRegistrationToken(next.id, next.email);
-    const deadline = new Date(Date.now() + 24 * 60 * 60 * 1000);
-
-    const idempotencyKey = `${next.id}_waitlist_offer`;
-    const success = await sendEmailWithRetry(
-      JSON.parse(process.env.VISIT_EMAILJS_TEMPLATE_IDS || "{}").waitlist_offer,
-      {
-        to: next.email,
-        firstName: next.firstName,
-        tourTitle: tour.title,
-        acceptLink: `${SITE_URL}/#/reservations/accept-waitlist?token=${token.token}`,
-        deadline: deadline.toISOString(),
-        type: "waitlist_offer",
-      },
-      idempotencyKey
-    );
-
-    if (success) {
-      // Mark offer sent
-      await rtdbWaitlistUpdate(next.id, {
-        invitationToken: token.token,
-        invitationExpiresAt: token.expiresAt,
-        invitationSentAt: new Date().toISOString(),
-      });
-      promoted++;
-    } else {
-      console.error(`[visit-emails] Failed to send waitlist offer to ${next.email}`);
-    }
-  }
-
-  // Q5: Auto-reject offers expired > 24H
+  // Step 1: Auto-reject expired offers (> 24H) first, so their slot reopens this run (Q5)
   for (const tour of await rtdbToursListAll()) {
     const waits = await rtdbWaitlistListByTour(tour.id);
     for (const wait of waits) {
       if (
         wait.invitationSentAt &&
         !wait.rejectedAt &&
-        new Date(wait.invitationExpiresAt) < new Date()
+        wait.invitationExpiresAt &&
+        new Date(wait.invitationExpiresAt) < now
       ) {
-        // Mark rejected
-        await rtdbWaitlistUpdate(wait.id, { rejectedAt: new Date().toISOString() });
+        await rtdbWaitlistUpdate(wait.id, { rejectedAt: now.toISOString() });
         rejected++;
+      }
+    }
+  }
 
-        // Promote next in line (recursive call not needed, will be picked up in next cron run)
+  // Step 2: For each upcoming tour, fill free slots from the waitlist.
+  // freeSlots = capacity - confirmed - pendingOffers(non-expired, non-rejected)
+  for (const tour of await rtdbToursListFuture()) {
+    const confirmedCount = await rtdbCountRegisteredByTour(tour.id);
+    const waits = await rtdbWaitlistListByTour(tour.id); // sorted by position, excludes deleted
+
+    const pendingOffers = waits.filter(
+      (w) =>
+        w.invitationSentAt &&
+        !w.rejectedAt &&
+        w.invitationExpiresAt &&
+        new Date(w.invitationExpiresAt) >= now
+    ).length;
+
+    let freeSlots = tour.capacity - confirmedCount - pendingOffers;
+    if (freeSlots <= 0) continue;
+
+    // Candidates = waitlist entries with no active/rejected offer, in position order
+    const candidates = waits.filter((w) => !w.invitationSentAt && !w.rejectedAt);
+
+    for (const next of candidates) {
+      if (freeSlots <= 0) break;
+
+      const token = createRegistrationToken(next.id, next.email);
+      const deadline = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      const idempotencyKey = `${next.id}_waitlist_offer`;
+
+      const success = await sendEmailWithRetry(
+        JSON.parse(process.env.VISIT_EMAILJS_TEMPLATE_IDS || "{}").waitlist_offer,
+        {
+          to: next.email,
+          firstName: next.firstName,
+          tourTitle: tour.title,
+          acceptLink: `${SITE_URL}/#/reservations/accept-waitlist?token=${token.token}`,
+          deadline: deadline.toISOString(),
+          type: "waitlist_offer",
+        },
+        idempotencyKey
+      );
+
+      if (success) {
+        await rtdbWaitlistUpdate(next.id, {
+          invitationToken: token.token,
+          invitationExpiresAt: token.expiresAt,
+          invitationSentAt: new Date().toISOString(),
+        });
+        promoted++;
+        freeSlots--;
+      } else {
+        console.error(`[visit-emails] Failed to send waitlist offer to ${next.email}`);
       }
     }
   }

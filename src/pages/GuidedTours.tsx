@@ -151,6 +151,7 @@ function RegistrationForm({ tour, placesLeft }: { tour: Tour; placesLeft: number
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [companionFirstName, setCompanionFirstName] = useState("");
+  const [companionLastName, setCompanionLastName] = useState("");
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -171,6 +172,7 @@ function RegistrationForm({ tour, placesLeft }: { tour: Tour; placesLeft: number
           firstName,
           lastName,
           companionFirstName: companionFirstName || undefined,
+          companionLastName: companionLastName || undefined,
         }),
       });
 
@@ -203,6 +205,7 @@ function RegistrationForm({ tour, placesLeft }: { tour: Tour; placesLeft: number
             setFirstName("");
             setLastName("");
             setCompanionFirstName("");
+            setCompanionLastName("");
           }}
           className="mt-2 text-blue-600 hover:underline"
         >
@@ -227,31 +230,42 @@ function RegistrationForm({ tour, placesLeft }: { tour: Tour; placesLeft: number
         className="w-full border px-3 py-2 rounded"
       />
 
-      <input
-        type="text"
-        placeholder="Nom *"
-        value={firstName}
-        onChange={(e) => setFirstName(e.target.value)}
-        required
-        className="w-full border px-3 py-2 rounded"
-      />
+      <div className="grid grid-cols-2 gap-2">
+        <input
+          type="text"
+          placeholder="Prénom *"
+          value={firstName}
+          onChange={(e) => setFirstName(e.target.value)}
+          required
+          className="w-full border px-3 py-2 rounded"
+        />
+        <input
+          type="text"
+          placeholder="Nom *"
+          value={lastName}
+          onChange={(e) => setLastName(e.target.value)}
+          required
+          className="w-full border px-3 py-2 rounded"
+        />
+      </div>
 
-      <input
-        type="text"
-        placeholder="Prénom *"
-        value={lastName}
-        onChange={(e) => setLastName(e.target.value)}
-        required
-        className="w-full border px-3 py-2 rounded"
-      />
-
-      <input
-        type="text"
-        placeholder="Accompagnant (optionnel)"
-        value={companionFirstName}
-        onChange={(e) => setCompanionFirstName(e.target.value)}
-        className="w-full border px-3 py-2 rounded"
-      />
+      <p className="text-sm text-gray-500">Accompagnant (optionnel)</p>
+      <div className="grid grid-cols-2 gap-2">
+        <input
+          type="text"
+          placeholder="Prénom accompagnant"
+          value={companionFirstName}
+          onChange={(e) => setCompanionFirstName(e.target.value)}
+          className="w-full border px-3 py-2 rounded"
+        />
+        <input
+          type="text"
+          placeholder="Nom accompagnant"
+          value={companionLastName}
+          onChange={(e) => setCompanionLastName(e.target.value)}
+          className="w-full border px-3 py-2 rounded"
+        />
+      </div>
 
       <button
         type="submit"

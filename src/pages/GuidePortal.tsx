@@ -182,6 +182,9 @@ function TourForm({
         setError(data.error || (data.errors ? data.errors.join(", ") : "Erreur"));
         return;
       }
+      if (data.warning) {
+        alert(data.warning);
+      }
       onSaved();
     } catch (e) {
       setError((e as Error).message);
@@ -334,7 +337,7 @@ function TourDetails({
             className="text-sm bg-gray-200 px-3 py-1 rounded hover:bg-gray-300">
             Export CSV
           </button>
-          <button onClick={() => window.print()}
+          <button onClick={() => printAttendance(tour, registrations)}
             className="text-sm bg-gray-200 px-3 py-1 rounded hover:bg-gray-300">
             Imprimer
           </button>
@@ -562,6 +565,49 @@ function toLocalInput(iso: string): string {
   const d = new Date(iso);
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function printAttendance(tour: Tour, registrations: any[]) {
+  const dateStr = new Date(tour.date).toLocaleString("fr-FR");
+  const rows = registrations
+    .map(
+      (r) => `<tr>
+        <td style="border:1px solid #999;padding:6px;width:40px;text-align:center">☐</td>
+        <td style="border:1px solid #999;padding:6px">${escapeHtml(r.lastName)}</td>
+        <td style="border:1px solid #999;padding:6px">${escapeHtml(r.firstName)}</td>
+        <td style="border:1px solid #999;padding:6px">${escapeHtml(
+          r.companionFirstName ? `${r.companionFirstName} ${r.companionLastName || ""}` : ""
+        )}</td>
+      </tr>`
+    )
+    .join("");
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Appel — ${escapeHtml(
+    tour.title
+  )}</title></head><body style="font-family:sans-serif;padding:20px">
+    <h1 style="font-size:18px">Feuille d'appel — ${escapeHtml(tour.title)}</h1>
+    <p style="color:#555">${dateStr} • ${registrations.length} inscrit(s)</p>
+    <table style="border-collapse:collapse;width:100%;font-size:14px">
+      <thead><tr>
+        <th style="border:1px solid #999;padding:6px">Présent</th>
+        <th style="border:1px solid #999;padding:6px;text-align:left">Nom</th>
+        <th style="border:1px solid #999;padding:6px;text-align:left">Prénom</th>
+        <th style="border:1px solid #999;padding:6px;text-align:left">Accompagnant</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </body></html>`;
+  const w = window.open("", "_blank");
+  if (!w) return;
+  w.document.write(html);
+  w.document.close();
+  w.focus();
+  w.print();
+}
+
+function escapeHtml(s: string): string {
+  return String(s).replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] || c)
+  );
 }
 
 function exportCSV(tour: Tour, registrations: any[]) {
