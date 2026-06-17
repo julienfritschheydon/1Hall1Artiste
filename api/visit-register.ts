@@ -426,12 +426,12 @@ async function handleGdprDelete(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const regIds = await rtdbGet<Record<string, boolean>>(`registrations_by_email/${email}`);
+    // Scan ALL registrations by email field (robust: catches non-indexed/orphan docs too)
+    const allRegs = await rtdbGet<Record<string, any>>("registrations");
     let deletedRegs = 0;
-    if (regIds) {
-      for (const regId of Object.keys(regIds)) {
-        const reg = await rtdbRegistrationGet(regId);
-        if (reg && !reg.deletedAt) {
+    if (allRegs) {
+      for (const [regId, reg] of Object.entries(allRegs)) {
+        if (reg && reg.email && reg.email.toLowerCase() === email.toLowerCase() && !reg.deletedAt) {
           await rtdbRegistrationSoftDelete(regId);
           deletedRegs++;
         }

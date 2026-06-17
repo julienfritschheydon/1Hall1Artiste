@@ -20,6 +20,12 @@ function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substr(2);
 }
 
+// Firebase RTDB keys cannot contain . # $ [ ] /  → encode email for use as a key.
+// Deterministic (index only stores ids; real email lives in the doc), collision-free.
+export function emailKey(email: string): string {
+  return encodeURIComponent(email.toLowerCase()).replace(/\./g, "%2E");
+}
+
 // ============ TOURS ============
 
 export async function rtdbTourGet(tourId: string): Promise<Tour | null> {
@@ -103,8 +109,8 @@ export async function rtdbRegistrationCreate(input: RegistrationCreateInput): Pr
   await rtdbPut(`registrations/${id}`, reg);
   // Index by tour
   await rtdbPut(`registrations_by_tour/${input.tourId}/${id}`, true);
-  // Index by email
-  await rtdbPut(`registrations_by_email/${input.email}/${id}`, true);
+  // Index by email (encoded: emails contain '.', illegal in RTDB keys)
+  await rtdbPut(`registrations_by_email/${emailKey(input.email)}/${id}`, true);
   return reg;
 }
 
@@ -123,7 +129,7 @@ export async function rtdbRegistrationSoftDelete(regId: string): Promise<void> {
 }
 
 export async function rtdbRegistrationExists(tourId: string, email: string): Promise<boolean> {
-  const regs = await rtdbGet<Record<string, boolean>>(`registrations_by_email/${email}`);
+  const regs = await rtdbGet<Record<string, boolean>>(`registrations_by_email/${emailKey(email)}`);
   if (!regs) return false;
   // Check if any registration for this tour
   for (const regId of Object.keys(regs)) {
@@ -134,7 +140,7 @@ export async function rtdbRegistrationExists(tourId: string, email: string): Pro
 }
 
 export async function rtdbCountUserTours(email: string): Promise<number> {
-  const regs = await rtdbGet<Record<string, boolean>>(`registrations_by_email/${email}`);
+  const regs = await rtdbGet<Record<string, boolean>>(`registrations_by_email/${emailKey(email)}`);
   if (!regs) return 0;
   let count = 0;
   for (const regId of Object.keys(regs)) {
