@@ -1,7 +1,7 @@
 // Doodates (Visites Guidées) - RTDB helpers + queries
 // Utilise api/_firebase.ts pour accès RTDB (secrets admin)
 
-import { rtdbGet, rtdbPut, rtdbDelete } from "./_firebase";
+import { rtdbGet, rtdbPut, rtdbDelete } from "./_firebase.js";
 import {
   Tour,
   Registration,
@@ -12,7 +12,7 @@ import {
   TourCreateInput,
   RegistrationCreateInput,
   WaitlistCreateInput,
-} from "../src/types/visitTypes";
+} from "../src/types/visitTypes.js";
 
 // UUID helper
 function generateId(): string {

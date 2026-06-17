@@ -11,8 +11,8 @@ import {
   rtdbWaitlistReorderAfter,
   rtdbRegistrationCreate,
   rtdbTourGet,
-} from "./_visit-db";
-import { verifyRegistrationToken } from "./_token";
+} from "./_visit-db.js";
+import { verifyRegistrationToken } from "./_token.js";
 
 // POST /api/visit-waitlist/activate — accepter offre (Q4: sequential, 1 per sec)
 async function handleActivateWaitlist(req: VercelRequest, res: VercelResponse) {

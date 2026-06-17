@@ -14,8 +14,8 @@ import {
   rtdbWaitlistAdd,
   rtdbWaitlistCount,
   rtdbAuditLog,
-} from "./_visit-db";
-import { createRegistrationToken, verifyRegistrationToken } from "./_token";
+} from "./_visit-db.js";
+import { createRegistrationToken, verifyRegistrationToken } from "./_token.js";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SITE_URL = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000";

@@ -10,7 +10,7 @@ import {
   rtdbRegistrationUpdate,
   rtdbRegistrationsListByTour,
   rtdbGuideCodeValidate,
-} from "./_visit-db";
+} from "./_visit-db.js";
 
 // Helper: validate guide code
 async function validateGuideCode(code: string | undefined): Promise<boolean> {

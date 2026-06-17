@@ -21,8 +21,8 @@ import {
   rtdbTourGet,
   rtdbRegistrationCreate,
   rtdbToursListAll,
-} from "./_visit-db";
-import { createRegistrationToken } from "./_token";
+} from "./_visit-db.js";
+import { createRegistrationToken } from "./_token.js";
 
 const SITE_URL = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000";
 const MAX_RETRIES = 3;

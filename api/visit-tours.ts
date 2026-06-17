@@ -4,8 +4,8 @@
 // PUT /api/visit-tours/{id} — modifier visite (guide)
 
 import { VercelRequest, VercelResponse } from "@vercel/node";
-import { rtdbTourCreate, rtdbTourGet, rtdbTourUpdate, rtdbToursListFuture, rtdbToursListAll, rtdbGuideCodeValidate } from "./_visit-db";
-import { Tour, TourCreateInput } from "../src/types/visitTypes";
+import { rtdbTourCreate, rtdbTourGet, rtdbTourUpdate, rtdbToursListFuture, rtdbToursListAll, rtdbGuideCodeValidate } from "./_visit-db.js";
+import { Tour, TourCreateInput } from "../src/types/visitTypes.js";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const COORD_BOUNDS = { lat: [-90, 90], lng: [-180, 180] };
