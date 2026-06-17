@@ -1,6 +1,6 @@
 // Page guide: /guide — Dashboard pour guides (code accès protégé)
 import { useState, useEffect } from "react";
-import { Tour } from "../types/doodatesTypes";
+import { Tour } from "../types/visitTypes";
 import GuideCodeLogin from "../components/GuideCodeLogin";
 import GuideToursList from "../components/GuideToursList";
 
@@ -27,7 +27,7 @@ export default function GuidePortal() {
     setError(null);
 
     try {
-      const res = await fetch("/api/doodates-tours", {
+      const res = await fetch("/api/visit-tours", {
         headers: { "x-guide-code": code },
       });
 
@@ -131,7 +131,7 @@ function TourDetails({
   useEffect(() => {
     async function fetchAttendance() {
       try {
-        const res = await fetch(`/api/doodates-attendance?tourId=${tour.id}`, {
+        const res = await fetch(`/api/visit-attendance?tourId=${tour.id}`, {
           headers: { "x-guide-code": guideCode },
         });
 

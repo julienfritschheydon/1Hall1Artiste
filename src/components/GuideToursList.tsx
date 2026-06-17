@@ -1,5 +1,5 @@
 // Liste des visites pour guide
-import { Tour } from "../types/doodatesTypes";
+import { Tour } from "../types/visitTypes";
 
 interface GuideTourListProps {
   tours: Tour[];

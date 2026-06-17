@@ -17,9 +17,9 @@ import {
   rtdbGuideCodeCreate,
   rtdbGuideCodeValidate,
   rtdbAuditLog,
-} from "../api/_doodates-db";
+} from "../api/_visit-db";
 import { createRegistrationToken, verifyRegistrationToken } from "../api/_token";
-import { Tour, Registration, Waitlist } from "../types/doodatesTypes";
+import { Tour, Registration, Waitlist } from "../types/visitTypes";
 
 // Mock Firebase RTDB access
 vi.mock("../api/_firebase", () => ({

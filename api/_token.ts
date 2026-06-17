@@ -1,6 +1,6 @@
 // Token magique signé HMAC. Sans état, vérifié par signature. Support 2 secret keys.
 // Format: base64url("id|email|exp") + "." + base64url(HMAC_SHA256(payload, secret))
-// Utilisé par: artiste (30j) et registrations doodates (24H)
+// Utilisé par: artiste (30j) et registrations visit (24H)
 
 import { createHmac, timingSafeEqual } from "crypto";
 

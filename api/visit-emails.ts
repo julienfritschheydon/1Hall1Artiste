@@ -1,8 +1,8 @@
 // Doodates Email Batch Jobs (Cron) — Rappels, validation, suppression RGPD, promo file attente
-// POST /api/doodates-emails?type=send-7d-reminder — Rappel 7j avant (daily)
-// POST /api/doodates-emails?type=send-1d-validation — Validation 1j avant (daily)
-// POST /api/doodates-emails?type=batch-delete-post-tour — Suppression RGPD 24H après (daily)
-// POST /api/doodates-emails?type=promote-waitlist — Auto-promotion file attente
+// POST /api/visit-emails?type=send-7d-reminder — Rappel 7j avant (daily)
+// POST /api/visit-emails?type=send-1d-validation — Validation 1j avant (daily)
+// POST /api/visit-emails?type=batch-delete-post-tour — Suppression RGPD 24H après (daily)
+// POST /api/visit-emails?type=promote-waitlist — Auto-promotion file attente
 
 import { VercelRequest, VercelResponse } from "@vercel/node";
 import {
@@ -21,7 +21,7 @@ import {
   rtdbTourGet,
   rtdbRegistrationCreate,
   rtdbToursListAll,
-} from "./_doodates-db";
+} from "./_visit-db";
 import { createRegistrationToken } from "./_token";
 
 const SITE_URL = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000";
@@ -72,14 +72,14 @@ async function sendEmailWithRetry(
       }
 
       const errText = await res.text();
-      console.warn(`[doodates-emails] EmailJS attempt ${attempt + 1} failed: ${res.status} ${errText}`);
+      console.warn(`[visit-emails] EmailJS attempt ${attempt + 1} failed: ${res.status} ${errText}`);
 
       if (attempt < MAX_RETRIES - 1) {
         const delayMs = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
         await new Promise((resolve) => setTimeout(resolve, delayMs));
       }
     } catch (e) {
-      console.warn(`[doodates-emails] EmailJS attempt ${attempt + 1} error:`, e);
+      console.warn(`[visit-emails] EmailJS attempt ${attempt + 1} error:`, e);
       if (attempt < MAX_RETRIES - 1) {
         const delayMs = Math.pow(2, attempt) * 1000;
         await new Promise((resolve) => setTimeout(resolve, delayMs));
@@ -104,14 +104,14 @@ async function sendAdminAlert(subject: string, message: string): Promise<void> {
         template_id: process.env.EMAILJS_TEMPLATE_ID, // Use generic template
         user_id: process.env.EMAILJS_PUBLIC_KEY,
         template_params: {
-          to_email: process.env.DOODATES_ALERT_EMAIL,
+          to_email: process.env.VISIT_ALERT_EMAIL,
           subject,
           message,
         },
       }),
     });
   } catch (e) {
-    console.error("[doodates-emails] Failed to send admin alert:", e);
+    console.error("[visit-emails] Failed to send admin alert:", e);
   }
 }
 
@@ -146,7 +146,7 @@ async function sendReminderEmails7d(): Promise<{ sent: number; failed: number }>
 
     const idempotencyKey = `${reg.id}_7d_reminder`;
     const success = await sendEmailWithRetry(
-      JSON.parse(process.env.DOODATES_EMAILJS_TEMPLATE_IDS || "{}").reminder_7d,
+      JSON.parse(process.env.VISIT_EMAILJS_TEMPLATE_IDS || "{}").reminder_7d,
       {
         to: reg.email,
         firstName: reg.firstName,
@@ -161,7 +161,7 @@ async function sendReminderEmails7d(): Promise<{ sent: number; failed: number }>
       await rtdbRegistrationUpdate(reg.id, { reminder7dSent: true });
       sent++;
     } else {
-      console.error(`[doodates-emails] Failed to send 7d reminder to ${reg.email}`);
+      console.error(`[visit-emails] Failed to send 7d reminder to ${reg.email}`);
       failed++;
     }
   }
@@ -201,7 +201,7 @@ async function sendValidationEmails1d(): Promise<{ sent: number; autocancelled: 
 
     const idempotencyKey = `${reg.id}_1d_validation`;
     const success = await sendEmailWithRetry(
-      JSON.parse(process.env.DOODATES_EMAILJS_TEMPLATE_IDS || "{}").reminder_1d_validate,
+      JSON.parse(process.env.VISIT_EMAILJS_TEMPLATE_IDS || "{}").reminder_1d_validate,
       {
         to: reg.email,
         firstName: reg.firstName,
@@ -220,7 +220,7 @@ async function sendValidationEmails1d(): Promise<{ sent: number; autocancelled: 
       });
       sent++;
     } else {
-      console.error(`[doodates-emails] Failed to send 1d validation to ${reg.email}`);
+      console.error(`[visit-emails] Failed to send 1d validation to ${reg.email}`);
     }
   }
 
@@ -326,7 +326,7 @@ async function promoteFromWaitlist(): Promise<{ promoted: number; rejected: numb
 
     const idempotencyKey = `${next.id}_waitlist_offer`;
     const success = await sendEmailWithRetry(
-      JSON.parse(process.env.DOODATES_EMAILJS_TEMPLATE_IDS || "{}").waitlist_offer,
+      JSON.parse(process.env.VISIT_EMAILJS_TEMPLATE_IDS || "{}").waitlist_offer,
       {
         to: next.email,
         firstName: next.firstName,
@@ -346,7 +346,7 @@ async function promoteFromWaitlist(): Promise<{ promoted: number; rejected: numb
       });
       promoted++;
     } else {
-      console.error(`[doodates-emails] Failed to send waitlist offer to ${next.email}`);
+      console.error(`[visit-emails] Failed to send waitlist offer to ${next.email}`);
     }
   }
 
@@ -401,7 +401,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     return res.json({ ok: true, type, ...result });
   } catch (e) {
-    console.error(`[doodates-emails] Job ${type} failed:`, e);
+    console.error(`[visit-emails] Job ${type} failed:`, e);
     return res.status(500).json({ error: "job failed", type });
   }
 }

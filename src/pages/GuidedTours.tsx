@@ -1,6 +1,6 @@
 // Page publique: /reservations — Listing visites guidées + inscription
 import { useState, useEffect } from "react";
-import { Tour } from "../types/doodatesTypes";
+import { Tour } from "../types/visitTypes";
 
 export default function GuidedTours() {
   const [tours, setTours] = useState<Tour[]>([]);
@@ -11,7 +11,7 @@ export default function GuidedTours() {
   useEffect(() => {
     async function fetchTours() {
       try {
-        const res = await fetch("/api/doodates-tours");
+        const res = await fetch("/api/visit-tours");
         if (!res.ok) throw new Error("Failed to load tours");
         const data = await res.json();
         setTours(data);
@@ -80,7 +80,7 @@ function TourDetail({ tour, onBack }: { tour: Tour; onBack: () => void }) {
   useEffect(() => {
     async function fetchCounts() {
       try {
-        const res = await fetch(`/api/doodates-attendance?tourId=${tour.id}`);
+        const res = await fetch(`/api/visit-attendance?tourId=${tour.id}`);
         if (res.ok) {
           const data = await res.json();
           setRegisteredCount(data.counts?.confirmed || 0);
@@ -151,7 +151,7 @@ function RegistrationForm({ tour, placesLeft }: { tour: Tour; placesLeft: number
     setError(null);
 
     try {
-      const res = await fetch("/api/doodates-register", {
+      const res = await fetch("/api/visit-register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

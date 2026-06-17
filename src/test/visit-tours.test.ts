@@ -1,10 +1,10 @@
 // Tests Phase 2: API Tours
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import handler from "../api/doodates-tours";
+import handler from "../api/visit-tours";
 import { VercelRequest, VercelResponse } from "@vercel/node";
 
 // Mock Firebase RTDB access
-vi.mock("../api/_doodates-db", () => ({
+vi.mock("../api/_visit-db", () => ({
   rtdbTourCreate: vi.fn(),
   rtdbTourGet: vi.fn(),
   rtdbTourUpdate: vi.fn(),
@@ -44,7 +44,7 @@ describe("Doodates Phase 2: API Tours", () => {
     };
   });
 
-  describe("POST /api/doodates-tours — créer visite (guide only)", () => {
+  describe("POST /api/visit-tours — créer visite (guide only)", () => {
     beforeEach(() => {
       mockReq.method = "POST";
     });
@@ -170,7 +170,7 @@ describe("Doodates Phase 2: API Tours", () => {
         updatedAt: new Date().toISOString(),
       };
 
-      const { rtdbTourCreate } = await import("../api/_doodates-db");
+      const { rtdbTourCreate } = await import("../api/_visit-db");
       (rtdbTourCreate as any).mockResolvedValueOnce(mockTour);
 
       await handler(mockReq as VercelRequest, mockRes as VercelResponse);
@@ -181,7 +181,7 @@ describe("Doodates Phase 2: API Tours", () => {
     });
   });
 
-  describe("GET /api/doodates-tours — lister visites", () => {
+  describe("GET /api/visit-tours — lister visites", () => {
     beforeEach(() => {
       mockReq.method = "GET";
     });
@@ -197,7 +197,7 @@ describe("Doodates Phase 2: API Tours", () => {
         },
       ];
 
-      const { rtdbToursListFuture } = await import("../api/_doodates-db");
+      const { rtdbToursListFuture } = await import("../api/_visit-db");
       (rtdbToursListFuture as any).mockResolvedValueOnce(futureTours);
 
       await handler(mockReq as VercelRequest, mockRes as VercelResponse);
@@ -224,7 +224,7 @@ describe("Doodates Phase 2: API Tours", () => {
         },
       ];
 
-      const { rtdbToursListAll } = await import("../api/_doodates-db");
+      const { rtdbToursListAll } = await import("../api/_visit-db");
       (rtdbToursListAll as any).mockResolvedValueOnce(allTours);
 
       await handler(mockReq as VercelRequest, mockRes as VercelResponse);
@@ -234,7 +234,7 @@ describe("Doodates Phase 2: API Tours", () => {
     });
   });
 
-  describe("PUT /api/doodates-tours/{id} — modifier visite", () => {
+  describe("PUT /api/visit-tours/{id} — modifier visite", () => {
     beforeEach(() => {
       mockReq.method = "PUT";
       mockReq.query = { id: "tour_123" };
@@ -267,7 +267,7 @@ describe("Doodates Phase 2: API Tours", () => {
         updatedAt: new Date().toISOString(),
       };
 
-      const { rtdbTourGet } = await import("../api/_doodates-db");
+      const { rtdbTourGet } = await import("../api/_visit-db");
       (rtdbTourGet as any).mockResolvedValueOnce(mockTour);
 
       await handler(mockReq as VercelRequest, mockRes as VercelResponse);
@@ -294,7 +294,7 @@ describe("Doodates Phase 2: API Tours", () => {
         updatedAt: new Date().toISOString(),
       };
 
-      const { rtdbTourGet, rtdbTourUpdate } = await import("../api/_doodates-db");
+      const { rtdbTourGet, rtdbTourUpdate } = await import("../api/_visit-db");
       (rtdbTourGet as any).mockResolvedValueOnce(mockTour);
       (rtdbTourUpdate as any).mockResolvedValueOnce(undefined);
 
@@ -322,7 +322,7 @@ describe("Doodates Phase 2: API Tours", () => {
         updatedAt: new Date().toISOString(),
       };
 
-      const { rtdbTourGet } = await import("../api/_doodates-db");
+      const { rtdbTourGet } = await import("../api/_visit-db");
       (rtdbTourGet as any).mockResolvedValueOnce(mockTour);
 
       await handler(mockReq as VercelRequest, mockRes as VercelResponse);
@@ -348,7 +348,7 @@ describe("Doodates Phase 2: API Tours", () => {
       mockReq.query = { id: "nonexistent_tour" };
       mockReq.body = { title: "Updated" };
 
-      const { rtdbTourGet } = await import("../api/_doodates-db");
+      const { rtdbTourGet } = await import("../api/_visit-db");
       (rtdbTourGet as any).mockResolvedValueOnce(null);
 
       await handler(mockReq as VercelRequest, mockRes as VercelResponse);

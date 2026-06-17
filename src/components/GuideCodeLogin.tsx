@@ -17,7 +17,7 @@ export default function GuideCodeLogin({ onSubmit }: GuideCodeLoginProps) {
 
     try {
       // Validate code by fetching tours
-      const res = await fetch("/api/doodates-tours", {
+      const res = await fetch("/api/visit-tours", {
         headers: { "x-guide-code": code },
       });
 

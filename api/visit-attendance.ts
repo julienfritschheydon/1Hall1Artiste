@@ -1,6 +1,6 @@
 // Doodates Attendance API — Appel + marquage présences (guide only)
-// POST /api/doodates-attendance — marquer présent/absent (guide)
-// GET /api/doodates-attendance?tourId=... — lister présences (guide)
+// POST /api/visit-attendance — marquer présent/absent (guide)
+// GET /api/visit-attendance?tourId=... — lister présences (guide)
 
 import { VercelRequest, VercelResponse } from "@vercel/node";
 import {
@@ -10,7 +10,7 @@ import {
   rtdbRegistrationUpdate,
   rtdbRegistrationsListByTour,
   rtdbGuideCodeValidate,
-} from "./_doodates-db";
+} from "./_visit-db";
 
 // Helper: validate guide code
 async function validateGuideCode(code: string | undefined): Promise<boolean> {
@@ -31,7 +31,7 @@ async function requireGuideCode(req: VercelRequest, res: VercelResponse): Promis
   return true;
 }
 
-// POST /api/doodates-attendance — marquer présent/absent
+// POST /api/visit-attendance — marquer présent/absent
 async function handleMarkAttendance(req: VercelRequest, res: VercelResponse) {
   // Validate guide auth
   if (!(await requireGuideCode(req, res))) {
@@ -85,12 +85,12 @@ async function handleMarkAttendance(req: VercelRequest, res: VercelResponse) {
       message: `Marked as ${newStatus}`,
     });
   } catch (e) {
-    console.error("[doodates-attendance POST]", e);
+    console.error("[visit-attendance POST]", e);
     return res.status(500).json({ error: "attendance marking failed" });
   }
 }
 
-// GET /api/doodates-attendance?tourId=... — lister présences
+// GET /api/visit-attendance?tourId=... — lister présences
 async function handleListAttendance(req: VercelRequest, res: VercelResponse) {
   // Validate guide auth
   if (!(await requireGuideCode(req, res))) {
@@ -149,7 +149,7 @@ async function handleListAttendance(req: VercelRequest, res: VercelResponse) {
       registrations: enriched,
     });
   } catch (e) {
-    console.error("[doodates-attendance GET]", e);
+    console.error("[visit-attendance GET]", e);
     return res.status(500).json({ error: "list failed" });
   }
 }

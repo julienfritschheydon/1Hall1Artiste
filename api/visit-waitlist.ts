@@ -1,6 +1,6 @@
 // Doodates Waitlist API — File d'attente + activation
-// POST /api/doodates-waitlist/activate — accepter offre place libérée (public)
-// DELETE /api/doodates-waitlist/{id} — annuler file attente (public)
+// POST /api/visit-waitlist/activate — accepter offre place libérée (public)
+// DELETE /api/visit-waitlist/{id} — annuler file attente (public)
 
 import { VercelRequest, VercelResponse } from "@vercel/node";
 import {
@@ -11,10 +11,10 @@ import {
   rtdbWaitlistReorderAfter,
   rtdbRegistrationCreate,
   rtdbTourGet,
-} from "./_doodates-db";
+} from "./_visit-db";
 import { verifyRegistrationToken } from "./_token";
 
-// POST /api/doodates-waitlist/activate — accepter offre (Q4: sequential, 1 per sec)
+// POST /api/visit-waitlist/activate — accepter offre (Q4: sequential, 1 per sec)
 async function handleActivateWaitlist(req: VercelRequest, res: VercelResponse) {
   const { token } = req.body;
 
@@ -68,12 +68,12 @@ async function handleActivateWaitlist(req: VercelRequest, res: VercelResponse) {
       message: "Inscription confirmed",
     });
   } catch (e) {
-    console.error("[doodates-waitlist activate]", e);
+    console.error("[visit-waitlist activate]", e);
     return res.status(500).json({ error: "activation failed" });
   }
 }
 
-// DELETE /api/doodates-waitlist/{id} — annuler (reorder Q4)
+// DELETE /api/visit-waitlist/{id} — annuler (reorder Q4)
 async function handleDeleteWaitlist(req: VercelRequest, res: VercelResponse) {
   const { id } = req.query;
 
@@ -102,12 +102,12 @@ async function handleDeleteWaitlist(req: VercelRequest, res: VercelResponse) {
 
     return res.json({ ok: true, message: "Cancelled" });
   } catch (e) {
-    console.error("[doodates-waitlist delete]", e);
+    console.error("[visit-waitlist delete]", e);
     return res.status(500).json({ error: "cancellation failed" });
   }
 }
 
-// GET /api/doodates-waitlist/{tourId} — voir liste d'attente (public)
+// GET /api/visit-waitlist/{tourId} — voir liste d'attente (public)
 async function handleGetWaitlist(req: VercelRequest, res: VercelResponse) {
   const { tourId } = req.query;
 
@@ -126,7 +126,7 @@ async function handleGetWaitlist(req: VercelRequest, res: VercelResponse) {
 
     return res.json({ totalInWaitlist: waits.length, positions: anonymized });
   } catch (e) {
-    console.error("[doodates-waitlist get]", e);
+    console.error("[visit-waitlist get]", e);
     return res.status(500).json({ error: "list failed" });
   }
 }

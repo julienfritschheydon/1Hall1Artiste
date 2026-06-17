@@ -1,9 +1,9 @@
 // Tests Phase 4: API Waitlist
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import handler from "../api/doodates-waitlist";
+import handler from "../api/visit-waitlist";
 import { VercelRequest, VercelResponse } from "@vercel/node";
 
-vi.mock("../api/_doodates-db", () => ({
+vi.mock("../api/_visit-db", () => ({
   rtdbWaitlistGet: vi.fn(),
   rtdbWaitlistSoftDelete: vi.fn(),
   rtdbWaitlistUpdate: vi.fn(),
@@ -45,13 +45,13 @@ describe("Doodates Phase 4: API Waitlist", () => {
       headers: {},
       query: {},
       body: {},
-      url: "/api/doodates-waitlist",
+      url: "/api/visit-waitlist",
     };
   });
 
-  describe("POST /api/doodates-waitlist/activate — accepter offre (Q4, Q5)", () => {
+  describe("POST /api/visit-waitlist/activate — accepter offre (Q4, Q5)", () => {
     beforeEach(() => {
-      mockReq.url = "/api/doodates-waitlist/activate";
+      mockReq.url = "/api/visit-waitlist/activate";
       mockReq.method = "POST";
     });
 
@@ -96,7 +96,7 @@ describe("Doodates Phase 4: API Waitlist", () => {
       mockReq.body = { token: "valid_token" };
 
       const { verifyRegistrationToken } = await import("../api/_token");
-      const { rtdbWaitlistGet } = await import("../api/_doodates-db");
+      const { rtdbWaitlistGet } = await import("../api/_visit-db");
 
       (verifyRegistrationToken as any).mockReturnValueOnce({
         valid: true,
@@ -115,7 +115,7 @@ describe("Doodates Phase 4: API Waitlist", () => {
       mockReq.body = { token: "valid_token" };
 
       const { verifyRegistrationToken } = await import("../api/_token");
-      const { rtdbWaitlistGet } = await import("../api/_doodates-db");
+      const { rtdbWaitlistGet } = await import("../api/_visit-db");
 
       (verifyRegistrationToken as any).mockReturnValueOnce({
         valid: true,
@@ -137,7 +137,7 @@ describe("Doodates Phase 4: API Waitlist", () => {
       mockReq.body = { token: "valid_token" };
 
       const { verifyRegistrationToken } = await import("../api/_token");
-      const { rtdbWaitlistGet, rtdbWaitlistSoftDelete, rtdbRegistrationCreate } = await import("../api/_doodates-db");
+      const { rtdbWaitlistGet, rtdbWaitlistSoftDelete, rtdbRegistrationCreate } = await import("../api/_visit-db");
 
       (verifyRegistrationToken as any).mockReturnValueOnce({
         valid: true,
@@ -169,7 +169,7 @@ describe("Doodates Phase 4: API Waitlist", () => {
     });
   });
 
-  describe("DELETE /api/doodates-waitlist/{id} — annuler (Q4: reorder)", () => {
+  describe("DELETE /api/visit-waitlist/{id} — annuler (Q4: reorder)", () => {
     beforeEach(() => {
       mockReq.method = "DELETE";
       mockReq.query = { id: "wait_123" };
@@ -185,7 +185,7 @@ describe("Doodates Phase 4: API Waitlist", () => {
     });
 
     it("should reject if waitlist not found", async () => {
-      const { rtdbWaitlistGet } = await import("../api/_doodates-db");
+      const { rtdbWaitlistGet } = await import("../api/_visit-db");
       (rtdbWaitlistGet as any).mockResolvedValueOnce(null);
 
       await handler(mockReq as VercelRequest, mockRes as VercelResponse);
@@ -195,7 +195,7 @@ describe("Doodates Phase 4: API Waitlist", () => {
     });
 
     it("should reject if already deleted", async () => {
-      const { rtdbWaitlistGet } = await import("../api/_doodates-db");
+      const { rtdbWaitlistGet } = await import("../api/_visit-db");
       (rtdbWaitlistGet as any).mockResolvedValueOnce({
         id: "wait_123",
         deletedAt: new Date().toISOString(),
@@ -208,7 +208,7 @@ describe("Doodates Phase 4: API Waitlist", () => {
     });
 
     it("should soft-delete and reorder positions (Q4)", async () => {
-      const { rtdbWaitlistGet, rtdbWaitlistSoftDelete, rtdbWaitlistReorderAfter } = await import("../api/_doodates-db");
+      const { rtdbWaitlistGet, rtdbWaitlistSoftDelete, rtdbWaitlistReorderAfter } = await import("../api/_visit-db");
 
       (rtdbWaitlistGet as any).mockResolvedValueOnce({
         id: "wait_123",
@@ -228,7 +228,7 @@ describe("Doodates Phase 4: API Waitlist", () => {
     });
   });
 
-  describe("GET /api/doodates-waitlist/{tourId} — voir liste (anonymized)", () => {
+  describe("GET /api/visit-waitlist/{tourId} — voir liste (anonymized)", () => {
     beforeEach(() => {
       mockReq.method = "GET";
       mockReq.query = { tourId: "tour_123" };
@@ -244,7 +244,7 @@ describe("Doodates Phase 4: API Waitlist", () => {
     });
 
     it("should return anonymized waitlist", async () => {
-      const { rtdbWaitlistListByTour } = await import("../api/_doodates-db");
+      const { rtdbWaitlistListByTour } = await import("../api/_visit-db");
 
       (rtdbWaitlistListByTour as any).mockResolvedValueOnce([
         {
@@ -274,7 +274,7 @@ describe("Doodates Phase 4: API Waitlist", () => {
     });
 
     it("should return empty waitlist", async () => {
-      const { rtdbWaitlistListByTour } = await import("../api/_doodates-db");
+      const { rtdbWaitlistListByTour } = await import("../api/_visit-db");
 
       (rtdbWaitlistListByTour as any).mockResolvedValueOnce([]);
 
@@ -298,7 +298,7 @@ describe("Doodates Phase 4: API Waitlist", () => {
 
     it("should reject invalid POST path", async () => {
       mockReq.method = "POST";
-      mockReq.url = "/api/doodates-waitlist/invalid";
+      mockReq.url = "/api/visit-waitlist/invalid";
 
       await handler(mockReq as VercelRequest, mockRes as VercelResponse);
 

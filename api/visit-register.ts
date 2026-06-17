@@ -1,6 +1,6 @@
 // Doodates Registration API — Inscription visites + validation email
-// POST /api/doodates-register — créer inscription (public)
-// POST /api/doodates-register/confirm — valider lien email (public)
+// POST /api/visit-register — créer inscription (public)
+// POST /api/visit-register/confirm — valider lien email (public)
 
 import { VercelRequest, VercelResponse } from "@vercel/node";
 import {
@@ -14,7 +14,7 @@ import {
   rtdbWaitlistAdd,
   rtdbWaitlistCount,
   rtdbAuditLog,
-} from "./_doodates-db";
+} from "./_visit-db";
 import { createRegistrationToken, verifyRegistrationToken } from "./_token";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -31,8 +31,8 @@ async function sendRegistrationEmail(
   emailType: "confirmation" | "waitlist_confirmation" | "validation_expired",
   data: Record<string, any>
 ): Promise<void> {
-  const templateIdJson = process.env.DOODATES_EMAILJS_TEMPLATE_IDS;
-  if (!templateIdJson) throw new Error("DOODATES_EMAILJS_TEMPLATE_IDS missing");
+  const templateIdJson = process.env.VISIT_EMAILJS_TEMPLATE_IDS;
+  if (!templateIdJson) throw new Error("VISIT_EMAILJS_TEMPLATE_IDS missing");
 
   const templateIds = JSON.parse(templateIdJson);
   const templateId = templateIds[emailType];
@@ -81,14 +81,14 @@ async function sendRegistrationEmail(
       }
 
       lastError = await res.text();
-      console.warn(`[doodates-register] EmailJS attempt ${attempt + 1} failed: ${res.status} ${lastError}`);
+      console.warn(`[visit-register] EmailJS attempt ${attempt + 1} failed: ${res.status} ${lastError}`);
 
       if (attempt < 2) {
         await new Promise((resolve) => setTimeout(resolve, Math.pow(2, attempt) * 1000)); // 1s, 2s, 4s
       }
     } catch (e) {
       lastError = e;
-      console.warn(`[doodates-register] EmailJS attempt ${attempt + 1} error:`, e);
+      console.warn(`[visit-register] EmailJS attempt ${attempt + 1} error:`, e);
       if (attempt < 2) {
         await new Promise((resolve) => setTimeout(resolve, Math.pow(2, attempt) * 1000));
       }
@@ -97,7 +97,7 @@ async function sendRegistrationEmail(
 
   // Q2: Alert admin if all retries fail
   const alertError = `EmailJS failed after 3 retries: ${emailType} to ${data.to}. Error: ${lastError}`;
-  console.error(`[doodates-register] ${alertError}`);
+  console.error(`[visit-register] ${alertError}`);
 
   await rtdbAuditLog("email_failure_alert", {
     emailType,
@@ -120,18 +120,18 @@ async function sendRegistrationEmail(
         template_id: process.env.EMAILJS_TEMPLATE_ID, // Use generic template for alert
         user_id: process.env.EMAILJS_PUBLIC_KEY,
         template_params: {
-          to_email: process.env.DOODATES_ALERT_EMAIL,
+          to_email: process.env.VISIT_ALERT_EMAIL,
           subject: "Doodates Email Failure Alert",
           message: alertError,
         },
       }),
     });
   } catch (alertE) {
-    console.error("[doodates-register] Failed to send alert to admin:", alertE);
+    console.error("[visit-register] Failed to send alert to admin:", alertE);
   }
 }
 
-// POST /api/doodates-register — créer inscription
+// POST /api/visit-register — créer inscription
 async function handleCreateRegistration(req: VercelRequest, res: VercelResponse) {
   const { tourId, email, firstName, lastName, companionFirstName, companionLastName } = req.body;
 
@@ -205,7 +205,7 @@ async function handleCreateRegistration(req: VercelRequest, res: VercelResponse)
           idempotencyKey: `${registration.id}_confirmation`,
         });
       } catch (e) {
-        console.error("[doodates-register] Failed to send confirmation email:", e);
+        console.error("[visit-register] Failed to send confirmation email:", e);
         // Continue anyway, user can check their email
       }
 
@@ -241,7 +241,7 @@ async function handleCreateRegistration(req: VercelRequest, res: VercelResponse)
           idempotencyKey: `${waitlist.id}_waitlist_confirmation`,
         });
       } catch (e) {
-        console.error("[doodates-register] Failed to send waitlist email:", e);
+        console.error("[visit-register] Failed to send waitlist email:", e);
       }
 
       return res.status(201).json({
@@ -252,12 +252,12 @@ async function handleCreateRegistration(req: VercelRequest, res: VercelResponse)
       });
     }
   } catch (e) {
-    console.error("[doodates-register POST]", e);
+    console.error("[visit-register POST]", e);
     return res.status(500).json({ error: "registration failed" });
   }
 }
 
-// POST /api/doodates-register/confirm — valider lien email
+// POST /api/visit-register/confirm — valider lien email
 async function handleConfirmRegistration(req: VercelRequest, res: VercelResponse) {
   const { token } = req.body;
 
@@ -282,7 +282,7 @@ async function handleConfirmRegistration(req: VercelRequest, res: VercelResponse
           idempotencyKey: `${verified.registrationId}_validation_expired`,
         });
       } catch (e) {
-        console.error("[doodates-register] Failed to send expiration email:", e);
+        console.error("[visit-register] Failed to send expiration email:", e);
       }
 
       return res.status(400).json({ error: "token expired" });
@@ -312,7 +312,7 @@ async function handleConfirmRegistration(req: VercelRequest, res: VercelResponse
 
     return res.json({ ok: true, status: "confirmé", message: "Inscription confirmed" });
   } catch (e) {
-    console.error("[doodates-register confirm]", e);
+    console.error("[visit-register confirm]", e);
     return res.status(500).json({ error: "confirmation failed" });
   }
 }

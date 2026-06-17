@@ -1,6 +1,6 @@
 // Feuille d'appel pour guide (marquer présent/absent)
 import { useState } from "react";
-import { Tour, Registration } from "../types/doodatesTypes";
+import { Tour, Registration } from "../types/visitTypes";
 
 interface TourAttendanceSheetProps {
   tour: Tour;
@@ -23,7 +23,7 @@ export default function TourAttendanceSheet({
     setError(null);
 
     try {
-      const res = await fetch("/api/doodates-attendance", {
+      const res = await fetch("/api/visit-attendance", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

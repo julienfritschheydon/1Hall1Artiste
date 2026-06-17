@@ -20,19 +20,19 @@
   ],
   "crons": [
     {
-      "path": "/api/doodates-emails?type=send-7d-reminder",
+      "path": "/api/visit-emails?type=send-7d-reminder",
       "schedule": "0 0 * * *"
     },
     {
-      "path": "/api/doodates-emails?type=send-1d-validation",
+      "path": "/api/visit-emails?type=send-1d-validation",
       "schedule": "0 0 * * *"
     },
     {
-      "path": "/api/doodates-emails?type=batch-delete-post-tour",
+      "path": "/api/visit-emails?type=batch-delete-post-tour",
       "schedule": "0 1 * * *"
     },
     {
-      "path": "/api/doodates-emails?type=promote-waitlist",
+      "path": "/api/visit-emails?type=promote-waitlist",
       "schedule": "0 2 * * *"
     }
   ]

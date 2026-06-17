@@ -1,9 +1,9 @@
 // Tests Phase 3: API Inscriptions
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import handler from "../api/doodates-register";
+import handler from "../api/visit-register";
 import { VercelRequest, VercelResponse } from "@vercel/node";
 
-vi.mock("../api/_doodates-db", () => ({
+vi.mock("../api/_visit-db", () => ({
   rtdbTourGet: vi.fn(),
   rtdbRegistrationCreate: vi.fn(),
   rtdbRegistrationGet: vi.fn(),
@@ -52,11 +52,11 @@ describe("Doodates Phase 3: API Inscriptions", () => {
       headers: {},
       query: {},
       body: {},
-      url: "/api/doodates-register",
+      url: "/api/visit-register",
     };
   });
 
-  describe("POST /api/doodates-register — créer inscription", () => {
+  describe("POST /api/visit-register — créer inscription", () => {
     it("should reject invalid email (Q13)", async () => {
       mockReq.body = {
         tourId: "tour_123",
@@ -80,7 +80,7 @@ describe("Doodates Phase 3: API Inscriptions", () => {
       };
 
       // Should sanitize and continue (not reject)
-      const { rtdbTourGet, rtdbRegistrationExists, rtdbCountUserTours, rtdbCountRegisteredByTour, rtdbRegistrationCreate } = await import("../api/_doodates-db");
+      const { rtdbTourGet, rtdbRegistrationExists, rtdbCountUserTours, rtdbCountRegisteredByTour, rtdbRegistrationCreate } = await import("../api/_visit-db");
       (rtdbCountUserTours as any).mockResolvedValueOnce(0);
       (rtdbRegistrationExists as any).mockResolvedValueOnce(false);
       (rtdbTourGet as any).mockResolvedValueOnce({
@@ -123,7 +123,7 @@ describe("Doodates Phase 3: API Inscriptions", () => {
         lastName: "Dupont",
       };
 
-      const { rtdbCountUserTours } = await import("../api/_doodates-db");
+      const { rtdbCountUserTours } = await import("../api/_visit-db");
       (rtdbCountUserTours as any).mockResolvedValueOnce(3); // Already at max
 
       await handler(mockReq as VercelRequest, mockRes as VercelResponse);
@@ -140,7 +140,7 @@ describe("Doodates Phase 3: API Inscriptions", () => {
         lastName: "Dupont",
       };
 
-      const { rtdbCountUserTours, rtdbRegistrationExists } = await import("../api/_doodates-db");
+      const { rtdbCountUserTours, rtdbRegistrationExists } = await import("../api/_visit-db");
       (rtdbCountUserTours as any).mockResolvedValueOnce(0);
       (rtdbRegistrationExists as any).mockResolvedValueOnce(true); // Already registered
 
@@ -159,7 +159,7 @@ describe("Doodates Phase 3: API Inscriptions", () => {
         companionFirstName: "Marie",
       };
 
-      const { rtdbTourGet, rtdbCountUserTours, rtdbRegistrationExists, rtdbCountRegisteredByTour, rtdbRegistrationCreate } = await import("../api/_doodates-db");
+      const { rtdbTourGet, rtdbCountUserTours, rtdbRegistrationExists, rtdbCountRegisteredByTour, rtdbRegistrationCreate } = await import("../api/_visit-db");
       (rtdbCountUserTours as any).mockResolvedValueOnce(0);
       (rtdbRegistrationExists as any).mockResolvedValueOnce(false);
       (rtdbTourGet as any).mockResolvedValueOnce({
@@ -189,7 +189,7 @@ describe("Doodates Phase 3: API Inscriptions", () => {
         lastName: "Dupont",
       };
 
-      const { rtdbTourGet, rtdbCountUserTours, rtdbRegistrationExists, rtdbCountRegisteredByTour, rtdbWaitlistAdd, rtdbWaitlistCount } = await import("../api/_doodates-db");
+      const { rtdbTourGet, rtdbCountUserTours, rtdbRegistrationExists, rtdbCountRegisteredByTour, rtdbWaitlistAdd, rtdbWaitlistCount } = await import("../api/_visit-db");
       (rtdbCountUserTours as any).mockResolvedValueOnce(0);
       (rtdbRegistrationExists as any).mockResolvedValueOnce(false);
       (rtdbTourGet as any).mockResolvedValueOnce({
@@ -220,7 +220,7 @@ describe("Doodates Phase 3: API Inscriptions", () => {
         lastName: "Dupont",
       };
 
-      const { rtdbCountUserTours, rtdbRegistrationExists, rtdbTourGet } = await import("../api/_doodates-db");
+      const { rtdbCountUserTours, rtdbRegistrationExists, rtdbTourGet } = await import("../api/_visit-db");
       (rtdbCountUserTours as any).mockResolvedValueOnce(0);
       (rtdbRegistrationExists as any).mockResolvedValueOnce(false);
       (rtdbTourGet as any).mockResolvedValueOnce(null);
@@ -232,9 +232,9 @@ describe("Doodates Phase 3: API Inscriptions", () => {
     });
   });
 
-  describe("POST /api/doodates-register/confirm — valider email", () => {
+  describe("POST /api/visit-register/confirm — valider email", () => {
     beforeEach(() => {
-      mockReq.url = "/api/doodates-register/confirm";
+      mockReq.url = "/api/visit-register/confirm";
     });
 
     it("should reject missing token", async () => {
@@ -279,7 +279,7 @@ describe("Doodates Phase 3: API Inscriptions", () => {
       mockReq.body = { token: "valid_token" };
 
       const { verifyRegistrationToken } = await import("../api/_token");
-      const { rtdbRegistrationGet, rtdbRegistrationUpdate } = await import("../api/_doodates-db");
+      const { rtdbRegistrationGet, rtdbRegistrationUpdate } = await import("../api/_visit-db");
 
       (verifyRegistrationToken as any).mockReturnValueOnce({
         valid: true,
@@ -304,7 +304,7 @@ describe("Doodates Phase 3: API Inscriptions", () => {
       mockReq.body = { token: "valid_token" };
 
       const { verifyRegistrationToken } = await import("../api/_token");
-      const { rtdbRegistrationGet } = await import("../api/_doodates-db");
+      const { rtdbRegistrationGet } = await import("../api/_visit-db");
 
       (verifyRegistrationToken as any).mockReturnValueOnce({
         valid: true,
@@ -328,7 +328,7 @@ describe("Doodates Phase 3: API Inscriptions", () => {
       mockReq.body = { token: "valid_token" };
 
       const { verifyRegistrationToken } = await import("../api/_token");
-      const { rtdbRegistrationGet } = await import("../api/_doodates-db");
+      const { rtdbRegistrationGet } = await import("../api/_visit-db");
 
       (verifyRegistrationToken as any).mockReturnValueOnce({
         valid: true,

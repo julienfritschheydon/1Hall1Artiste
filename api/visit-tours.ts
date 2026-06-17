@@ -1,11 +1,11 @@
 // Doodates Tours API — CRUD visites (guide only)
-// POST /api/doodates-tours — créer visite (guide)
-// GET /api/doodates-tours — lister visites (public: future only; guide: tous)
-// PUT /api/doodates-tours/{id} — modifier visite (guide)
+// POST /api/visit-tours — créer visite (guide)
+// GET /api/visit-tours — lister visites (public: future only; guide: tous)
+// PUT /api/visit-tours/{id} — modifier visite (guide)
 
 import { VercelRequest, VercelResponse } from "@vercel/node";
-import { rtdbTourCreate, rtdbTourGet, rtdbTourUpdate, rtdbToursListFuture, rtdbToursListAll, rtdbGuideCodeValidate } from "./_doodates-db";
-import { Tour, TourCreateInput } from "../src/types/doodatesTypes";
+import { rtdbTourCreate, rtdbTourGet, rtdbTourUpdate, rtdbToursListFuture, rtdbToursListAll, rtdbGuideCodeValidate } from "./_visit-db";
+import { Tour, TourCreateInput } from "../src/types/visitTypes";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const COORD_BOUNDS = { lat: [-90, 90], lng: [-180, 180] };
@@ -59,7 +59,7 @@ function validateTourInput(data: any): { valid: boolean; errors: string[] } {
   return { valid: errors.length === 0, errors };
 }
 
-// POST /api/doodates-tours — créer visite
+// POST /api/visit-tours — créer visite
 async function handlePost(req: VercelRequest, res: VercelResponse) {
   const guideCode = req.headers["x-guide-code"] as string | undefined;
   const isGuideUser = await isGuide(req);
@@ -91,12 +91,12 @@ async function handlePost(req: VercelRequest, res: VercelResponse) {
     const tour = await rtdbTourCreate(input);
     return res.status(201).json(tour);
   } catch (e) {
-    console.error("[doodates-tours POST]", e);
+    console.error("[visit-tours POST]", e);
     return res.status(500).json({ error: "creation failed" });
   }
 }
 
-// GET /api/doodates-tours — lister visites
+// GET /api/visit-tours — lister visites
 async function handleGet(req: VercelRequest, res: VercelResponse) {
   const guideCode = req.headers["x-guide-code"] as string | undefined;
   const isGuideUser = await isGuide(req);
@@ -113,12 +113,12 @@ async function handleGet(req: VercelRequest, res: VercelResponse) {
 
     return res.status(200).json(tours);
   } catch (e) {
-    console.error("[doodates-tours GET]", e);
+    console.error("[visit-tours GET]", e);
     return res.status(500).json({ error: "list failed" });
   }
 }
 
-// PUT /api/doodates-tours/{id} — modifier visite
+// PUT /api/visit-tours/{id} — modifier visite
 async function handlePut(req: VercelRequest, res: VercelResponse) {
   const guideCode = req.headers["x-guide-code"] as string | undefined;
   const isGuideUser = await isGuide(req);
@@ -178,7 +178,7 @@ async function handlePut(req: VercelRequest, res: VercelResponse) {
     await rtdbTourUpdate(id, updates);
     return res.status(200).json({ ok: true });
   } catch (e) {
-    console.error("[doodates-tours PUT]", e);
+    console.error("[visit-tours PUT]", e);
     return res.status(500).json({ error: "update failed" });
   }
 }

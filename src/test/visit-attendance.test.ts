@@ -1,9 +1,9 @@
 // Tests Phase 5: API Attendance
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import handler from "../api/doodates-attendance";
+import handler from "../api/visit-attendance";
 import { VercelRequest, VercelResponse } from "@vercel/node";
 
-vi.mock("../api/_doodates-db", () => ({
+vi.mock("../api/_visit-db", () => ({
   rtdbAttendanceCreate: vi.fn(),
   rtdbAttendanceListByTour: vi.fn(),
   rtdbRegistrationGet: vi.fn(),
@@ -43,7 +43,7 @@ describe("Doodates Phase 5: API Attendance", () => {
     };
   });
 
-  describe("POST /api/doodates-attendance — marquer présent/absent (guide only)", () => {
+  describe("POST /api/visit-attendance — marquer présent/absent (guide only)", () => {
     beforeEach(() => {
       mockReq.method = "POST";
     });
@@ -70,7 +70,7 @@ describe("Doodates Phase 5: API Attendance", () => {
         present: true,
       };
 
-      const { rtdbGuideCodeValidate } = await import("../api/_doodates-db");
+      const { rtdbGuideCodeValidate } = await import("../api/_visit-db");
       (rtdbGuideCodeValidate as any).mockResolvedValueOnce(false);
 
       await handler(mockReq as VercelRequest, mockRes as VercelResponse);
@@ -85,7 +85,7 @@ describe("Doodates Phase 5: API Attendance", () => {
         present: true,
       };
 
-      const { rtdbGuideCodeValidate } = await import("../api/_doodates-db");
+      const { rtdbGuideCodeValidate } = await import("../api/_visit-db");
       (rtdbGuideCodeValidate as any).mockResolvedValueOnce(true);
 
       await handler(mockReq as VercelRequest, mockRes as VercelResponse);
@@ -101,7 +101,7 @@ describe("Doodates Phase 5: API Attendance", () => {
         present: true,
       };
 
-      const { rtdbGuideCodeValidate } = await import("../api/_doodates-db");
+      const { rtdbGuideCodeValidate } = await import("../api/_visit-db");
       (rtdbGuideCodeValidate as any).mockResolvedValueOnce(true);
 
       await handler(mockReq as VercelRequest, mockRes as VercelResponse);
@@ -118,7 +118,7 @@ describe("Doodates Phase 5: API Attendance", () => {
         present: "yes", // Not boolean
       };
 
-      const { rtdbGuideCodeValidate } = await import("../api/_doodates-db");
+      const { rtdbGuideCodeValidate } = await import("../api/_visit-db");
       (rtdbGuideCodeValidate as any).mockResolvedValueOnce(true);
 
       await handler(mockReq as VercelRequest, mockRes as VercelResponse);
@@ -135,7 +135,7 @@ describe("Doodates Phase 5: API Attendance", () => {
         present: true,
       };
 
-      const { rtdbGuideCodeValidate, rtdbRegistrationGet } = await import("../api/_doodates-db");
+      const { rtdbGuideCodeValidate, rtdbRegistrationGet } = await import("../api/_visit-db");
       (rtdbGuideCodeValidate as any).mockResolvedValueOnce(true);
       (rtdbRegistrationGet as any).mockResolvedValueOnce(null);
 
@@ -153,7 +153,7 @@ describe("Doodates Phase 5: API Attendance", () => {
         present: true,
       };
 
-      const { rtdbGuideCodeValidate, rtdbRegistrationGet } = await import("../api/_doodates-db");
+      const { rtdbGuideCodeValidate, rtdbRegistrationGet } = await import("../api/_visit-db");
       (rtdbGuideCodeValidate as any).mockResolvedValueOnce(true);
       (rtdbRegistrationGet as any).mockResolvedValueOnce({
         id: "reg_123",
@@ -174,7 +174,7 @@ describe("Doodates Phase 5: API Attendance", () => {
         present: true,
       };
 
-      const { rtdbGuideCodeValidate, rtdbRegistrationGet, rtdbAttendanceCreate, rtdbRegistrationUpdate } = await import("../api/_doodates-db");
+      const { rtdbGuideCodeValidate, rtdbRegistrationGet, rtdbAttendanceCreate, rtdbRegistrationUpdate } = await import("../api/_visit-db");
       (rtdbGuideCodeValidate as any).mockResolvedValueOnce(true);
       (rtdbRegistrationGet as any).mockResolvedValueOnce({
         id: "reg_123",
@@ -204,7 +204,7 @@ describe("Doodates Phase 5: API Attendance", () => {
         present: false,
       };
 
-      const { rtdbGuideCodeValidate, rtdbRegistrationGet, rtdbAttendanceCreate, rtdbRegistrationUpdate } = await import("../api/_doodates-db");
+      const { rtdbGuideCodeValidate, rtdbRegistrationGet, rtdbAttendanceCreate, rtdbRegistrationUpdate } = await import("../api/_visit-db");
       (rtdbGuideCodeValidate as any).mockResolvedValueOnce(true);
       (rtdbRegistrationGet as any).mockResolvedValueOnce({
         id: "reg_123",
@@ -227,7 +227,7 @@ describe("Doodates Phase 5: API Attendance", () => {
     });
   });
 
-  describe("GET /api/doodates-attendance?tourId=... — lister présences (guide only)", () => {
+  describe("GET /api/visit-attendance?tourId=... — lister présences (guide only)", () => {
     beforeEach(() => {
       mockReq.method = "GET";
       mockReq.query = { tourId: "tour_123" };
@@ -246,7 +246,7 @@ describe("Doodates Phase 5: API Attendance", () => {
       mockReq.headers = { "x-guide-code": "VALID_CODE" };
       mockReq.query = {};
 
-      const { rtdbGuideCodeValidate } = await import("../api/_doodates-db");
+      const { rtdbGuideCodeValidate } = await import("../api/_visit-db");
       (rtdbGuideCodeValidate as any).mockResolvedValueOnce(true);
 
       await handler(mockReq as VercelRequest, mockRes as VercelResponse);
@@ -259,7 +259,7 @@ describe("Doodates Phase 5: API Attendance", () => {
       mockReq.headers = { "x-guide-code": "VALID_CODE" };
       mockReq.query = { tourId: "tour_123" };
 
-      const { rtdbGuideCodeValidate, rtdbRegistrationsListByTour, rtdbAttendanceListByTour } = await import("../api/_doodates-db");
+      const { rtdbGuideCodeValidate, rtdbRegistrationsListByTour, rtdbAttendanceListByTour } = await import("../api/_visit-db");
 
       const mockRegs = [
         { id: "reg_1", firstName: "Alice", lastName: "Albert", status: "confirmé", deletedAt: undefined },
@@ -300,7 +300,7 @@ describe("Doodates Phase 5: API Attendance", () => {
       mockReq.headers = { "x-guide-code": "VALID_CODE" };
       mockReq.query = { tourId: "tour_123" };
 
-      const { rtdbGuideCodeValidate, rtdbRegistrationsListByTour, rtdbAttendanceListByTour } = await import("../api/_doodates-db");
+      const { rtdbGuideCodeValidate, rtdbRegistrationsListByTour, rtdbAttendanceListByTour } = await import("../api/_visit-db");
 
       const mockRegs = [
         { id: "reg_1", firstName: "Alice", lastName: "Albert", status: "confirmé", deletedAt: undefined },

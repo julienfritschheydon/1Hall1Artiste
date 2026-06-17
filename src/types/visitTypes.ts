@@ -1,4 +1,4 @@
-// Types pour système visites guidées (doodates)
+// Types pour système visites guidées (visit)
 
 export interface Tour {
   id: string

@@ -12,7 +12,7 @@ import {
   TourCreateInput,
   RegistrationCreateInput,
   WaitlistCreateInput,
-} from "../src/types/doodatesTypes";
+} from "../src/types/visitTypes";
 
 // UUID helper
 function generateId(): string {
@@ -351,5 +351,5 @@ export async function rtdbAuditLog(action: string, details: Record<string, any>)
     details,
     timestamp: new Date().toISOString(),
   };
-  await rtdbPut(`doodates_audit_logs/${id}`, log);
+  await rtdbPut(`visit_audit_logs/${id}`, log);
 }
