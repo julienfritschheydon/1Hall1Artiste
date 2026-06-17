@@ -42,8 +42,8 @@ export async function rtdbTourCreate(input: TourCreateInput): Promise<Tour> {
     title: input.title,
     date: input.date,
     durationMinutes: input.durationMinutes,
-    startLocationLat: input.startLocationLat,
-    startLocationLng: input.startLocationLng,
+    startLocationX: input.startLocationX,
+    startLocationY: input.startLocationY,
     startLocationName: input.startLocationName,
     capacity: input.capacity,
     labels: input.labels,
@@ -366,7 +366,7 @@ export async function rtdbLocationsList(): Promise<LocationPoint[]> {
   if (!locs) return [];
   return Object.entries(locs)
     .map(([id, l]) => ({ ...l, id }))
-    .filter((l) => l && typeof l.lat === "number" && typeof l.lng === "number")
+    .filter((l) => l && typeof l.x === "number" && typeof l.y === "number")
     .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
 }
 

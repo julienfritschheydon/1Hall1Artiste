@@ -10,11 +10,12 @@ export const MAX_PLACES_PER_REGISTRATION = 5 // 1 titulaire + 4 accompagnants
 export const MAX_COMPANIONS = MAX_PLACES_PER_REGISTRATION - 1
 
 // Point de départ prédéfini (géré par l'admin). Le guide choisit dans une liste.
+// x/y = coordonnées sur la carte personnalisée de l'Île Feydeau (pas du GPS).
 export interface LocationPoint {
   id: string
   name: string
-  lat: number
-  lng: number
+  x: number
+  y: number
 }
 
 export interface Tour {
@@ -23,8 +24,8 @@ export interface Tour {
   title: string
   date: string // ISO datetime
   durationMinutes: number
-  startLocationLat: number
-  startLocationLng: number
+  startLocationX: number // Coordonnée X sur la carte custom
+  startLocationY: number // Coordonnée Y sur la carte custom
   startLocationName?: string // Nom du lieu (dénormalisé depuis LocationPoint)
   capacity: number
   labels: string[] // Free tags: ['nature', 'architecture', 'enfants']
@@ -108,8 +109,8 @@ export interface TourCreateInput {
   title: string
   date: string
   durationMinutes: number
-  startLocationLat: number
-  startLocationLng: number
+  startLocationX: number
+  startLocationY: number
   startLocationName?: string
   capacity: number
   labels: string[]

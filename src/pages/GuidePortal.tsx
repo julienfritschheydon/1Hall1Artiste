@@ -169,7 +169,7 @@ function TourForm({
           // Pré-sélection en édition : match par coordonnées
           if (tour) {
             const match = locs.find(
-              (l) => l.lat === tour.startLocationLat && l.lng === tour.startLocationLng
+              (l) => l.x === tour.startLocationX && l.y === tour.startLocationY
             );
             if (match) setLocationId(match.id);
           }
@@ -196,8 +196,8 @@ function TourForm({
         title,
         date: new Date(date).toISOString(),
         durationMinutes: Number(durationMinutes),
-        startLocationLat: loc.lat,
-        startLocationLng: loc.lng,
+        startLocationX: loc.x,
+        startLocationY: loc.y,
         startLocationName: loc.name,
         capacity: Number(capacity),
         labels: labels.split(",").map((l) => l.trim()).filter(Boolean),

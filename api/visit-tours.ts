@@ -8,7 +8,8 @@ import { rtdbTourCreate, rtdbTourGet, rtdbTourUpdate, rtdbToursListFuture, rtdbT
 import { Tour, TourCreateInput } from "../src/types/visitTypes.js";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const COORD_BOUNDS = { lat: [-90, 90], lng: [-180, 180] };
+// Coordonnées x/y sur la carte custom Île Feydeau (pixels). Bornes généreuses.
+const COORD_MAX = 5000;
 
 // Helper: validate guide code from header
 async function validateGuideCode(code: string | undefined): Promise<boolean> {
@@ -39,11 +40,11 @@ function validateTourInput(data: any): { valid: boolean; errors: string[] } {
   if (!Number.isFinite(data.durationMinutes) || data.durationMinutes < 1) {
     errors.push("durationMinutes: number >= 1 required");
   }
-  if (!Number.isFinite(data.startLocationLat) || data.startLocationLat < COORD_BOUNDS.lat[0] || data.startLocationLat > COORD_BOUNDS.lat[1]) {
-    errors.push(`startLocationLat: number in ${JSON.stringify(COORD_BOUNDS.lat)} required`);
+  if (!Number.isFinite(data.startLocationX) || data.startLocationX < 0 || data.startLocationX > COORD_MAX) {
+    errors.push(`startLocationX: number in [0, ${COORD_MAX}] required`);
   }
-  if (!Number.isFinite(data.startLocationLng) || data.startLocationLng < COORD_BOUNDS.lng[0] || data.startLocationLng > COORD_BOUNDS.lng[1]) {
-    errors.push(`startLocationLng: number in ${JSON.stringify(COORD_BOUNDS.lng)} required`);
+  if (!Number.isFinite(data.startLocationY) || data.startLocationY < 0 || data.startLocationY > COORD_MAX) {
+    errors.push(`startLocationY: number in [0, ${COORD_MAX}] required`);
   }
   if (!Number.isFinite(data.capacity) || data.capacity < 1) {
     errors.push("capacity: number >= 1 required");
@@ -68,7 +69,7 @@ async function handlePost(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: "guide code required" });
   }
 
-  const { title, date, durationMinutes, startLocationLat, startLocationLng, startLocationName, capacity, labels } = req.body;
+  const { title, date, durationMinutes, startLocationX, startLocationY, startLocationName, capacity, labels } = req.body;
   const validation = validateTourInput(req.body);
 
   if (!validation.valid) {
@@ -80,8 +81,8 @@ async function handlePost(req: VercelRequest, res: VercelResponse) {
       title: title.trim(),
       date,
       durationMinutes,
-      startLocationLat,
-      startLocationLng,
+      startLocationX,
+      startLocationY,
       startLocationName: typeof startLocationName === "string" ? startLocationName : undefined,
       capacity,
       labels: labels.map((l: string) => l.trim()),
@@ -173,14 +174,14 @@ async function handlePut(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: "capacity: number >= 1 required" });
       }
     }
-    if (updates.startLocationLat !== undefined) {
-      if (!Number.isFinite(updates.startLocationLat) || updates.startLocationLat < -90 || updates.startLocationLat > 90) {
-        return res.status(400).json({ error: "startLocationLat: invalid" });
+    if (updates.startLocationX !== undefined) {
+      if (!Number.isFinite(updates.startLocationX) || updates.startLocationX < 0 || updates.startLocationX > COORD_MAX) {
+        return res.status(400).json({ error: "startLocationX: invalid" });
       }
     }
-    if (updates.startLocationLng !== undefined) {
-      if (!Number.isFinite(updates.startLocationLng) || updates.startLocationLng < -180 || updates.startLocationLng > 180) {
-        return res.status(400).json({ error: "startLocationLng: invalid" });
+    if (updates.startLocationY !== undefined) {
+      if (!Number.isFinite(updates.startLocationY) || updates.startLocationY < 0 || updates.startLocationY > COORD_MAX) {
+        return res.status(400).json({ error: "startLocationY: invalid" });
       }
     }
 
