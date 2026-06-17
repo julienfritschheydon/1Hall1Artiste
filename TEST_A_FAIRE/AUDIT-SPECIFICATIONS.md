@@ -17,7 +17,7 @@ Légende: ✅ Fait • ⚠️ Partiel • ❌ Manquant
 ## §2 Interface Guide
 | Item | Statut | Note |
 |---|---|---|
-| Création visite (tous champs) | ✅ | Formulaire `TourForm` |
+| Création visite (tous champs) | ✅ | Formulaire `TourForm`. **Point de départ = liste gérée par l'admin** (`visit_locations`), le guide ne saisit pas de GPS. |
 | Modifier visite (avant J-1) | ✅ | Bouton Modifier, règle J-1 côté serveur |
 | Dashboard liste + état | ✅ | `GuideToursList` |
 | Nb inscrits / capacité | ✅ | Stats |

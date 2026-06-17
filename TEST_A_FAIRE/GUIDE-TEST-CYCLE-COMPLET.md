@@ -21,6 +21,24 @@ Sinon clique simplement les liens/boutons dans le site.
 
 ---
 
+## Étape 0 — (ADMIN) Préparer les lieux de départ 📍
+
+*Réservé à l'organisateur/admin, une seule fois. Le guide ne saisit jamais de coordonnées GPS.*
+
+Les points de départ sont gérés dans Firebase (comme le code guide).
+
+1. Console Firebase → **Realtime Database**
+2. Ajouter un nœud **`visit_locations`**
+3. Sous `visit_locations`, créer un lieu (ex. `lieu_1`) avec :
+   - `name` : `Place de la Petite Hollande`
+   - `lat` : `47.2110`
+   - `lng` : `-1.5540`
+4. Répéter pour 2-3 lieux (ex. `Quai Turenne`, `Allée Duguay-Trouin`).
+
+✅ Ces lieux apparaîtront dans le menu déroulant du guide.
+
+---
+
 ## Étape 1 — Le guide crée une visite test 🗺️
 
 1. Va sur **https://www.1hall1artiste.fr/#/guide**
@@ -31,11 +49,13 @@ Sinon clique simplement les liens/boutons dans le site.
    - **Date & heure** : demain, 14:00
    - **Durée** : 90 min
    - **Capacité** : `3` *(petit exprès, pour tester la file d'attente)*
-   - **Latitude** : `47.211`  **Longitude** : `-1.554`
+   - **Point de départ** : choisis un lieu dans le menu déroulant *(préparé par l'admin)*
    - **Labels** : `test, architecture`
 5. Clique **Créer**
 
 ✅ La visite apparaît dans le tableau de bord.
+
+> Si le menu « Point de départ » est vide → l'admin doit d'abord faire l'Étape 0.
 
 ---
 
@@ -130,7 +150,8 @@ proposées automatiquement aux suivants (par email).
 
 ## ✅ Check-list récap
 
-- [ ] Guide crée une visite
+- [ ] (Admin) Lieux de départ créés
+- [ ] Guide crée une visite (choix du lieu dans la liste)
 - [ ] Participant s'inscrit (+ accompagnant)
 - [ ] Email de confirmation reçu
 - [ ] Lien de validation → confirmé
