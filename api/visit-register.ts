@@ -14,11 +14,13 @@ import {
   rtdbWaitlistAdd,
   rtdbWaitlistCount,
   rtdbAuditLog,
+  rtdbGuideCodeValidate,
 } from "./_visit-db.js";
 import { createRegistrationToken, verifyRegistrationToken } from "./_token.js";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const SITE_URL = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000";
+// Public site URL for email links. HashRouter → links use /#/ prefix.
+const SITE_URL = process.env.PUBLIC_SITE_URL || "https://www.1hall1artiste.fr";
 
 // Q13: Sanitize — strip HTML tags from names
 function sanitizeText(text: string): string {
@@ -176,6 +178,27 @@ async function handleCreateRegistration(req: VercelRequest, res: VercelResponse)
     const registeredCount = await rtdbCountRegisteredByTour(tourId);
     const hasSpace = registeredCount < tour.capacity;
 
+    // Guide manual on-site registration (spec §2): create directly as confirmé, no email.
+    const guideCode = req.headers["x-guide-code"] as string | undefined;
+    const isManual = req.body.manual === true && guideCode && (await rtdbGuideCodeValidate(guideCode));
+    if (isManual) {
+      const registration = await rtdbRegistrationCreate({
+        tourId,
+        email,
+        firstName: sanitizedFirstName,
+        lastName: sanitizedLastName,
+        companionFirstName: sanitizedCompanionFirstName,
+        companionLastName: sanitizedCompanionLastName,
+        status: "confirmé",
+      });
+      await rtdbRegistrationUpdate(registration.id, { confirmedAt: new Date().toISOString() });
+      return res.status(201).json({
+        status: "confirmé",
+        registrationId: registration.id,
+        message: "Inscription manuelle confirmée",
+      });
+    }
+
     // Q1: Create token for email validation (24H)
     const token = createRegistrationToken(undefined, email);
 
@@ -200,7 +223,7 @@ async function handleCreateRegistration(req: VercelRequest, res: VercelResponse)
           firstName: sanitizedFirstName,
           tourTitle: tour.title,
           tourDate: tour.date,
-          validationLink: `${SITE_URL}/reservations/confirm?token=${token.token}`,
+          validationLink: `${SITE_URL}/#/reservations/confirm?token=${token.token}`,
           registrationId: registration.id,
           idempotencyKey: `${registration.id}_confirmation`,
         });
@@ -236,7 +259,7 @@ async function handleCreateRegistration(req: VercelRequest, res: VercelResponse)
           firstName: sanitizedFirstName,
           tourTitle: tour.title,
           position,
-          queueLink: `${SITE_URL}/reservations/queue/${waitlist.id}`,
+          queueLink: `${SITE_URL}/#/reservations/cancel-waitlist?id=${waitlist.id}`,
           registrationId: waitlist.id,
           idempotencyKey: `${waitlist.id}_waitlist_confirmation`,
         });
@@ -323,9 +346,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "method not allowed" });
   }
 
-  // Route by path
+  // Route by query param (?action=confirm) or path suffix (/confirm).
+  // Query param preferred — robust on Vercel filesystem routing.
   const path = req.url?.split("?")[0];
-  if (path?.endsWith("/confirm")) {
+  if (req.query.action === "confirm" || path?.endsWith("/confirm")) {
     return handleConfirmRegistration(req, res);
   } else {
     return handleCreateRegistration(req, res);

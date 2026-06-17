@@ -24,7 +24,7 @@ import {
 } from "./_visit-db.js";
 import { createRegistrationToken } from "./_token.js";
 
-const SITE_URL = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000";
+const SITE_URL = process.env.PUBLIC_SITE_URL || "https://www.1hall1artiste.fr";
 const MAX_RETRIES = 3;
 
 // Q1, Q2: Send email with idempotency key + retry
@@ -206,7 +206,7 @@ async function sendValidationEmails1d(): Promise<{ sent: number; autocancelled: 
         to: reg.email,
         firstName: reg.firstName,
         tourTitle: tour.title,
-        validationLink: `${SITE_URL}/reservations/confirm?token=${token.token}`,
+        validationLink: `${SITE_URL}/#/reservations/confirm?token=${token.token}`,
         deadline: deadline.toISOString(),
       },
       idempotencyKey
@@ -331,7 +331,7 @@ async function promoteFromWaitlist(): Promise<{ promoted: number; rejected: numb
         to: next.email,
         firstName: next.firstName,
         tourTitle: tour.title,
-        acceptLink: `${SITE_URL}/reservations/accept-waitlist?token=${token.token}`,
+        acceptLink: `${SITE_URL}/#/reservations/accept-waitlist?token=${token.token}`,
         deadline: deadline.toISOString(),
       },
       idempotencyKey

@@ -11,6 +11,7 @@ import {
   rtdbWaitlistReorderAfter,
   rtdbRegistrationCreate,
   rtdbTourGet,
+  rtdbGuideCodeValidate,
 } from "./_visit-db.js";
 import { verifyRegistrationToken } from "./_token.js";
 
@@ -118,7 +119,26 @@ async function handleGetWaitlist(req: VercelRequest, res: VercelResponse) {
   try {
     const waits = await rtdbWaitlistListByTour(tourId);
 
-    // Return only position + email (anonymized, no details)
+    // Guide (valid x-guide-code) sees full details; public sees anonymized positions.
+    const guideCode = req.headers["x-guide-code"] as string | undefined;
+    const isGuide = guideCode ? await rtdbGuideCodeValidate(guideCode) : false;
+
+    if (isGuide) {
+      const detailed = waits.map((w, idx) => ({
+        id: w.id,
+        position: idx + 1,
+        firstName: w.firstName,
+        lastName: w.lastName,
+        email: w.email,
+        companionFirstName: w.companionFirstName || null,
+        companionLastName: w.companionLastName || null,
+        hasOffer: Boolean(w.invitationSentAt),
+        rejectedAt: w.rejectedAt || null,
+      }));
+      return res.json({ totalInWaitlist: waits.length, waitlist: detailed });
+    }
+
+    // Return only position + offer flag (anonymized, no details)
     const anonymized = waits.map((w, idx) => ({
       position: idx + 1,
       hasOffer: Boolean(w.invitationSentAt),
@@ -136,7 +156,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const path = req.url?.split("?")[0];
 
   if (req.method === "POST") {
-    if (path?.endsWith("/activate")) {
+    if (req.query.action === "activate" || path?.endsWith("/activate")) {
       return handleActivateWaitlist(req, res);
     }
     return res.status(405).json({ error: "invalid POST path" });
