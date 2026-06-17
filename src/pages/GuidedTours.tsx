@@ -13,10 +13,13 @@ export default function GuidedTours() {
       try {
         const res = await fetch("/api/visit-tours");
         if (!res.ok) throw new Error("Failed to load tours");
-        const data = await res.json();
+        const text = await res.text();
+        const data = JSON.parse(text);
         setTours(data);
       } catch (e) {
-        setError((e as Error).message);
+        console.error("Tour fetch error:", e);
+        setError("Impossible de charger les visites. Vérifiez que l'API est disponible.");
+        setTours([]);
       } finally {
         setLoading(false);
       }

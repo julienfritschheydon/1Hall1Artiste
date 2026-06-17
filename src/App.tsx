@@ -43,6 +43,8 @@ const CoordinatesPicker = lazy(() => import("./pages/CoordinatesPicker"));
 const ArtistLogin = lazy(() => import("./pages/ArtistLogin"));
 const ArtistEdit = lazy(() => import("./pages/ArtistEdit"));
 const QRCodePage = lazy(() => import("./pages/QRCodePage"));
+const GuidedTours = lazy(() => import("./pages/GuidedTours"));
+const GuidePortal = lazy(() => import("./pages/GuidePortal"));
 
 const queryClient = new QueryClient();
 
@@ -127,6 +129,8 @@ const AnimatedRoutes: React.FC = () => {
     { path: '/community', component: Gallery, swipeable: false },
     { path: '/about', component: About, swipeable: false },
     { path: '/donate', component: Donate, swipeable: false },
+    { path: '/reservations', component: GuidedTours, swipeable: false },
+    { path: '/guide', component: GuidePortal, swipeable: false },
   ];
   
   // Configuration des routes secondaires
