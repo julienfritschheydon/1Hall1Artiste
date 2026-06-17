@@ -2,7 +2,7 @@
 // Fonctions: créer/modifier visite, voir inscrits + file d'attente,
 // inscription manuelle sur place, appel présences, export CSV + impression.
 import { useState, useEffect } from "react";
-import { Tour } from "../types/visitTypes";
+import { Tour, LocationPoint } from "../types/visitTypes";
 import GuideCodeLogin from "../components/GuideCodeLogin";
 import GuideToursList from "../components/GuideToursList";
 import TourAttendanceSheet from "../components/TourAttendanceSheet";
@@ -150,24 +150,55 @@ function TourForm({
   // datetime-local needs "YYYY-MM-DDTHH:mm"
   const [date, setDate] = useState(tour ? toLocalInput(tour.date) : "");
   const [durationMinutes, setDurationMinutes] = useState(tour?.durationMinutes || 90);
-  const [lat, setLat] = useState(tour?.startLocationLat ?? 47.211);
-  const [lng, setLng] = useState(tour?.startLocationLng ?? -1.554);
   const [capacity, setCapacity] = useState(tour?.capacity || 15);
   const [labels, setLabels] = useState((tour?.labels || []).join(", "));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Lieux de départ prédéfinis (gérés par l'admin). Le guide choisit dans la liste.
+  const [locations, setLocations] = useState<LocationPoint[]>([]);
+  const [locationId, setLocationId] = useState<string>("");
+
+  useEffect(() => {
+    async function loadLocations() {
+      try {
+        const res = await fetch("/api/visit-locations");
+        if (res.ok) {
+          const locs: LocationPoint[] = await res.json();
+          setLocations(locs);
+          // Pré-sélection en édition : match par coordonnées
+          if (tour) {
+            const match = locs.find(
+              (l) => l.lat === tour.startLocationLat && l.lng === tour.startLocationLng
+            );
+            if (match) setLocationId(match.id);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to load locations:", e);
+      }
+    }
+    loadLocations();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setSaving(true);
     setError(null);
+    const loc = locations.find((l) => l.id === locationId);
+    if (!loc) {
+      setError("Choisissez un lieu de départ.");
+      return;
+    }
+    setSaving(true);
     try {
       const body = {
         title,
         date: new Date(date).toISOString(),
         durationMinutes: Number(durationMinutes),
-        startLocationLat: Number(lat),
-        startLocationLng: Number(lng),
+        startLocationLat: loc.lat,
+        startLocationLng: loc.lng,
+        startLocationName: loc.name,
         capacity: Number(capacity),
         labels: labels.split(",").map((l) => l.trim()).filter(Boolean),
       };
@@ -223,19 +254,27 @@ function TourForm({
                 className="w-full border px-3 py-2 rounded" />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium mb-1">Latitude *</label>
-              <input type="number" step="any" value={lat}
-                onChange={(e) => setLat(Number(e.target.value))} required
-                className="w-full border px-3 py-2 rounded" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Longitude *</label>
-              <input type="number" step="any" value={lng}
-                onChange={(e) => setLng(Number(e.target.value))} required
-                className="w-full border px-3 py-2 rounded" />
-            </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Point de départ *</label>
+            {locations.length === 0 ? (
+              <p className="text-sm text-orange-600">
+                Aucun lieu disponible. Demandez à l'administrateur d'ajouter des points de départ.
+              </p>
+            ) : (
+              <select
+                value={locationId}
+                onChange={(e) => setLocationId(e.target.value)}
+                required
+                className="w-full border px-3 py-2 rounded bg-white"
+              >
+                <option value="">— Choisir un lieu —</option>
+                {locations.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.name}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Labels (séparés par virgule)</label>

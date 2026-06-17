@@ -105,7 +105,9 @@ function TourDetail({ tour, onBack }: { tour: Tour; onBack: () => void }) {
       </p>
 
       <div className="mb-4 p-4 bg-gray-100 rounded">
-        <p className="font-semibold">Coordonnées: {tour.startLocationLat}, {tour.startLocationLng}</p>
+        <p className="font-semibold">
+          📍 Départ : {tour.startLocationName || `${tour.startLocationLat}, ${tour.startLocationLng}`}
+        </p>
         {tour.labels.length > 0 && (
           <div className="flex flex-wrap gap-2 mt-2">
             {tour.labels.map((label) => (

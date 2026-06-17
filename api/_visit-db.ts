@@ -44,6 +44,7 @@ export async function rtdbTourCreate(input: TourCreateInput): Promise<Tour> {
     durationMinutes: input.durationMinutes,
     startLocationLat: input.startLocationLat,
     startLocationLng: input.startLocationLng,
+    startLocationName: input.startLocationName,
     capacity: input.capacity,
     labels: input.labels,
     status: input.status || "upcoming",
@@ -354,6 +355,19 @@ export async function rtdbGuideCodeRevoke(code: string): Promise<void> {
       break;
     }
   }
+}
+
+// ============ LOCATIONS (admin-managed) ============
+
+import type { LocationPoint } from "../src/types/visitTypes.js";
+
+export async function rtdbLocationsList(): Promise<LocationPoint[]> {
+  const locs = await rtdbGet<Record<string, LocationPoint>>("visit_locations");
+  if (!locs) return [];
+  return Object.entries(locs)
+    .map(([id, l]) => ({ ...l, id }))
+    .filter((l) => l && typeof l.lat === "number" && typeof l.lng === "number")
+    .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
 }
 
 // ============ AUDIT LOGS ============

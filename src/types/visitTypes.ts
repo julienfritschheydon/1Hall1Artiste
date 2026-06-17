@@ -9,6 +9,14 @@ export interface Companion {
 export const MAX_PLACES_PER_REGISTRATION = 5 // 1 titulaire + 4 accompagnants
 export const MAX_COMPANIONS = MAX_PLACES_PER_REGISTRATION - 1
 
+// Point de départ prédéfini (géré par l'admin). Le guide choisit dans une liste.
+export interface LocationPoint {
+  id: string
+  name: string
+  lat: number
+  lng: number
+}
+
 export interface Tour {
   id: string
   guideId: string // Always 'all-guides' (tous guides accèdent)
@@ -17,6 +25,7 @@ export interface Tour {
   durationMinutes: number
   startLocationLat: number
   startLocationLng: number
+  startLocationName?: string // Nom du lieu (dénormalisé depuis LocationPoint)
   capacity: number
   labels: string[] // Free tags: ['nature', 'architecture', 'enfants']
   status: 'upcoming' | 'ongoing' | 'completed'
@@ -101,6 +110,7 @@ export interface TourCreateInput {
   durationMinutes: number
   startLocationLat: number
   startLocationLng: number
+  startLocationName?: string
   capacity: number
   labels: string[]
   guideId?: string
