@@ -95,7 +95,12 @@ Légende: ✅ Fait • ⚠️ Partiel • ❌ Manquant
 
 ---
 
-## 🔴 Bugs corrigés ce jour
+## 🔴 Bugs critiques corrigés (vérifiés en prod)
+5. **Email comme clé RTDB** : les emails contiennent `.` (illégal dans les clés Firebase) → l'index `registrations_by_email` échouait (400), l'inscription renvoyait 500 après avoir créé un doc orphelin, et la **déduplication (max 3 visites, déjà inscrit) ne marchait jamais**. Corrigé via `emailKey()` (`.` → `,`). Vérifié : inscription groupe OK, dedup OK.
+6. **Capacité comptée en inscriptions, pas en personnes** : un accompagnant ne décomptait pas de place. Corrigé → comptage en places. Vérifié : groupe de 3 → placesLeft −3.
+7. **Places non affichées au public** : `/reservations` appelait `/api/visit-attendance` (401 public) → affichait toujours la capacité pleine. Corrigé : `placesLeft` dans `GET /api/visit-tours`.
+
+## 🔴 Bugs corrigés (antérieurs)
 1. **Env var mismatch** : code utilisait `VISIT_EMAILJS_TEMPLATE_IDS`/`VISIT_ALERT_EMAIL` mais Vercel avait `DOODATES_*` → emails échouaient silencieusement. **Action requise : renommer les vars Vercel** (voir SETUP.md).
 2. **Liens email cassés** : utilisaient `/reservations/...` au lieu de `/#/reservations/...` (HashRouter) + `VERCEL_URL` aléatoire au lieu du domaine. → Corrigé avec `PUBLIC_SITE_URL`.
 3. **`{{type}}` non transmis** au template EmailJS → contenu conditionnel ne marchait pas. Corrigé.
