@@ -21,6 +21,7 @@ import {
   rtdbToursListFuture,
   rtdbCountRegisteredByTour,
 } from "./_visit-db.js";
+import { placesOf } from "../src/types/visitTypes.js";
 import { createRegistrationToken } from "./_token.js";
 
 const SITE_URL = process.env.PUBLIC_SITE_URL || "https://www.1hall1artiste.fr";
@@ -328,22 +329,27 @@ async function promoteFromWaitlist(): Promise<{ promoted: number; rejected: numb
     const confirmedCount = await rtdbCountRegisteredByTour(tour.id);
     const waits = await rtdbWaitlistListByTour(tour.id); // sorted by position, excludes deleted
 
-    const pendingOffers = waits.filter(
-      (w) =>
-        w.invitationSentAt &&
-        !w.rejectedAt &&
-        w.invitationExpiresAt &&
-        new Date(w.invitationExpiresAt) >= now
-    ).length;
+    // Pending offers reserve places (group size) until accepted/expired.
+    const pendingPlaces = waits
+      .filter(
+        (w) =>
+          w.invitationSentAt &&
+          !w.rejectedAt &&
+          w.invitationExpiresAt &&
+          new Date(w.invitationExpiresAt) >= now
+      )
+      .reduce((sum, w) => sum + placesOf(w), 0);
 
-    let freeSlots = tour.capacity - confirmedCount - pendingOffers;
+    let freeSlots = tour.capacity - confirmedCount - pendingPlaces;
     if (freeSlots <= 0) continue;
 
-    // Candidates = waitlist entries with no active/rejected offer, in position order
+    // Candidates = waitlist entries with no active/rejected offer, in position order.
+    // Offer only if the whole group fits; stop at first that doesn't (FIFO fairness).
     const candidates = waits.filter((w) => !w.invitationSentAt && !w.rejectedAt);
 
     for (const next of candidates) {
-      if (freeSlots <= 0) break;
+      const need = placesOf(next);
+      if (need > freeSlots) break;
 
       const token = createRegistrationToken(next.id, next.email);
       const deadline = new Date(Date.now() + 24 * 60 * 60 * 1000);
@@ -369,7 +375,7 @@ async function promoteFromWaitlist(): Promise<{ promoted: number; rejected: numb
           invitationSentAt: new Date().toISOString(),
         });
         promoted++;
-        freeSlots--;
+        freeSlots -= need;
       } else {
         console.error(`[visit-emails] Failed to send waitlist offer to ${next.email}`);
       }

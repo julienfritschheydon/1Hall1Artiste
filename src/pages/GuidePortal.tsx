@@ -423,17 +423,37 @@ function TabBtn({ active, onClick, children }: { active: boolean; onClick: () =>
   );
 }
 
+// Formate les accompagnants (array nouveau ou champ legacy) en texte.
+function formatCompanions(r: any): string {
+  if (Array.isArray(r.companions) && r.companions.length > 0) {
+    return r.companions.map((c: any) => `${c.firstName} ${c.lastName || ""}`.trim()).join(", ");
+  }
+  if (r.companionFirstName) return `${r.companionFirstName} ${r.companionLastName || ""}`.trim();
+  return "-";
+}
+
+function placesCount(r: any): number {
+  if (Array.isArray(r.companions) && r.companions.length > 0) return 1 + r.companions.length;
+  if (r.companionFirstName) return 2;
+  return 1;
+}
+
 function RegistrationsList({ registrations }: { registrations: any[] }) {
   if (registrations.length === 0) return <p className="text-gray-600">Aucun inscrit.</p>;
+  const totalPlaces = registrations
+    .filter((r) => r.status === "confirmé" || r.status === "présent")
+    .reduce((s, r) => s + placesCount(r), 0);
   return (
     <div className="overflow-x-auto">
+      <p className="text-sm text-gray-600 mb-2">Total places confirmées : {totalPlaces}</p>
       <table className="w-full border-collapse">
         <thead>
           <tr className="bg-gray-200">
             <th className="border p-2 text-left">Nom</th>
             <th className="border p-2 text-left">Prénom</th>
             <th className="border p-2 text-left">Email</th>
-            <th className="border p-2 text-left">Accompagnant</th>
+            <th className="border p-2 text-left">Accompagnants</th>
+            <th className="border p-2 text-left">Places</th>
             <th className="border p-2 text-left">Statut</th>
           </tr>
         </thead>
@@ -443,9 +463,8 @@ function RegistrationsList({ registrations }: { registrations: any[] }) {
               <td className="border p-2">{reg.lastName}</td>
               <td className="border p-2">{reg.firstName}</td>
               <td className="border p-2 text-sm">{reg.email}</td>
-              <td className="border p-2">
-                {reg.companionFirstName ? `${reg.companionFirstName} ${reg.companionLastName || ""}` : "-"}
-              </td>
+              <td className="border p-2">{formatCompanions(reg)}</td>
+              <td className="border p-2 text-center">{placesCount(reg)}</td>
               <td className="border p-2">
                 <span className={`text-xs px-2 py-1 rounded ${
                   reg.status === "présent" ? "bg-green-100 text-green-700"
@@ -473,6 +492,7 @@ function WaitlistList({ waitlist }: { waitlist: any[] }) {
             <th className="border p-2 text-left">Nom</th>
             <th className="border p-2 text-left">Prénom</th>
             <th className="border p-2 text-left">Email</th>
+            <th className="border p-2 text-left">Places</th>
             <th className="border p-2 text-left">Offre envoyée</th>
           </tr>
         </thead>
@@ -483,6 +503,7 @@ function WaitlistList({ waitlist }: { waitlist: any[] }) {
               <td className="border p-2">{w.lastName}</td>
               <td className="border p-2">{w.firstName}</td>
               <td className="border p-2 text-sm">{w.email}</td>
+              <td className="border p-2 text-center">{w.places ?? 1}</td>
               <td className="border p-2">
                 {w.rejectedAt ? "Refusée" : w.hasOffer ? "Oui (en attente)" : "Non"}
               </td>
@@ -576,7 +597,7 @@ function printAttendance(tour: Tour, registrations: any[]) {
         <td style="border:1px solid #999;padding:6px">${escapeHtml(r.lastName)}</td>
         <td style="border:1px solid #999;padding:6px">${escapeHtml(r.firstName)}</td>
         <td style="border:1px solid #999;padding:6px">${escapeHtml(
-          r.companionFirstName ? `${r.companionFirstName} ${r.companionLastName || ""}` : ""
+          formatCompanions(r) === "-" ? "" : formatCompanions(r)
         )}</td>
       </tr>`
     )
@@ -612,10 +633,11 @@ function escapeHtml(s: string): string {
 
 function exportCSV(tour: Tour, registrations: any[]) {
   const rows = [
-    ["Nom", "Prénom", "Email", "Accompagnant prénom", "Accompagnant nom", "Statut"],
+    ["Nom", "Prénom", "Email", "Accompagnants", "Places", "Statut"],
     ...registrations.map((r) => [
       r.lastName, r.firstName, r.email,
-      r.companionFirstName || "", r.companionLastName || "", r.status,
+      formatCompanions(r) === "-" ? "" : formatCompanions(r),
+      String(placesCount(r)), r.status,
     ]),
   ];
   const csv = rows.map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");

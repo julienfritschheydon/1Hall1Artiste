@@ -79,34 +79,16 @@ function TourCard({ tour, onClick }: { tour: Tour; onClick: () => void }) {
           ))}
         </div>
       )}
-      <p className="text-sm font-semibold">Places: {tour.capacity}</p>
+      <p className="text-sm font-semibold">
+        Places restantes: {tour.placesLeft ?? tour.capacity}/{tour.capacity}
+      </p>
     </div>
   );
 }
 
 function TourDetail({ tour, onBack }: { tour: Tour; onBack: () => void }) {
-  const [registeredCount, setRegisteredCount] = useState(0);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function fetchCounts() {
-      try {
-        const res = await fetch(`/api/visit-attendance?tourId=${tour.id}`);
-        if (res.ok) {
-          const data = await res.json();
-          setRegisteredCount(data.counts?.confirmed || 0);
-        }
-      } catch (e) {
-        console.error("Failed to load counts:", e);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchCounts();
-  }, [tour.id]);
-
-  const placesLeft = tour.capacity - registeredCount;
+  const loading = false;
+  const placesLeft = tour.placesLeft ?? tour.capacity;
   const tourDate = new Date(tour.date);
   const dateStr = tourDate.toLocaleDateString("fr-FR", { weekday: "long", month: "long", day: "numeric" });
   const timeStr = tourDate.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
@@ -146,16 +128,32 @@ function TourDetail({ tour, onBack }: { tour: Tour; onBack: () => void }) {
   );
 }
 
+type CompanionInput = { firstName: string; lastName: string };
+
 function RegistrationForm({ tour, placesLeft }: { tour: Tour; placesLeft: number }) {
   const [email, setEmail] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [companionFirstName, setCompanionFirstName] = useState("");
-  const [companionLastName, setCompanionLastName] = useState("");
+  const [companions, setCompanions] = useState<CompanionInput[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ status: string; message: string } | null>(null);
+
+  // Max 4 accompagnants (5 places), borné aussi par les places restantes si > 0
+  const maxCompanions = Math.min(4, placesLeft > 0 ? placesLeft - 1 : 4);
+
+  function addCompanion() {
+    if (companions.length < maxCompanions) {
+      setCompanions([...companions, { firstName: "", lastName: "" }]);
+    }
+  }
+  function removeCompanion(i: number) {
+    setCompanions(companions.filter((_, idx) => idx !== i));
+  }
+  function updateCompanion(i: number, field: keyof CompanionInput, value: string) {
+    setCompanions(companions.map((c, idx) => (idx === i ? { ...c, [field]: value } : c)));
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -163,6 +161,9 @@ function RegistrationForm({ tour, placesLeft }: { tour: Tour; placesLeft: number
     setError(null);
 
     try {
+      const cleanCompanions = companions
+        .filter((c) => c.firstName.trim())
+        .map((c) => ({ firstName: c.firstName.trim(), lastName: c.lastName.trim() || undefined }));
       const res = await fetch("/api/visit-register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -171,8 +172,7 @@ function RegistrationForm({ tour, placesLeft }: { tour: Tour; placesLeft: number
           email,
           firstName,
           lastName,
-          companionFirstName: companionFirstName || undefined,
-          companionLastName: companionLastName || undefined,
+          companions: cleanCompanions,
         }),
       });
 
@@ -204,8 +204,7 @@ function RegistrationForm({ tour, placesLeft }: { tour: Tour; placesLeft: number
             setEmail("");
             setFirstName("");
             setLastName("");
-            setCompanionFirstName("");
-            setCompanionLastName("");
+            setCompanions([]);
           }}
           className="mt-2 text-blue-600 hover:underline"
         >
@@ -249,22 +248,45 @@ function RegistrationForm({ tour, placesLeft }: { tour: Tour; placesLeft: number
         />
       </div>
 
-      <p className="text-sm text-gray-500">Accompagnant (optionnel)</p>
-      <div className="grid grid-cols-2 gap-2">
-        <input
-          type="text"
-          placeholder="Prénom accompagnant"
-          value={companionFirstName}
-          onChange={(e) => setCompanionFirstName(e.target.value)}
-          className="w-full border px-3 py-2 rounded"
-        />
-        <input
-          type="text"
-          placeholder="Nom accompagnant"
-          value={companionLastName}
-          onChange={(e) => setCompanionLastName(e.target.value)}
-          className="w-full border px-3 py-2 rounded"
-        />
+      <div>
+        <p className="text-sm text-gray-500 mb-1">
+          Accompagnants (optionnel, {companions.length}/{maxCompanions})
+        </p>
+        {companions.map((c, i) => (
+          <div key={i} className="grid grid-cols-[1fr_1fr_auto] gap-2 mb-2">
+            <input
+              type="text"
+              placeholder={`Prénom accompagnant ${i + 1}`}
+              value={c.firstName}
+              onChange={(e) => updateCompanion(i, "firstName", e.target.value)}
+              className="w-full border px-3 py-2 rounded"
+            />
+            <input
+              type="text"
+              placeholder="Nom"
+              value={c.lastName}
+              onChange={(e) => updateCompanion(i, "lastName", e.target.value)}
+              className="w-full border px-3 py-2 rounded"
+            />
+            <button
+              type="button"
+              onClick={() => removeCompanion(i)}
+              className="px-3 bg-gray-200 rounded hover:bg-gray-300"
+              aria-label="Retirer"
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+        {companions.length < maxCompanions && (
+          <button
+            type="button"
+            onClick={addCompanion}
+            className="text-sm text-blue-600 hover:underline"
+          >
+            + Ajouter un accompagnant
+          </button>
+        )}
       </div>
 
       <button

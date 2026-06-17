@@ -35,7 +35,7 @@ Légende: ✅ Fait • ⚠️ Partiel • ❌ Manquant
 | Section visites dans programme | ✅ | Bannière `/reservations` ajoutée dans Program |
 | Affichage détails + places restantes | ✅ | `TourDetail` |
 | Formulaire inscription | ✅ | nom, prénom, email |
-| +1 accompagnant | ✅ | Prénom + nom accompagnant dans le form public |
+| Accompagnants | ✅ | Jusqu'à **4 accompagnants = 5 places** par inscription (form dynamique). Capacité comptée **en places** (corrige bug accompagnant non compté). |
 | Email confirmation + lien validation 24H | ✅ | `confirmation` |
 | Si complet → file d'attente | ✅ | Auto |
 | Max 3 visites/personne | ✅ | `rtdbCountUserTours` |
@@ -86,7 +86,7 @@ Légende: ✅ Fait • ⚠️ Partiel • ❌ Manquant
 | Item | Statut | Note |
 |---|---|---|
 | Email = clé dédup | ✅ | |
-| Max 2 places/inscription | ⚠️ | Companion supporté mais pas strictement limité à 2 |
+| Max places/inscription | ✅ | **5 places** (1 + 4 accompagnants), validé serveur. Groupe entier doit tenir, sinon file d'attente. |
 | Max 3 visites/personne | ✅ | |
 | Réinscription après cancel | ✅ | count ignore annulés |
 | **Guide réduit capacité → surplus en file** | ⚠️ | Avertit le guide (count en surnombre). Pas d'auto-retrait des confirmés (choix : éviter de retirer brutalement un inscrit). Gestion manuelle. |
@@ -106,7 +106,6 @@ Légende: ✅ Fait • ⚠️ Partiel • ❌ Manquant
 |---|---|
 | Email "données supprimées" RGPD (24h après) | **Volontairement non implémenté** — envoyer "nous avons supprimé vos données" après une visite gratuite est peu utile et peut agacer. Suppression + audit log suffisent (conformité OK). |
 | Auto-retrait confirmés si capacité réduite | **Volontairement manuel** — retirer un inscrit confirmé automatiquement = mauvaise UX. Le guide est averti et décide. |
-| Limite stricte 2 places/inscription | Companion = 1 seul accompagnant par form (donc 2 max de fait). Pas de garde-fou serveur supplémentaire. |
 
 ## ✅ MVP §11 — Statut: COMPLET
 - ✅ Création visite

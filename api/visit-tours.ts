@@ -111,7 +111,15 @@ async function handleGet(req: VercelRequest, res: VercelResponse) {
       tours = await rtdbToursListFuture();
     }
 
-    return res.status(200).json(tours);
+    // Enrichir avec places restantes (capacité - places confirmées)
+    const enriched = await Promise.all(
+      tours.map(async (t) => {
+        const taken = await rtdbCountRegisteredByTour(t.id);
+        return { ...t, placesLeft: Math.max(0, t.capacity - taken) };
+      })
+    );
+
+    return res.status(200).json(enriched);
   } catch (e) {
     console.error("[visit-tours GET]", e);
     return res.status(500).json({ error: "list failed" });

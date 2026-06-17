@@ -1,5 +1,14 @@
 // Types pour système visites guidées (visit)
 
+// Accompagnant (max 4 par inscription → 5 places au total avec le titulaire)
+export interface Companion {
+  firstName: string
+  lastName?: string
+}
+
+export const MAX_PLACES_PER_REGISTRATION = 5 // 1 titulaire + 4 accompagnants
+export const MAX_COMPANIONS = MAX_PLACES_PER_REGISTRATION - 1
+
 export interface Tour {
   id: string
   guideId: string // Always 'all-guides' (tous guides accèdent)
@@ -15,6 +24,7 @@ export interface Tour {
   updatedAt: string
   deletedAt?: string
   batchDeleteExecuted?: boolean // Idempotency: batch delete already ran
+  placesLeft?: number // Calculé côté serveur (GET) — places restantes
 }
 
 export interface Registration {
@@ -23,8 +33,9 @@ export interface Registration {
   email: string
   firstName: string
   lastName: string
-  companionFirstName?: string
-  companionLastName?: string
+  companions?: Companion[] // Jusqu'à 4 accompagnants (5 places max)
+  companionFirstName?: string // Legacy (1 accompagnant) — lecture seule
+  companionLastName?: string // Legacy
   status: 'attente_validation' | 'confirmé' | 'présent' | 'absent' | 'annulé'
   validationToken?: string
   validationExpiresAt?: string
@@ -44,8 +55,9 @@ export interface Waitlist {
   email: string
   firstName: string
   lastName: string
-  companionFirstName?: string
-  companionLastName?: string
+  companions?: Companion[]
+  companionFirstName?: string // Legacy
+  companionLastName?: string // Legacy
   position: number // Q4: Ordering for sequential processing
   invitationToken?: string
   invitationExpiresAt?: string
@@ -100,6 +112,7 @@ export interface RegistrationCreateInput {
   email: string
   firstName: string
   lastName: string
+  companions?: Companion[]
   companionFirstName?: string
   companionLastName?: string
   status?: RegistrationStatus
@@ -112,9 +125,21 @@ export interface WaitlistCreateInput {
   email: string
   firstName: string
   lastName: string
+  companions?: Companion[]
   companionFirstName?: string
   companionLastName?: string
   position: number
   invitationToken?: string
   invitationExpiresAt?: string
+}
+
+// Nombre de places occupées par une inscription/file (titulaire + accompagnants).
+// Gère le format array (nouveau) et le champ legacy (1 accompagnant).
+export function placesOf(r: {
+  companions?: Companion[]
+  companionFirstName?: string
+}): number {
+  if (r.companions && r.companions.length > 0) return 1 + r.companions.length
+  if (r.companionFirstName) return 2
+  return 1
 }

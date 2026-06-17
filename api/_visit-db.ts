@@ -12,6 +12,7 @@ import {
   TourCreateInput,
   RegistrationCreateInput,
   WaitlistCreateInput,
+  placesOf,
 } from "../src/types/visitTypes.js";
 
 // UUID helper
@@ -91,6 +92,7 @@ export async function rtdbRegistrationCreate(input: RegistrationCreateInput): Pr
     email: input.email,
     firstName: input.firstName,
     lastName: input.lastName,
+    companions: input.companions,
     companionFirstName: input.companionFirstName,
     companionLastName: input.companionLastName,
     status: input.status || "attente_validation",
@@ -142,15 +144,16 @@ export async function rtdbCountUserTours(email: string): Promise<number> {
   return count;
 }
 
+// Compte les PLACES occupées (titulaire + accompagnants) par les inscriptions confirmées.
 export async function rtdbCountRegisteredByTour(tourId: string): Promise<number> {
   const regs = await rtdbGet<Record<string, boolean>>(`registrations_by_tour/${tourId}`);
   if (!regs) return 0;
-  let count = 0;
+  let places = 0;
   for (const regId of Object.keys(regs)) {
     const reg = await rtdbRegistrationGet(regId);
-    if (reg && reg.status === "confirmé" && !reg.deletedAt) count++;
+    if (reg && reg.status === "confirmé" && !reg.deletedAt) places += placesOf(reg);
   }
-  return count;
+  return places;
 }
 
 export async function rtdbRegistrationsListByTour(tourId: string): Promise<Registration[]> {
@@ -205,6 +208,7 @@ export async function rtdbWaitlistAdd(input: WaitlistCreateInput): Promise<Waitl
     email: input.email,
     firstName: input.firstName,
     lastName: input.lastName,
+    companions: input.companions,
     companionFirstName: input.companionFirstName,
     companionLastName: input.companionLastName,
     position: input.position,

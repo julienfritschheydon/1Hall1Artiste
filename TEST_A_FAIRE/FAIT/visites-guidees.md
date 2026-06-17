@@ -24,9 +24,9 @@ Voir aussi: `AUDIT-SPECIFICATIONS.md` (couverture spec) et `SETUP.md`.
   - [ ] Stats (confirmés, présents, absents, file)
   - [ ] **Modifier** la visite → changement sauvegardé
   - [ ] Modifier visite à < 24h du départ → refusée
-  - [ ] Onglet "Inscrits" → liste
+  - [ ] Onglet "Inscrits" → liste avec colonnes Accompagnants + Places + "Total places confirmées"
   - [ ] **+ Inscrire sur place** → ajout direct confirmé (sans email)
-  - [ ] Onglet "File d'attente" → noms + positions
+  - [ ] Onglet "File d'attente" → noms + positions + Places
   - [ ] Onglet "Appel" → cocher présent/absent
   - [ ] **Export CSV** → fichier téléchargé, accents OK
   - [ ] **Imprimer** → dialogue impression
@@ -35,9 +35,17 @@ Voir aussi: `AUDIT-SPECIFICATIONS.md` (couverture spec) et `SETUP.md`.
 ## 2. Inscription Publique (/reservations)
 
 - [ ] `/reservations` → liste visites
+- [ ] **Places restantes affichées** (ex: 13/15) — pas juste capacité
 - [ ] Bannière visites visible aussi dans `/programme`
 - [ ] Cliquer visite → détail (titre, date, durée, GPS, labels, places)
-- [ ] Formulaire : email, nom, prénom, accompagnant (option)
+- [ ] Formulaire : email, prénom, nom (labels dans le bon ordre)
+- [ ] **Accompagnants** :
+  - [ ] "+ Ajouter un accompagnant" → ligne prénom/nom
+  - [ ] Max 4 accompagnants (5 places) — bouton disparaît à 4
+  - [ ] Bornage par places restantes (si 3 places libres → max 2 accompagnants)
+  - [ ] Retirer un accompagnant (✕)
+- [ ] Soumettre groupe → places décomptées correctement (1 + N)
+- [ ] Groupe trop grand pour la capacité → **tout le groupe en file d'attente**
 - [ ] Soumettre → "Vérifiez votre email"
 - [ ] **Email confirmation reçu** (vérifier boîte mail)
   - [ ] Contient lien validation
@@ -93,6 +101,9 @@ curl -X POST "https://www.1hall1artiste.fr/api/visit-emails?type=send-7d-reminde
 
 - [ ] Même email + tour → "already registered"
 - [ ] Max 3 visites → 4e refusée
+- [ ] Max 5 places → 5 accompagnants (6 places) refusé serveur
+- [ ] Capacité comptée en places : groupe de 3 sur visite capacité 4 avec 2 déjà pris → file d'attente
+- [ ] Capacité augmentée → cron promote remplit slots libres (groupe entier si tient)
 - [ ] Idempotence cron (run 2x) → pas de doublon email
 - [ ] API `/api/visit-tours` (public) → 200 `[]` ou liste
 - [ ] API `/api/visit-tours` (guide header) → toutes visites

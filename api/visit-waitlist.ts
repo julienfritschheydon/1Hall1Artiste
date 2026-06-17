@@ -46,12 +46,13 @@ async function handleActivateWaitlist(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: "offer already rejected, you were passed over" });
     }
 
-    // Create registration from waitlist
+    // Create registration from waitlist (carry companions + legacy fields)
     const registration = await rtdbRegistrationCreate({
       tourId: waitlist.tourId,
       email: waitlist.email,
       firstName: waitlist.firstName,
       lastName: waitlist.lastName,
+      companions: waitlist.companions,
       companionFirstName: waitlist.companionFirstName,
       companionLastName: waitlist.companionLastName,
       status: "confirmé",
@@ -130,8 +131,12 @@ async function handleGetWaitlist(req: VercelRequest, res: VercelResponse) {
         firstName: w.firstName,
         lastName: w.lastName,
         email: w.email,
+        companions: w.companions || null,
         companionFirstName: w.companionFirstName || null,
         companionLastName: w.companionLastName || null,
+        places: (w.companions && w.companions.length > 0)
+          ? 1 + w.companions.length
+          : (w.companionFirstName ? 2 : 1),
         hasOffer: Boolean(w.invitationSentAt),
         rejectedAt: w.rejectedAt || null,
       }));

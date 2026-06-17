@@ -157,8 +157,26 @@ async function handleCreateRegistration(req: VercelRequest, res: VercelResponse)
 
   const sanitizedFirstName = sanitizeText(firstName);
   const sanitizedLastName = sanitizeText(lastName);
-  const sanitizedCompanionFirstName = companionFirstName ? sanitizeText(companionFirstName) : undefined;
-  const sanitizedCompanionLastName = companionLastName ? sanitizeText(companionLastName) : undefined;
+
+  // Accompagnants : array (nouveau) ou champ legacy (1 accompagnant). Max 4 → 5 places.
+  let companions: { firstName: string; lastName?: string }[] = [];
+  if (Array.isArray(req.body.companions)) {
+    companions = req.body.companions
+      .filter((c: any) => c && typeof c.firstName === "string" && c.firstName.trim())
+      .map((c: any) => ({
+        firstName: sanitizeText(c.firstName),
+        lastName: c.lastName ? sanitizeText(c.lastName) : undefined,
+      }));
+  } else if (companionFirstName) {
+    companions = [
+      { firstName: sanitizeText(companionFirstName), lastName: companionLastName ? sanitizeText(companionLastName) : undefined },
+    ];
+  }
+  if (companions.length > 4) {
+    return res.status(400).json({ error: "max 5 places per inscription (1 + 4 accompagnants)" });
+  }
+  const groupSize = 1 + companions.length;
+  const companionsField = companions.length > 0 ? companions : undefined;
 
   try {
     // Q7: Check max 3 visites (global, resets when soft-deleted)
@@ -179,9 +197,9 @@ async function handleCreateRegistration(req: VercelRequest, res: VercelResponse)
       return res.status(400).json({ error: "already registered for this tour" });
     }
 
-    // Count registered (confirmés only)
-    const registeredCount = await rtdbCountRegisteredByTour(tourId);
-    const hasSpace = registeredCount < tour.capacity;
+    // Count places taken (confirmés). Whole group must fit, else waitlist.
+    const registeredPlaces = await rtdbCountRegisteredByTour(tourId);
+    const hasSpace = registeredPlaces + groupSize <= tour.capacity;
 
     // Guide manual on-site registration (spec §2): create directly as confirmé, no email.
     const guideCode = req.headers["x-guide-code"] as string | undefined;
@@ -192,8 +210,7 @@ async function handleCreateRegistration(req: VercelRequest, res: VercelResponse)
         email,
         firstName: sanitizedFirstName,
         lastName: sanitizedLastName,
-        companionFirstName: sanitizedCompanionFirstName,
-        companionLastName: sanitizedCompanionLastName,
+        companions: companionsField,
         status: "confirmé",
       });
       await rtdbRegistrationUpdate(registration.id, { confirmedAt: new Date().toISOString() });
@@ -214,8 +231,7 @@ async function handleCreateRegistration(req: VercelRequest, res: VercelResponse)
         email,
         firstName: sanitizedFirstName,
         lastName: sanitizedLastName,
-        companionFirstName: sanitizedCompanionFirstName,
-        companionLastName: sanitizedCompanionLastName,
+        companions: companionsField,
         status: "attente_validation",
         validationToken: token.token,
         validationExpiresAt: token.expiresAt,
@@ -251,8 +267,7 @@ async function handleCreateRegistration(req: VercelRequest, res: VercelResponse)
         email,
         firstName: sanitizedFirstName,
         lastName: sanitizedLastName,
-        companionFirstName: sanitizedCompanionFirstName,
-        companionLastName: sanitizedCompanionLastName,
+        companions: companionsField,
         position,
         invitationToken: token.token,
         invitationExpiresAt: token.expiresAt,
