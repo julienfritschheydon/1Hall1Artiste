@@ -6,8 +6,8 @@
 import { useState, useEffect } from "react";
 import { useLocation, Link } from "react-router-dom";
 
-type Mode = "confirm" | "accept-waitlist" | "cancel-waitlist";
-type Status = "loading" | "success" | "error";
+type Mode = "confirm" | "accept-waitlist" | "cancel-waitlist" | "cancel";
+type Status = "loading" | "success" | "error" | "form";
 
 function useQuery() {
   const { search } = useLocation();
@@ -26,10 +26,52 @@ export default function VisitConfirm() {
     ? "accept-waitlist"
     : path.endsWith("/cancel-waitlist")
     ? "cancel-waitlist"
+    : path.endsWith("/cancel")
+    ? "cancel"
     : "confirm";
+
+  // cancel mode: show email-confirmation form first
+  const [cancelEmail, setCancelEmail] = useState("");
+
+  async function submitCancel(e: React.FormEvent) {
+    e.preventDefault();
+    setStatus("loading");
+    const id = query.get("id");
+    if (!id) {
+      setStatus("error");
+      setMessage("Lien invalide : identifiant manquant.");
+      return;
+    }
+    try {
+      const res = await fetch("/api/visit-register?action=cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ registrationId: id, email: cancelEmail }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setStatus("success");
+        setMessage("Inscription annulée. Vous recevrez un email de confirmation.");
+      } else if (data.error === "email does not match registration") {
+        setStatus("form");
+        setMessage("Email incorrect. Réessayez.");
+      } else {
+        setStatus("error");
+        setMessage(data.error || "Annulation impossible.");
+      }
+    } catch {
+      setStatus("error");
+      setMessage("Erreur réseau.");
+    }
+  }
 
   useEffect(() => {
     async function run() {
+      // cancel mode waits for user email input
+      if (mode === "cancel") {
+        setStatus("form");
+        return;
+      }
       try {
         if (mode === "confirm") {
           const token = query.get("token");
@@ -114,6 +156,8 @@ export default function VisitConfirm() {
       ? "Validation de votre inscription"
       : mode === "accept-waitlist"
       ? "Acceptation de votre place"
+      : mode === "cancel"
+      ? "Annulation de votre inscription"
       : "Annulation file d'attente";
 
   return (
@@ -125,6 +169,26 @@ export default function VisitConfirm() {
           <div className="w-8 h-8 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
           <p className="text-gray-600">Traitement en cours...</p>
         </div>
+      )}
+
+      {status === "form" && (
+        <form onSubmit={submitCancel} className="max-w-sm mx-auto space-y-3 text-left">
+          {message && <div className="p-2 bg-red-100 text-red-700 rounded text-sm">{message}</div>}
+          <p className="text-gray-600 text-sm">
+            Confirmez votre email pour annuler votre inscription.
+          </p>
+          <input
+            type="email"
+            placeholder="Votre email"
+            value={cancelEmail}
+            onChange={(e) => setCancelEmail(e.target.value)}
+            required
+            className="w-full border px-3 py-2 rounded"
+          />
+          <button type="submit" className="w-full bg-red-600 text-white py-2 rounded hover:bg-red-700">
+            Annuler mon inscription
+          </button>
+        </form>
       )}
 
       {status === "success" && (

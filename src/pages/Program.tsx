@@ -208,6 +208,14 @@ const Program = () => {
         
         {/* Contenu avec padding-top pour compenser le header fixe (hauteur titre + filtres + onglets) */}
         <div className="container mx-auto px-4 max-w-4xl relative z-10" style={{ paddingTop: '200px' }}>
+          {/* Bannière visites guidées (spec §3) */}
+          <button
+            onClick={() => navigate('/reservations')}
+            className="w-full mb-4 p-4 bg-[#ff7a45] text-white rounded-lg shadow hover:bg-[#e8693a] transition-colors text-left flex items-center justify-between"
+          >
+            <span className="font-semibold">🎫 Visites guidées — Réservez votre place</span>
+            <span aria-hidden>→</span>
+          </button>
           <TabsContent value="samedi" className="space-y-4">
             {sortByStartTime(filterEvents(getEventsByDay("samedi"), currentFilter)).map((event, index) => (
               <div key={`samedi-${event.id}`}>

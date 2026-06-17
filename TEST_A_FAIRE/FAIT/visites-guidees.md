@@ -1,95 +1,110 @@
 # Tests Visites Guidées
 
-## 1. Pages Publiques (/reservations)
+Code guide test: `TESTGUIDE123`
+Pages: `/reservations` (public), `/guide` (privé)
+Voir aussi: `AUDIT-SPECIFICATIONS.md` (couverture spec) et `SETUP.md`.
 
-- [ ] Charger `/reservations`
-- [ ] Vérifier listing tours affichés
-- [ ] Cliquer tour → détail visible (titre, date, durée, localisation, capacité)
-- [ ] Voir carte avec point de départ
-- [ ] Formulaire inscription visible
-  - [ ] Email field
-  - [ ] Prénom, Nom
-  - [ ] Accompagnant (optionnel)
-- [ ] Soumettre inscription valide
-  - [ ] Message "Vérifiez votre email"
-  - [ ] Check email reçue (confirmation + lien validation)
-- [ ] Cliquer lien email
-  - [ ] Page confirmation charge
-  - [ ] Envoyer token
-  - [ ] Message "Inscription confirmée"
+> ⚠️ **PRÉ-REQUIS Vercel** : renommer les variables d'env (voir SETUP.md §Vercel) :
+> `DOODATES_EMAILJS_TEMPLATE_IDS` → `VISIT_EMAILJS_TEMPLATE_IDS`,
+> `DOODATES_ALERT_EMAIL` → `VISIT_ALERT_EMAIL`, ajouter `PUBLIC_SITE_URL`.
+> Ajouter clé `"cancellation"` dans le JSON template IDs.
+> Sans ça → les emails échouent silencieusement.
 
-## 2. Espace Guide (/guide)
+---
 
-- [ ] Charger `/guide`
-- [ ] Voir écran login (champ code)
-- [ ] Entrer code guide invalide → erreur
-- [ ] Entrer code guide valide → dashboard charge
-- [ ] Dashboard affiche:
-  - [ ] Liste tours (titre, date, inscrits/capacité)
-  - [ ] Statut tour (À venir, En cours, Terminée)
-- [ ] Cliquer tour → détail:
-  - [ ] Onglet "Inscrits" → liste confirmés
-  - [ ] Export PDF
-  - [ ] Export CSV
-  - [ ] Onglet "File d'attente" → positions anonymisées
-  - [ ] Onglet "Appel" → feuille présences
-    - [ ] Cocher présent/absent pour chaque
-    - [ ] Vérifier update en temps réel
+## 1. Espace Guide (/guide)
 
-## 3. EmailJS + Cron
+- [ ] Charger `/guide` → écran login
+- [ ] Code invalide → erreur "Code invalide"
+- [ ] Code `TESTGUIDE123` → dashboard
+- [ ] **Créer une visite** (bouton "+ Créer une visite")
+  - [ ] Remplir titre, date/heure, durée, capacité, lat/lng, labels
+  - [ ] Valider → visite apparaît dans la liste
+- [ ] Cliquer visite → détail
+  - [ ] Stats (confirmés, présents, absents, file)
+  - [ ] **Modifier** la visite → changement sauvegardé
+  - [ ] Modifier visite à < 24h du départ → refusée
+  - [ ] Onglet "Inscrits" → liste
+  - [ ] **+ Inscrire sur place** → ajout direct confirmé (sans email)
+  - [ ] Onglet "File d'attente" → noms + positions
+  - [ ] Onglet "Appel" → cocher présent/absent
+  - [ ] **Export CSV** → fichier téléchargé, accents OK
+  - [ ] **Imprimer** → dialogue impression
+- [ ] Déconnexion → retour login
 
-- [ ] Template `template_q7nh8h2` reçoit variables corrects:
-  - [ ] `{{to_email}}`
-  - [ ] `{{type}}`
-  - [ ] `{{firstName}}`
-  - [ ] `{{tourTitle}}`
-  - [ ] `{{tourDate}}`
+## 2. Inscription Publique (/reservations)
 
-- [ ] Tester cron manuellement (locale ou Vercel logs):
-  ```bash
-  curl -X POST "https://<vercel-url>/api/visit-emails?type=send-7d-reminder" \
-    -H "Authorization: Bearer $CRON_SECRET"
-  ```
-  - [ ] Réponse 200 OK
-  - [ ] Logs indiquent envois réussis
+- [ ] `/reservations` → liste visites
+- [ ] Bannière visites visible aussi dans `/programme`
+- [ ] Cliquer visite → détail (titre, date, durée, GPS, labels, places)
+- [ ] Formulaire : email, nom, prénom, accompagnant (option)
+- [ ] Soumettre → "Vérifiez votre email"
+- [ ] **Email confirmation reçu** (vérifier boîte mail)
+  - [ ] Contient lien validation
+  - [ ] Contient lien annulation
+  - [ ] Contenu correspond au type (pas le template erreur générique)
 
-- [ ] Emails d'erreur vont à `VISIT_ALERT_EMAIL` (julien.fritsch@gmail.com)
+## 3. Validation 24H (/reservations/confirm)
 
-## 4. Fiabilité
+- [ ] Cliquer lien validation dans email → page charge
+- [ ] "Inscription confirmée ✅"
+- [ ] Recliquer (idempotence) → toujours OK
+- [ ] Token trafiqué → erreur "invalid token"
 
-- [ ] Déduplication: même email + tour → erreur "déjà inscrit"
-- [ ] Max 3 visites par email → erreur si 4e
-- [ ] File attente:
-  - [ ] Inscription si complet → waitlist
-  - [ ] Email file attente reçu
-  - [ ] Position affichée
-- [ ] Idempotence:
-  - [ ] Cron run 2x → même count (pas doublons)
-  - [ ] Validation token 2x → OK (pas erreur)
+## 4. Annulation inscription (/reservations/cancel)
 
-## 5. RGPD
+- [ ] Lien annulation email → page demande email
+- [ ] Mauvais email → "Email incorrect"
+- [ ] Bon email → "Inscription annulée"
+- [ ] Email de confirmation annulation reçu
+- [ ] Place libérée → cron promote prévient file d'attente
 
-- [ ] Après tour + 24H:
-  - [ ] Batch delete s'exécute
-  - [ ] Registrations soft-deleted
-  - [ ] Audit log créé
-  - [ ] Requête → aucune donnée retournée
+## 5. File d'Attente
 
-## 6. Vercel Logs
+- [ ] Remplir visite (capacité atteinte)
+- [ ] Nouvelle inscription → "file d'attente #N"
+- [ ] Email file d'attente reçu (lien annulation file)
+- [ ] Annuler place via `/reservations/cancel-waitlist?id=` → retiré + reorder
+- [ ] Place se libère → email offre 24H (`/accept-waitlist?token=`)
+- [ ] Accepter offre → inscription confirmée
+- [ ] Offre expirée 24H → passe au suivant
 
-- [ ] Vérifier `/api/visit-tours` répond
-- [ ] Vérifier `/api/visit-register` répond
-- [ ] Vérifier `/api/visit-attendance` répond
-- [ ] Vérifier crons exécutés:
-  - [ ] `0 0 * * *` (7d reminder)
-  - [ ] `0 0 * * *` (1d validation)
-  - [ ] `0 1 * * *` (batch delete)
-  - [ ] `0 2 * * *` (promote waitlist)
-- [ ] Zéro erreurs 500
+## 6. RGPD (/reservations/gdpr)
+
+- [ ] Lien "Gérer/supprimer mes données" en bas de `/reservations`
+- [ ] Saisir email → "Données supprimées: N inscription(s)..."
+- [ ] Vérifier inscriptions disparues (guide ne les voit plus)
+- [ ] Audit log `gdpr_request` créé (Firebase `visit_audit_logs`)
+- [ ] Suppression auto 24H après visite (cron batch-delete)
+
+## 7. Crons (Vercel logs ou curl)
+
+```bash
+curl -X POST "https://www.1hall1artiste.fr/api/visit-emails?type=send-7d-reminder" \
+  -H "Authorization: Bearer $CRON_SECRET"
+```
+- [ ] `send-7d-reminder` → 200, emails rappel
+- [ ] `send-1d-validation` → 200, emails + auto-cancel deadline
+- [ ] `batch-delete-post-tour` → 200, soft-delete + audit
+- [ ] `promote-waitlist` → 200, promo file
+- [ ] Mauvais `CRON_SECRET` → 401
+
+## 8. Fiabilité
+
+- [ ] Même email + tour → "already registered"
+- [ ] Max 3 visites → 4e refusée
+- [ ] Idempotence cron (run 2x) → pas de doublon email
+- [ ] API `/api/visit-tours` (public) → 200 `[]` ou liste
+- [ ] API `/api/visit-tours` (guide header) → toutes visites
+- [ ] Zéro erreur 500 dans Vercel logs
+
+## 9. EmailJS template
+
+- [ ] Template `template_q7nh8h2` : To=`{{to_email}}`, Subject=`{{type}}: {{tourTitle}}`
+- [ ] Body gère tous les `{{#if type ...}}` (confirmation, reminder_7d, reminder_1d_validate, waitlist_confirmation, waitlist_offer, validation_expired, cancellation, error)
+- [ ] Emails erreur app → `julien.fritsch@gmail.com`
 
 ## Notes
-
-- Template ID: `template_q7nh8h2`
-- Env vars: `VISIT_EMAILJS_TEMPLATE_IDS`, `VISIT_ALERT_EMAIL`, `REGISTRATION_SECRET`, `CRON_SECRET`
-- Endpoints: `/api/visit-*`
-- Pages: `/reservations` (public), `/guide` (privé)
+- Endpoints : `/api/visit-tours|register|waitlist|attendance|emails`
+- Actions register : `?action=confirm|cancel|gdpr` + POST par défaut (créer)
+- Action waitlist : `?action=activate`, DELETE (annuler), GET (liste)

@@ -13,9 +13,12 @@ import {
   rtdbCountRegisteredByTour,
   rtdbWaitlistAdd,
   rtdbWaitlistCount,
+  rtdbWaitlistSoftDelete,
+  rtdbRegistrationSoftDelete,
   rtdbAuditLog,
   rtdbGuideCodeValidate,
 } from "./_visit-db.js";
+import { rtdbGet } from "./_firebase.js";
 import { createRegistrationToken, verifyRegistrationToken } from "./_token.js";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -30,7 +33,7 @@ function sanitizeText(text: string): string {
 
 // Helper: send email via EmailJS with retry + idempotency (Q1, Q2)
 async function sendRegistrationEmail(
-  emailType: "confirmation" | "waitlist_confirmation" | "validation_expired",
+  emailType: "confirmation" | "waitlist_confirmation" | "validation_expired" | "cancellation",
   data: Record<string, any>
 ): Promise<void> {
   const templateIdJson = process.env.VISIT_EMAILJS_TEMPLATE_IDS;
@@ -55,7 +58,9 @@ async function sendRegistrationEmail(
       validationLink: data.validationLink,
       position: data.position,
       queueLink: data.queueLink,
+      cancelLink: data.cancelLink,
       deadline: data.deadline,
+      type: emailType,
     },
   };
 
@@ -224,6 +229,7 @@ async function handleCreateRegistration(req: VercelRequest, res: VercelResponse)
           tourTitle: tour.title,
           tourDate: tour.date,
           validationLink: `${SITE_URL}/#/reservations/confirm?token=${token.token}`,
+          cancelLink: `${SITE_URL}/#/reservations/cancel?id=${registration.id}`,
           registrationId: registration.id,
           idempotencyKey: `${registration.id}_confirmation`,
         });
@@ -340,6 +346,112 @@ async function handleConfirmRegistration(req: VercelRequest, res: VercelResponse
   }
 }
 
+// POST /api/visit-register?action=cancel — user annule son inscription (spec §5)
+// Body: { registrationId, email }. Email = clé d'auth faible (visite gratuite).
+// Place libérée → cron promote-waitlist prévient le premier en file.
+async function handleCancelRegistration(req: VercelRequest, res: VercelResponse) {
+  const { registrationId, email } = req.body;
+
+  if (!registrationId || typeof registrationId !== "string") {
+    return res.status(400).json({ error: "registrationId: string required" });
+  }
+  if (!email || typeof email !== "string") {
+    return res.status(400).json({ error: "email: string required" });
+  }
+
+  try {
+    const registration = await rtdbRegistrationGet(registrationId);
+    if (!registration || registration.deletedAt) {
+      return res.status(404).json({ error: "registration not found" });
+    }
+    // Email must match (weak auth)
+    if (registration.email.toLowerCase() !== email.toLowerCase()) {
+      return res.status(403).json({ error: "email does not match registration" });
+    }
+    if (registration.status === "annulé") {
+      return res.json({ ok: true, message: "Already cancelled" });
+    }
+    if (registration.status === "présent" || registration.status === "absent") {
+      return res.status(400).json({ error: "tour already happened, cannot cancel" });
+    }
+
+    await rtdbRegistrationUpdate(registrationId, {
+      status: "annulé",
+      cancelledAt: new Date().toISOString(),
+    });
+
+    // Send cancellation confirmation email
+    try {
+      const tour = await rtdbTourGet(registration.tourId);
+      await sendRegistrationEmail("cancellation", {
+        to: registration.email,
+        firstName: registration.firstName,
+        tourTitle: tour?.title || "",
+        tourDate: tour?.date || "",
+        registrationId,
+        idempotencyKey: `${registrationId}_cancellation`,
+      });
+    } catch (e) {
+      console.error("[visit-register] cancellation email failed:", e);
+    }
+
+    return res.json({ ok: true, message: "Inscription annulée" });
+  } catch (e) {
+    console.error("[visit-register cancel]", e);
+    return res.status(500).json({ error: "cancellation failed" });
+  }
+}
+
+// POST /api/visit-register?action=gdpr — droit à l'oubli (spec §6 Q6, §7)
+// Body: { email }. Soft-delete toutes inscriptions + file d'attente de cet email.
+async function handleGdprDelete(req: VercelRequest, res: VercelResponse) {
+  const { email } = req.body;
+  if (!email || typeof email !== "string" || !EMAIL_REGEX.test(email)) {
+    return res.status(400).json({ error: "email: valid email required" });
+  }
+
+  try {
+    const regIds = await rtdbGet<Record<string, boolean>>(`registrations_by_email/${email}`);
+    let deletedRegs = 0;
+    if (regIds) {
+      for (const regId of Object.keys(regIds)) {
+        const reg = await rtdbRegistrationGet(regId);
+        if (reg && !reg.deletedAt) {
+          await rtdbRegistrationSoftDelete(regId);
+          deletedRegs++;
+        }
+      }
+    }
+
+    // Soft-delete waitlist entries for this email (scan all tours' waitlist)
+    let deletedWaitlist = 0;
+    const allWaitlist = await rtdbGet<Record<string, any>>("waitlist");
+    if (allWaitlist) {
+      for (const [wid, w] of Object.entries(allWaitlist)) {
+        if (w && w.email && w.email.toLowerCase() === email.toLowerCase() && !w.deletedAt) {
+          await rtdbWaitlistSoftDelete(wid);
+          deletedWaitlist++;
+        }
+      }
+    }
+
+    await rtdbAuditLog("gdpr_request", {
+      email,
+      deletedRegistrations: deletedRegs,
+      deletedWaitlist,
+      timestamp: new Date().toISOString(),
+    });
+
+    return res.json({
+      ok: true,
+      message: `Données supprimées: ${deletedRegs} inscription(s), ${deletedWaitlist} file(s) d'attente`,
+    });
+  } catch (e) {
+    console.error("[visit-register gdpr]", e);
+    return res.status(500).json({ error: "gdpr deletion failed" });
+  }
+}
+
 // Main router
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
@@ -349,8 +461,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Route by query param (?action=confirm) or path suffix (/confirm).
   // Query param preferred — robust on Vercel filesystem routing.
   const path = req.url?.split("?")[0];
-  if (req.query.action === "confirm" || path?.endsWith("/confirm")) {
+  const action = req.query.action;
+  if (action === "confirm" || path?.endsWith("/confirm")) {
     return handleConfirmRegistration(req, res);
+  } else if (action === "cancel") {
+    return handleCancelRegistration(req, res);
+  } else if (action === "gdpr") {
+    return handleGdprDelete(req, res);
   } else {
     return handleCreateRegistration(req, res);
   }

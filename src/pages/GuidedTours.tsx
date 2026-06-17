@@ -46,6 +46,14 @@ export default function GuidedTours() {
           )}
         </div>
       )}
+
+      {!selectedTour && (
+        <p className="mt-12 text-xs text-gray-400 text-center">
+          <a href="#/reservations/gdpr" className="hover:underline">
+            Gérer / supprimer mes données (RGPD)
+          </a>
+        </p>
+      )}
     </div>
   );
 }

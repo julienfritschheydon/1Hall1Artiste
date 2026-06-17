@@ -45,7 +45,9 @@ async function sendEmailWithRetry(
       validationLink: data.validationLink,
       position: data.position,
       queueLink: data.queueLink,
+      acceptLink: data.acceptLink,
       deadline: data.deadline,
+      type: data.type,
     },
   };
 
@@ -152,6 +154,7 @@ async function sendReminderEmails7d(): Promise<{ sent: number; failed: number }>
         firstName: reg.firstName,
         tourTitle: tour.title,
         tourDate: tour.date,
+        type: "reminder_7d",
       },
       idempotencyKey
     );
@@ -208,6 +211,7 @@ async function sendValidationEmails1d(): Promise<{ sent: number; autocancelled: 
         tourTitle: tour.title,
         validationLink: `${SITE_URL}/#/reservations/confirm?token=${token.token}`,
         deadline: deadline.toISOString(),
+        type: "reminder_1d_validate",
       },
       idempotencyKey
     );
@@ -333,6 +337,7 @@ async function promoteFromWaitlist(): Promise<{ promoted: number; rejected: numb
         tourTitle: tour.title,
         acceptLink: `${SITE_URL}/#/reservations/accept-waitlist?token=${token.token}`,
         deadline: deadline.toISOString(),
+        type: "waitlist_offer",
       },
       idempotencyKey
     );

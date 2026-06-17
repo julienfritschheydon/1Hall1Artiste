@@ -46,6 +46,7 @@ const QRCodePage = lazy(() => import("./pages/QRCodePage"));
 const GuidedTours = lazy(() => import("./pages/GuidedTours"));
 const GuidePortal = lazy(() => import("./pages/GuidePortal"));
 const VisitConfirm = lazy(() => import("./pages/VisitConfirm"));
+const VisitGdpr = lazy(() => import("./pages/VisitGdpr"));
 
 const queryClient = new QueryClient();
 
@@ -134,6 +135,8 @@ const AnimatedRoutes: React.FC = () => {
     { path: '/reservations/confirm', component: VisitConfirm, swipeable: false },
     { path: '/reservations/accept-waitlist', component: VisitConfirm, swipeable: false },
     { path: '/reservations/cancel-waitlist', component: VisitConfirm, swipeable: false },
+    { path: '/reservations/cancel', component: VisitConfirm, swipeable: false },
+    { path: '/reservations/gdpr', component: VisitGdpr, swipeable: false },
     { path: '/guide', component: GuidePortal, swipeable: false },
   ];
   
