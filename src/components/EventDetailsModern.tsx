@@ -16,6 +16,14 @@ import { Event } from "@/data/events";
 import Share2 from "lucide-react/dist/esm/icons/share-2";
 import MapPin from "lucide-react/dist/esm/icons/map-pin";
 import Calendar from "lucide-react/dist/esm/icons/calendar";
+import Mail from "lucide-react/dist/esm/icons/mail";
+import Globe from "lucide-react/dist/esm/icons/globe";
+import Phone from "lucide-react/dist/esm/icons/phone";
+import Facebook from "lucide-react/dist/esm/icons/facebook";
+import Youtube from "lucide-react/dist/esm/icons/youtube";
+import Music2 from "lucide-react/dist/esm/icons/music-2";
+import Users from "lucide-react/dist/esm/icons/users";
+import User from "lucide-react/dist/esm/icons/user";
 import Bookmark from "lucide-react/dist/esm/icons/bookmark";
 import BookmarkCheck from "lucide-react/dist/esm/icons/bookmark-check";
 import X from "lucide-react/dist/esm/icons/x";
@@ -449,17 +457,13 @@ export const EventDetailsNew = ({
           
           {/* Informations pratiques */}
           <div className="mb-6">
-            <div className="space-y-3">
+            <div className="space-y-3 px-4">
               <div className="flex items-center text-sm text-gray-700">
-                <span className="w-24 mr-2 flex-shrink-0 flex items-center">
-                  <Calendar className="h-4 w-4 text-gray-600" />
-                </span>
+                <Calendar className="h-4 w-4 mr-3 flex-shrink-0 text-gray-600" />
                 <span>{event.time}</span>
               </div>
               <div className="flex items-center text-sm text-gray-700">
-                <span className="w-24 mr-2 flex-shrink-0 flex items-center">
-                  <MapPin className="h-4 w-4 text-gray-600" />
-                </span>
+                <MapPin className="h-4 w-4 mr-3 flex-shrink-0 text-gray-600" />
                 <span>{getLocationNameById(event.locationId) || event.locationName}</span>
               </div>
             </div>
@@ -495,22 +499,22 @@ export const EventDetailsNew = ({
                 {/* Email */}
                 {artist.email && (
                   <div className="flex items-center text-sm text-gray-700">
-                    <span className="font-medium mr-2 w-24 flex-shrink-0">Email:</span>
+                    <Mail className="h-4 w-4 mr-3 flex-shrink-0 text-gray-600" aria-label="Email" />
                     <a href={`mailto:${artist.email}`} className="text-blue-600 hover:underline min-h-0 break-all min-w-0">
                       {artist.email}
                     </a>
                   </div>
                 )}
-                
+
                 {/* Site web */}
                 {safeHttpUrl(artist.website) && (
                   <div className="flex items-center text-sm text-gray-700">
-                    <span className="font-medium mr-2 w-24 flex-shrink-0">Site web:</span>
+                    <Globe className="h-4 w-4 mr-3 flex-shrink-0 text-gray-600" aria-label="Site web" />
                     <a
                       href={safeHttpUrl(artist.website)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline min-h-0"
+                      className="text-blue-600 hover:underline min-h-0 break-all min-w-0"
                     >
                       {artist.website.replace(/^https?:\/\//, '').replace(/\/$/, '')}
                     </a>
@@ -520,9 +524,9 @@ export const EventDetailsNew = ({
                 {/* Téléphone */}
                 {artist.phone && (
                   <div className="flex items-center text-sm text-gray-700">
-                    <span className="font-medium mr-2 w-24 flex-shrink-0">Téléphone:</span>
-                    <a 
-                      href={`tel:${artist.phone}`} 
+                    <Phone className="h-4 w-4 mr-3 flex-shrink-0 text-gray-600" aria-label="Téléphone" />
+                    <a
+                      href={`tel:${artist.phone}`}
                       className="text-blue-600 hover:underline min-h-0"
                     >
                       {artist.phone}
@@ -533,7 +537,7 @@ export const EventDetailsNew = ({
                 {/* Facebook */}
                 {safeHttpUrl(artist.facebook) && (
                   <div className="flex items-center text-sm text-gray-700">
-                    <span className="font-medium mr-2 w-24 flex-shrink-0">Facebook:</span>
+                    <Facebook className="h-4 w-4 mr-3 flex-shrink-0 text-gray-600" aria-label="Facebook" />
                     <a
                       href={safeHttpUrl(artist.facebook)}
                       target="_blank"
@@ -550,12 +554,12 @@ export const EventDetailsNew = ({
                 {/* YouTube */}
                 {safeHttpUrl(artist.youtube) && (
                   <div className="flex items-center text-sm text-gray-700">
-                    <span className="font-medium mr-2 w-24 flex-shrink-0">YouTube:</span>
+                    <Youtube className="h-4 w-4 mr-3 flex-shrink-0 text-gray-600" aria-label="YouTube" />
                     <a
                       href={safeHttpUrl(artist.youtube)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline min-h-0"
+                      className="text-blue-600 hover:underline min-h-0 break-all min-w-0"
                     >
                       {artist.youtube.replace(/^https?:\/\//, '').replace(/\/$/, '')}
                     </a>
@@ -565,12 +569,12 @@ export const EventDetailsNew = ({
                 {/* TikTok */}
                 {safeHttpUrl(artist.tiktok) && (
                   <div className="flex items-center text-sm text-gray-700">
-                    <span className="font-medium mr-2 w-24 flex-shrink-0">TikTok:</span>
+                    <Music2 className="h-4 w-4 mr-3 flex-shrink-0 text-gray-600" aria-label="TikTok" />
                     <a
                       href={safeHttpUrl(artist.tiktok)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline min-h-0"
+                      className="text-blue-600 hover:underline min-h-0 break-all min-w-0"
                     >
                       {artist.tiktok.replace(/^https?:\/\//, '').replace(/\/$/, '')}
                     </a>
@@ -580,7 +584,7 @@ export const EventDetailsNew = ({
                 {/* Directeur/Chef */}
                 {artist.director && (
                   <div className="flex items-center text-sm text-gray-700">
-                    <span className="font-medium mr-2 w-24 flex-shrink-0">Direction:</span>
+                    <User className="h-4 w-4 mr-3 flex-shrink-0 text-gray-600" aria-label="Direction" />
                     <span className="text-gray-700">{artist.director}</span>
                   </div>
                 )}
@@ -588,7 +592,7 @@ export const EventDetailsNew = ({
                 {/* Membres */}
                 {artist.members && (
                   <div className="flex items-center text-sm text-gray-700">
-                    <span className="font-medium mr-2 w-24 flex-shrink-0">Membres:</span>
+                    <Users className="h-4 w-4 mr-3 flex-shrink-0 text-gray-600" aria-label="Membres" />
                     <span className="text-gray-700">{artist.members}</span>
                   </div>
                 )}
