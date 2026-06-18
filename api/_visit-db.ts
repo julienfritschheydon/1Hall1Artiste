@@ -24,7 +24,7 @@ function generateId(): string {
 // so percent-encoding doesn't help). Replace illegal chars with ',' (legal). '@' is OK.
 // Index-only key — real email lives in the doc — so collisions are harmless.
 export function emailKey(email: string): string {
-  return email.toLowerCase().replace(/[.#$\[\]/]/g, ",");
+  return email.toLowerCase().replace(/[.#$[\]/]/g, ",");
 }
 
 // ============ TOURS ============
