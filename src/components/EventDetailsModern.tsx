@@ -449,13 +449,17 @@ export const EventDetailsNew = ({
           
           {/* Informations pratiques */}
           <div className="mb-6">
-            <div className="space-y-2">
+            <div className="space-y-3">
               <div className="flex items-center text-sm text-gray-700">
-                <Calendar className="h-4 w-4 mr-2 text-gray-600" />
+                <span className="w-24 mr-2 flex-shrink-0 flex items-center">
+                  <Calendar className="h-4 w-4 text-gray-600" />
+                </span>
                 <span>{event.time}</span>
               </div>
               <div className="flex items-center text-sm text-gray-700">
-                <MapPin className="h-4 w-4 mr-2 text-gray-600" />
+                <span className="w-24 mr-2 flex-shrink-0 flex items-center">
+                  <MapPin className="h-4 w-4 text-gray-600" />
+                </span>
                 <span>{getLocationNameById(event.locationId) || event.locationName}</span>
               </div>
             </div>
@@ -492,7 +496,7 @@ export const EventDetailsNew = ({
                 {artist.email && (
                   <div className="flex items-center text-sm text-gray-700">
                     <span className="font-medium mr-2 w-24 flex-shrink-0">Email:</span>
-                    <a href={`mailto:${artist.email}`} className="text-blue-600 hover:underline break-all min-w-0">
+                    <a href={`mailto:${artist.email}`} className="text-blue-600 hover:underline min-h-0 break-all min-w-0">
                       {artist.email}
                     </a>
                   </div>
@@ -506,7 +510,7 @@ export const EventDetailsNew = ({
                       href={safeHttpUrl(artist.website)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline"
+                      className="text-blue-600 hover:underline min-h-0"
                     >
                       {artist.website.replace(/^https?:\/\//, '').replace(/\/$/, '')}
                     </a>
@@ -519,7 +523,7 @@ export const EventDetailsNew = ({
                     <span className="font-medium mr-2 w-24 flex-shrink-0">Téléphone:</span>
                     <a 
                       href={`tel:${artist.phone}`} 
-                      className="text-blue-600 hover:underline"
+                      className="text-blue-600 hover:underline min-h-0"
                     >
                       {artist.phone}
                     </a>
@@ -534,7 +538,7 @@ export const EventDetailsNew = ({
                       href={safeHttpUrl(artist.facebook)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline"
+                      className="text-blue-600 hover:underline min-h-0"
                     >
                       Voir la page
                     </a>
@@ -551,7 +555,7 @@ export const EventDetailsNew = ({
                       href={safeHttpUrl(artist.youtube)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline"
+                      className="text-blue-600 hover:underline min-h-0"
                     >
                       {artist.youtube.replace(/^https?:\/\//, '').replace(/\/$/, '')}
                     </a>
@@ -566,7 +570,7 @@ export const EventDetailsNew = ({
                       href={safeHttpUrl(artist.tiktok)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline"
+                      className="text-blue-600 hover:underline min-h-0"
                     >
                       {artist.tiktok.replace(/^https?:\/\//, '').replace(/\/$/, '')}
                     </a>
