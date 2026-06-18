@@ -1,4 +1,7 @@
 import React from 'react';
+import MapPin from "lucide-react/dist/esm/icons/map-pin";
+import Volume2 from "lucide-react/dist/esm/icons/volume-2";
+import VolumeX from "lucide-react/dist/esm/icons/volume-x";
 
 interface MapHeaderProps {
   visitedCount: number;
@@ -7,17 +10,31 @@ interface MapHeaderProps {
   onAmbianceToggle?: () => void;
   showLocationButton?: boolean;
   showAmbianceButton?: boolean;
+  isLocationActive?: boolean;
+  isAmbianceActive?: boolean;
 }
 
-export function MapHeader({ 
-  visitedCount, 
-  totalCount, 
+export function MapHeader({
+  visitedCount,
+  totalCount,
   onLocationToggle,
   onAmbianceToggle,
   showLocationButton = true,
-  showAmbianceButton = true
+  showAmbianceButton = true,
+  isLocationActive = false,
+  isAmbianceActive = false
 }: MapHeaderProps) {
   const toDiscoverCount = totalCount - visitedCount;
+
+  // Style bouton icône rond, cohérent avec les autres pages (ShareButton / AudioGuideButton)
+  const iconBtnClass = (active: boolean) =>
+    [
+      "flex items-center justify-center h-10 w-10 rounded-full border-2 bg-white/90 backdrop-blur-sm",
+      "transition-all duration-200 hover:scale-105 hover:shadow-sm",
+      active
+        ? "border-amber-500 text-amber-500"
+        : "border-gray-300 text-gray-600 hover:border-amber-500 hover:text-amber-500"
+    ].join(" ");
 
   return (
     <div className="w-full mb-4 px-4">
@@ -68,36 +85,28 @@ export function MapHeader({
       </div>
 
       {/* Boutons d'action */}
-      <div className="flex justify-center gap-4">
+      <div className="flex justify-center gap-3">
         {showLocationButton && (
           <button
             onClick={onLocationToggle}
-            className="px-6 py-2 rounded-full text-sm font-medium transition-all duration-200 hover:scale-105"
-            style={{
-              background: 'linear-gradient(135deg, #f5f4f0 0%, #e8e6e0 100%)',
-              color: '#1a2138',
-              fontFamily: 'serif',
-              border: '2px solid rgba(26, 33, 56, 0.2)',
-              boxShadow: '0 2px 6px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.3)'
-            }}
+            aria-pressed={isLocationActive}
+            aria-label={isLocationActive ? 'Désactiver la localisation' : 'Activer la localisation'}
+            title="Localisation"
+            className={iconBtnClass(isLocationActive)}
           >
-            Localisation
+            <MapPin className="h-5 w-5" />
           </button>
         )}
 
         {showAmbianceButton && (
           <button
             onClick={onAmbianceToggle}
-            className="px-6 py-2 rounded-full text-sm font-medium transition-all duration-200 hover:scale-105"
-            style={{
-              background: 'linear-gradient(135deg, #f5f4f0 0%, #e8e6e0 100%)',
-              color: '#1a2138',
-              fontFamily: 'serif',
-              border: '2px solid rgba(26, 33, 56, 0.2)',
-              boxShadow: '0 2px 6px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.3)'
-            }}
+            aria-pressed={isAmbianceActive}
+            aria-label={isAmbianceActive ? 'Désactiver le son d\'ambiance' : 'Activer le son d\'ambiance'}
+            title="Ambiance"
+            className={iconBtnClass(isAmbianceActive)}
           >
-            Ambiance
+            {isAmbianceActive ? <Volume2 className="h-5 w-5" /> : <VolumeX className="h-5 w-5" />}
           </button>
         )}
       </div>

@@ -5,7 +5,7 @@ import UserLocation, { GeoPosition } from "@/components/UserLocation";
 import ProximityGuide from "@/components/ProximityGuide";
 import NavigationGuideSimple from "@/components/NavigationGuideSimple";
 import LocationActivator from "@/components/LocationActivator";
-import AudioActivator from "@/components/AudioActivator";
+import { useAmbianceAudio } from "@/hooks/useAmbianceAudio";
 import { useNavigate, useLocation } from "react-router-dom";
 import { createLogger } from "@/utils/logger";
 import { MapComponent, MAP_WIDTH, MAP_HEIGHT } from "@/components/MapComponent";
@@ -16,7 +16,6 @@ import { analytics, EventAction } from "@/services/firebaseAnalytics";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import ArrowLeft from "lucide-react/dist/esm/icons/arrow-left";
 import X from "lucide-react/dist/esm/icons/x";
-import MapPin from "lucide-react/dist/esm/icons/map-pin";
 import Info from "lucide-react/dist/esm/icons/info";
 import Calendar from "lucide-react/dist/esm/icons/calendar";
 import Bookmark from "lucide-react/dist/esm/icons/bookmark";
@@ -369,6 +368,34 @@ const Map = ({ fullScreen = false }: MapProps) => {
     setPermissionDenied(false); // Réinitialiser l'état de permission refusée
   };
 
+  // Activer / désactiver la localisation (bouton header)
+  const toggleLocation = () => {
+    if (!showLocationFeatures) {
+      setPermissionDenied(false);
+      setShowLocationFeatures(true);
+      setLocationPermissionRequested(true);
+      logger.info('Localisation activée manuellement par l\'utilisateur');
+      analytics.trackMapInteraction(EventAction.USER_LOCATION, { granted: true });
+    } else {
+      setShowLocationFeatures(false);
+      setNavigationTarget(null);
+      logger.info('Localisation désactivée manuellement par l\'utilisateur');
+      analytics.trackMapInteraction(EventAction.USER_LOCATION, { granted: false, disabled: true });
+    }
+  };
+
+  // Son d'ambiance (bouton header)
+  const { isActive: isAmbianceActive, toggle: toggleAmbiance } = useAmbianceAudio({
+    onAudioEnabled: () => {
+      analytics.trackFeatureUse('ambiance_toggle', { enabled: true });
+      logger.info('Son d\'ambiance activé');
+    },
+    onAudioDisabled: () => {
+      analytics.trackFeatureUse('ambiance_toggle', { enabled: false });
+      logger.info('Son d\'ambiance désactivé');
+    }
+  });
+
   // Demander l'autorisation de localisation au chargement de la page
   useEffect(() => {
     // En environnement de développement, activer automatiquement la localisation sans demander
@@ -487,11 +514,15 @@ const Map = ({ fullScreen = false }: MapProps) => {
         <div className="flex items-center justify-between mb-4">
           <div className="w-1/4"></div>
           <div className="flex-1">
-            <MapHeader 
+            <MapHeader
               visitedCount={visitedCount}
               totalCount={totalCount}
-              showLocationButton={false}
-              showAmbianceButton={false}
+              showLocationButton={true}
+              showAmbianceButton={true}
+              isLocationActive={showLocationFeatures}
+              isAmbianceActive={isAmbianceActive}
+              onLocationToggle={toggleLocation}
+              onAmbianceToggle={toggleAmbiance}
             />
           </div>
           <div className="flex items-center space-x-2 w-1/4 justify-end">
@@ -568,46 +599,6 @@ const Map = ({ fullScreen = false }: MapProps) => {
                 </div>
               )}
             </div>
-          </div>
-          
-          {/* Boutons Localisation et Ambiance - Style cohérent avec l'app */}
-          <div className="flex justify-center gap-4 mt-4">
-            <button
-              className={`px-6 py-2 rounded-full text-sm font-medium transition-colors duration-200 border-2 ${
-                showLocationFeatures 
-                  ? 'bg-[#1a2138] text-white border-[#1a2138]' 
-                  : 'bg-transparent text-[#1a2138] border-[#1a2138] hover:bg-[#1a2138] hover:text-white'
-              }`}
-              onClick={() => {
-                if (!showLocationFeatures) {
-                  // Activer la localisation
-                  setPermissionDenied(false);
-                  setShowLocationFeatures(true);
-                  setLocationPermissionRequested(true);
-                  logger.info('Localisation activée manuellement par l\'utilisateur');
-                  analytics.trackMapInteraction(EventAction.USER_LOCATION, { granted: true });
-                } else {
-                  // Désactiver la localisation
-                  setShowLocationFeatures(false);
-                  setNavigationTarget(null);
-                  logger.info('Localisation désactivée manuellement par l\'utilisateur');
-                  analytics.trackMapInteraction(EventAction.USER_LOCATION, { granted: false, disabled: true });
-                }
-              }}
-            >
-              Localisation
-            </button>
-
-            <AudioActivator 
-              onAudioEnabled={() => {
-                analytics.trackFeatureUse('ambiance_toggle', { enabled: true });
-                logger.info('Son d\'ambiance activé');
-              }}
-              onAudioDisabled={() => {
-                analytics.trackFeatureUse('ambiance_toggle', { enabled: false });
-                logger.info('Son d\'ambiance désactivé');
-              }}
-            />
           </div>
         </div>
         
