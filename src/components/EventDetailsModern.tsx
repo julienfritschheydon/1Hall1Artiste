@@ -491,8 +491,8 @@ export const EventDetailsNew = ({
                 {/* Email */}
                 {artist.email && (
                   <div className="flex items-center text-sm text-gray-700">
-                    <span className="font-medium mr-2 min-w-[80px]">Email:</span>
-                    <a href={`mailto:${artist.email}`} className="text-blue-600 hover:underline">
+                    <span className="font-medium mr-2 w-24 flex-shrink-0">Email:</span>
+                    <a href={`mailto:${artist.email}`} className="text-blue-600 hover:underline break-all min-w-0">
                       {artist.email}
                     </a>
                   </div>
@@ -501,7 +501,7 @@ export const EventDetailsNew = ({
                 {/* Site web */}
                 {safeHttpUrl(artist.website) && (
                   <div className="flex items-center text-sm text-gray-700">
-                    <span className="font-medium mr-2 min-w-[80px]">Site web:</span>
+                    <span className="font-medium mr-2 w-24 flex-shrink-0">Site web:</span>
                     <a
                       href={safeHttpUrl(artist.website)}
                       target="_blank"
@@ -516,7 +516,7 @@ export const EventDetailsNew = ({
                 {/* Téléphone */}
                 {artist.phone && (
                   <div className="flex items-center text-sm text-gray-700">
-                    <span className="font-medium mr-2 min-w-[80px]">Téléphone:</span>
+                    <span className="font-medium mr-2 w-24 flex-shrink-0">Téléphone:</span>
                     <a 
                       href={`tel:${artist.phone}`} 
                       className="text-blue-600 hover:underline"
@@ -529,7 +529,7 @@ export const EventDetailsNew = ({
                 {/* Facebook */}
                 {safeHttpUrl(artist.facebook) && (
                   <div className="flex items-center text-sm text-gray-700">
-                    <span className="font-medium mr-2 min-w-[80px]">Facebook:</span>
+                    <span className="font-medium mr-2 w-24 flex-shrink-0">Facebook:</span>
                     <a
                       href={safeHttpUrl(artist.facebook)}
                       target="_blank"
@@ -546,7 +546,7 @@ export const EventDetailsNew = ({
                 {/* YouTube */}
                 {safeHttpUrl(artist.youtube) && (
                   <div className="flex items-center text-sm text-gray-700">
-                    <span className="font-medium mr-2 min-w-[80px]">YouTube:</span>
+                    <span className="font-medium mr-2 w-24 flex-shrink-0">YouTube:</span>
                     <a
                       href={safeHttpUrl(artist.youtube)}
                       target="_blank"
@@ -561,7 +561,7 @@ export const EventDetailsNew = ({
                 {/* TikTok */}
                 {safeHttpUrl(artist.tiktok) && (
                   <div className="flex items-center text-sm text-gray-700">
-                    <span className="font-medium mr-2 min-w-[80px]">TikTok:</span>
+                    <span className="font-medium mr-2 w-24 flex-shrink-0">TikTok:</span>
                     <a
                       href={safeHttpUrl(artist.tiktok)}
                       target="_blank"
@@ -576,7 +576,7 @@ export const EventDetailsNew = ({
                 {/* Directeur/Chef */}
                 {artist.director && (
                   <div className="flex items-center text-sm text-gray-700">
-                    <span className="font-medium mr-2 min-w-[80px]">Direction:</span>
+                    <span className="font-medium mr-2 w-24 flex-shrink-0">Direction:</span>
                     <span className="text-gray-700">{artist.director}</span>
                   </div>
                 )}
@@ -584,7 +584,7 @@ export const EventDetailsNew = ({
                 {/* Membres */}
                 {artist.members && (
                   <div className="flex items-center text-sm text-gray-700">
-                    <span className="font-medium mr-2 min-w-[80px]">Membres:</span>
+                    <span className="font-medium mr-2 w-24 flex-shrink-0">Membres:</span>
                     <span className="text-gray-700">{artist.members}</span>
                   </div>
                 )}
