@@ -221,11 +221,8 @@ async function handleCreateRegistration(req: VercelRequest, res: VercelResponse)
       });
     }
 
-    // Q1: Create token for email validation (24H)
-    const token = createRegistrationToken(undefined, email);
-
     if (hasSpace) {
-      // Registration: attente_validation
+      // Registration: attente_validation — create first to get ID, then generate token with real ID
       const registration = await rtdbRegistrationCreate({
         tourId,
         email,
@@ -233,6 +230,10 @@ async function handleCreateRegistration(req: VercelRequest, res: VercelResponse)
         lastName: sanitizedLastName,
         companions: companionsField,
         status: "attente_validation",
+      });
+
+      const token = createRegistrationToken(registration.id, email);
+      await rtdbRegistrationUpdate(registration.id, {
         validationToken: token.token,
         validationExpiresAt: token.expiresAt,
       });
@@ -260,7 +261,7 @@ async function handleCreateRegistration(req: VercelRequest, res: VercelResponse)
         message: "Check your email to validate",
       });
     } else {
-      // Waitlist
+      // Waitlist — token not needed for waitlist (no email validation step)
       const position = (await rtdbWaitlistCount(tourId)) + 1;
       const waitlist = await rtdbWaitlistAdd({
         tourId,
@@ -269,8 +270,6 @@ async function handleCreateRegistration(req: VercelRequest, res: VercelResponse)
         lastName: sanitizedLastName,
         companions: companionsField,
         position,
-        invitationToken: token.token,
-        invitationExpiresAt: token.expiresAt,
       });
 
       // Send waitlist confirmation email
@@ -467,6 +466,62 @@ async function handleGdprDelete(req: VercelRequest, res: VercelResponse) {
   }
 }
 
+// POST /api/visit-register?action=resend — renvoyer email de validation (admin only)
+// Body: { registrationId }. Requires X-Guide-Code header.
+async function handleResendValidation(req: VercelRequest, res: VercelResponse) {
+  const guideCode = req.headers["x-guide-code"] as string | undefined;
+  if (!guideCode || !(await rtdbGuideCodeValidate(guideCode))) {
+    return res.status(403).json({ error: "guide code required" });
+  }
+
+  const { registrationId } = req.body;
+  if (!registrationId || typeof registrationId !== "string") {
+    return res.status(400).json({ error: "registrationId: string required" });
+  }
+
+  try {
+    const registration = await rtdbRegistrationGet(registrationId);
+    if (!registration || registration.deletedAt) {
+      return res.status(404).json({ error: "registration not found" });
+    }
+    if (registration.status === "confirmé") {
+      return res.json({ ok: true, message: "Already confirmed — no email needed" });
+    }
+    if (registration.status !== "attente_validation") {
+      return res.status(400).json({ error: `cannot resend for status: ${registration.status}` });
+    }
+
+    const tour = await rtdbTourGet(registration.tourId);
+
+    // Reuse existing token if still valid, else generate a new one
+    let token = registration.validationToken;
+    if (!token) {
+      const newToken = createRegistrationToken(undefined, registration.email);
+      token = newToken.token;
+      await rtdbRegistrationUpdate(registrationId, {
+        validationToken: token,
+        validationExpiresAt: newToken.expiresAt,
+      });
+    }
+
+    await sendRegistrationEmail("confirmation", {
+      to: registration.email,
+      firstName: registration.firstName,
+      tourTitle: tour?.title || "",
+      tourDate: tour?.date || "",
+      validationLink: `${SITE_URL}/#/reservations/confirm?token=${token}`,
+      cancelLink: `${SITE_URL}/#/reservations/cancel?id=${registrationId}`,
+      registrationId,
+      idempotencyKey: `${registrationId}_confirmation_resend_${Date.now()}`,
+    });
+
+    return res.json({ ok: true, message: `Validation email resent to ${registration.email}` });
+  } catch (e) {
+    console.error("[visit-register resend]", e);
+    return res.status(500).json({ error: "resend failed" });
+  }
+}
+
 // Main router
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
@@ -483,6 +538,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return handleCancelRegistration(req, res);
   } else if (action === "gdpr") {
     return handleGdprDelete(req, res);
+  } else if (action === "resend") {
+    return handleResendValidation(req, res);
   } else {
     return handleCreateRegistration(req, res);
   }
