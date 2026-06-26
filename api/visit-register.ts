@@ -45,7 +45,18 @@ async function sendRegistrationEmail(
 
   const idempotencyKey = data.idempotencyKey || `${data.to}_${emailType}_${Date.now()}`;
 
-  // Q1: Idempotency key in EmailJS request. All fields required (send empty string if unused).
+  // Q1: EmailJS template uses boolean flags {{#variable}} not {{#if}}.
+  // Map emailType to template boolean conditions.
+  const templateFlags = {
+    confirmation: emailType === "confirmation",
+    reminder_7d: emailType === "reminder_7d",
+    reminder_1d_validate: emailType === "reminder_1d_validate",
+    waitlist_confirmation: emailType === "waitlist_confirmation",
+    waitlist_offer: emailType === "waitlist_offer",
+    validation_expired: emailType === "validation_expired",
+    error: emailType === "error",
+  };
+
   const emailjsData = {
     service_id: process.env.EMAILJS_SERVICE_ID,
     template_id: templateId,
@@ -54,19 +65,17 @@ async function sendRegistrationEmail(
     template_params: {
       to_email: data.to,
       firstName: data.firstName,
-      type: emailType,
       tourTitle: data.tourTitle || "",
       tourDate: data.tourDate || "",
       validationLink: data.validationLink || "",
       cancelLink: data.cancelLink || "",
       position: data.position || "",
       deadline: data.deadline || "",
-      acceptLink: "",
+      acceptLink: data.acceptLink || "",
       queueLink: data.queueLink || "",
-      errorMessage: "",
-      errorDetails: "",
-      email: data.to,
-      name: data.firstName,
+      errorMessage: data.errorMessage || "",
+      errorDetails: data.errorDetails || "",
+      ...templateFlags,
     },
   };
 
