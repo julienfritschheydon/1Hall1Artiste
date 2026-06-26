@@ -45,7 +45,7 @@ async function sendRegistrationEmail(
 
   const idempotencyKey = data.idempotencyKey || `${data.to}_${emailType}_${Date.now()}`;
 
-  // Q1: Idempotency key in EmailJS request. Only include fields that are defined.
+  // Q1: Idempotency key in EmailJS request. All fields required (send empty string if unused).
   const emailjsData = {
     service_id: process.env.EMAILJS_SERVICE_ID,
     template_id: templateId,
@@ -54,14 +54,19 @@ async function sendRegistrationEmail(
     template_params: {
       to_email: data.to,
       firstName: data.firstName,
+      type: emailType,
       tourTitle: data.tourTitle || "",
       tourDate: data.tourDate || "",
       validationLink: data.validationLink || "",
-      position: data.position || "",
-      queueLink: data.queueLink || "",
       cancelLink: data.cancelLink || "",
+      position: data.position || "",
       deadline: data.deadline || "",
-      type: emailType,
+      acceptLink: "",
+      queueLink: data.queueLink || "",
+      errorMessage: "",
+      errorDetails: "",
+      email: data.to,
+      name: data.firstName,
     },
   };
 
