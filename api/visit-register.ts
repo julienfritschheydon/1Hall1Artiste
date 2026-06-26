@@ -493,16 +493,13 @@ async function handleResendValidation(req: VercelRequest, res: VercelResponse) {
 
     const tour = await rtdbTourGet(registration.tourId);
 
-    // Reuse existing token if still valid, else generate a new one
-    let token = registration.validationToken;
-    if (!token) {
-      const newToken = createRegistrationToken(undefined, registration.email);
-      token = newToken.token;
-      await rtdbRegistrationUpdate(registrationId, {
-        validationToken: token,
-        validationExpiresAt: newToken.expiresAt,
-      });
-    }
+    // Always regenerate token with real registrationId
+    const newToken = createRegistrationToken(registrationId, registration.email);
+    const token = newToken.token;
+    await rtdbRegistrationUpdate(registrationId, {
+      validationToken: token,
+      validationExpiresAt: newToken.expiresAt,
+    });
 
     await sendRegistrationEmail("confirmation", {
       to: registration.email,
