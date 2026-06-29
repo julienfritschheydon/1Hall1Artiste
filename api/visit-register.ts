@@ -19,6 +19,7 @@ import {
   rtdbGuideCodeValidate,
 } from "./_visit-db.js";
 import { rtdbGet } from "./_firebase.js";
+import { buildVisitEmail } from "./_visit-email.js";
 import { createRegistrationToken, verifyRegistrationToken } from "./_token.js";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -45,17 +46,8 @@ async function sendRegistrationEmail(
 
   const idempotencyKey = data.idempotencyKey || `${data.to}_${emailType}_${Date.now()}`;
 
-  // Q1: EmailJS template uses boolean flags {{#variable}} not {{#if}}.
-  // Map emailType to template boolean conditions.
-  const templateFlags = {
-    confirmation: emailType === "confirmation",
-    reminder_7d: emailType === "reminder_7d",
-    reminder_1d_validate: emailType === "reminder_1d_validate",
-    waitlist_confirmation: emailType === "waitlist_confirmation",
-    waitlist_offer: emailType === "waitlist_offer",
-    validation_expired: emailType === "validation_expired",
-    error: emailType === "error",
-  };
+  // Build subject + body in code (EmailJS can't compare {{#if type}}). Template = {{subject}}/{{message}}.
+  const built = buildVisitEmail(emailType as any, data);
 
   const emailjsData = {
     service_id: process.env.EMAILJS_SERVICE_ID,
@@ -64,18 +56,9 @@ async function sendRegistrationEmail(
     accessToken: process.env.EMAILJS_PRIVATE_KEY,
     template_params: {
       to_email: data.to,
-      firstName: data.firstName,
-      tourTitle: data.tourTitle || "",
-      tourDate: data.tourDate || "",
-      validationLink: data.validationLink || "",
-      cancelLink: data.cancelLink || "",
-      position: data.position || "",
-      deadline: data.deadline || "",
-      acceptLink: data.acceptLink || "",
-      queueLink: data.queueLink || "",
-      errorMessage: data.errorMessage || "",
-      errorDetails: data.errorDetails || "",
-      ...templateFlags,
+      subject: built.subject,
+      message: built.message,
+      firstName: data.firstName || "",
     },
   };
 

@@ -22,6 +22,7 @@ import {
   rtdbCountRegisteredByTour,
 } from "./_visit-db.js";
 import { placesOf } from "../src/types/visitTypes.js";
+import { buildVisitEmail } from "./_visit-email.js";
 import { createRegistrationToken } from "./_token.js";
 
 const SITE_URL = process.env.PUBLIC_SITE_URL || "https://www.1hall1artiste.fr";
@@ -33,21 +34,18 @@ async function sendEmailWithRetry(
   data: Record<string, any>,
   idempotencyKey: string
 ): Promise<boolean> {
+  // Build subject + body in code (EmailJS can't compare {{#if type}}). Template = {{subject}}/{{message}}.
+  const built = buildVisitEmail(data.type, data);
   const emailjsData = {
     service_id: process.env.EMAILJS_SERVICE_ID,
     template_id: templateId,
     user_id: process.env.EMAILJS_PUBLIC_KEY,
+    accessToken: process.env.EMAILJS_PRIVATE_KEY,
     template_params: {
       to_email: data.to,
-      firstName: data.firstName,
-      tourTitle: data.tourTitle,
-      tourDate: data.tourDate,
-      validationLink: data.validationLink,
-      position: data.position,
-      queueLink: data.queueLink,
-      acceptLink: data.acceptLink,
-      deadline: data.deadline,
-      type: data.type,
+      subject: built.subject,
+      message: built.message,
+      firstName: data.firstName || "",
     },
   };
 
