@@ -6,12 +6,14 @@ interface TourAttendanceSheetProps {
   tour: Tour;
   registrations: Registration[];
   guideCode: string;
+  onMarked?: () => void; // Rafraîchir les compteurs côté parent après marquage
 }
 
 export default function TourAttendanceSheet({
   tour,
   registrations,
   guideCode,
+  onMarked,
 }: TourAttendanceSheetProps) {
   const [checked, setChecked] = useState<Record<string, boolean | null>>({});
   const [loading, setLoading] = useState<string | null>(null);
@@ -40,7 +42,8 @@ export default function TourAttendanceSheet({
         throw new Error("Erreur à la mise à jour");
       }
 
-      // Success
+      // Success → refresh parent counts/list
+      if (onMarked) onMarked();
     } catch (e) {
       setError((e as Error).message);
       setChecked((prev) => ({ ...prev, [regId]: null }));
@@ -111,7 +114,11 @@ export default function TourAttendanceSheet({
                   <td className="border p-2">{reg.firstName}</td>
                   <td className="border p-2 text-sm">{reg.email}</td>
                   <td className="border p-2 text-sm">
-                    {reg.companionFirstName ? `${reg.companionFirstName} ${reg.companionLastName}` : "-"}
+                    {Array.isArray((reg as any).companions) && (reg as any).companions.length > 0
+                      ? (reg as any).companions.map((c: any) => `${c.firstName} ${c.lastName || ""}`.trim()).join(", ")
+                      : reg.companionFirstName
+                      ? `${reg.companionFirstName} ${reg.companionLastName || ""}`.trim()
+                      : "-"}
                   </td>
                 </tr>
               );

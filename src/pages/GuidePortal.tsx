@@ -438,7 +438,7 @@ function TourDetails({
       )}
       {tab === "waitlist" && <WaitlistList waitlist={waitlist} />}
       {tab === "attendance" && (
-        <TourAttendanceSheet tour={tour} registrations={registrations} guideCode={guideCode} />
+        <TourAttendanceSheet tour={tour} registrations={registrations} guideCode={guideCode} onMarked={refresh} />
       )}
     </div>
   );

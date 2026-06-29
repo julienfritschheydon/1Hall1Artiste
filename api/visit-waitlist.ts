@@ -67,7 +67,7 @@ async function handleActivateWaitlist(req: VercelRequest, res: VercelResponse) {
     return res.json({
       ok: true,
       registrationId: registration.id,
-      message: "Inscription confirmed",
+      message: "Inscription confirmée",
     });
   } catch (e) {
     console.error("[visit-waitlist activate]", e);

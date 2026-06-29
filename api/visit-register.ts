@@ -272,7 +272,7 @@ async function handleCreateRegistration(req: VercelRequest, res: VercelResponse)
       return res.status(201).json({
         status: "attente_validation",
         registrationId: registration.id,
-        message: "Check your email to validate",
+        message: "Vérifiez votre email pour valider votre inscription.",
       });
     } else {
       // Waitlist — token not needed for waitlist (no email validation step)
@@ -305,7 +305,7 @@ async function handleCreateRegistration(req: VercelRequest, res: VercelResponse)
         status: "waitlist",
         waitlistId: waitlist.id,
         position,
-        message: `You are #${position} on waitlist`,
+        message: `Visite complète — vous êtes #${position} en file d'attente. Vous recevrez un email si une place se libère.`,
       });
     }
   } catch (e) {
@@ -354,7 +354,7 @@ async function handleConfirmRegistration(req: VercelRequest, res: VercelResponse
 
     // Idempotency: if already confirmed, return success
     if (registration.status === "confirmé") {
-      return res.json({ ok: true, status: "confirmé", message: "Already confirmed" });
+      return res.json({ ok: true, status: "confirmé", message: "Inscription déjà confirmée" });
     }
 
     if (registration.status !== "attente_validation") {
@@ -367,7 +367,7 @@ async function handleConfirmRegistration(req: VercelRequest, res: VercelResponse
       confirmedAt: new Date().toISOString(),
     });
 
-    return res.json({ ok: true, status: "confirmé", message: "Inscription confirmed" });
+    return res.json({ ok: true, status: "confirmé", message: "Inscription confirmée" });
   } catch (e) {
     console.error("[visit-register confirm]", e);
     return res.status(500).json({ error: "confirmation failed" });
@@ -499,7 +499,7 @@ async function handleResendValidation(req: VercelRequest, res: VercelResponse) {
       return res.status(404).json({ error: "registration not found" });
     }
     if (registration.status === "confirmé") {
-      return res.json({ ok: true, message: "Already confirmed — no email needed" });
+      return res.json({ ok: true, message: "Déjà confirmée — aucun email nécessaire" });
     }
     if (registration.status !== "attente_validation") {
       return res.status(400).json({ error: `cannot resend for status: ${registration.status}` });
@@ -526,7 +526,7 @@ async function handleResendValidation(req: VercelRequest, res: VercelResponse) {
       idempotencyKey: `${registrationId}_confirmation_resend_${Date.now()}`,
     });
 
-    return res.json({ ok: true, message: `Validation email resent to ${registration.email}` });
+    return res.json({ ok: true, message: `Email de validation renvoyé à ${registration.email}` });
   } catch (e) {
     console.error("[visit-register resend]", e);
     return res.status(500).json({ error: "resend failed" });
