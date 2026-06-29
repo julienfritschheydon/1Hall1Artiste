@@ -152,14 +152,17 @@ export async function rtdbCountUserTours(email: string): Promise<number> {
   return count;
 }
 
-// Compte les PLACES occupées (titulaire + accompagnants) par les inscriptions confirmées.
+// Compte les PLACES occupées (titulaire + accompagnants) par les inscriptions
+// qui occupent réellement un siège : confirmé OU présent (l'appel ne libère pas la place).
 export async function rtdbCountRegisteredByTour(tourId: string): Promise<number> {
   const regs = await rtdbGet<Record<string, boolean>>(`registrations_by_tour/${tourId}`);
   if (!regs) return 0;
   let places = 0;
   for (const regId of Object.keys(regs)) {
     const reg = await rtdbRegistrationGet(regId);
-    if (reg && reg.status === "confirmé" && !reg.deletedAt) places += placesOf(reg);
+    if (reg && (reg.status === "confirmé" || reg.status === "présent") && !reg.deletedAt) {
+      places += placesOf(reg);
+    }
   }
   return places;
 }
