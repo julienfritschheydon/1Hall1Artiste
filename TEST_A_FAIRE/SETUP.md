@@ -31,15 +31,18 @@ Les autres chemins (`tours`, `registrations`, `waitlist`, `attendance`, `visit_a
 
 ---
 
-## EmailJS — template `template_q7nh8h2`
+## EmailJS — template `template_q7nh8h2` (nommé "Visites Notifications")
+
+Le corps des emails est **construit dans le code** (`api/_visit-email.ts`), pas dans le template.
+Le template est volontairement minimal :
 
 - **To Email:** `{{to_email}}`
-- **Subject:** `{{type}}: {{tourTitle}}`
-- **Body:** blocs conditionnels `{{#if type "..."}}` pour : confirmation, reminder_7d,
-  reminder_1d_validate, waitlist_confirmation, waitlist_offer, validation_expired,
-  cancellation, error. Variables : `{{firstName}}`, `{{tourTitle}}`, `{{tourDate}}`,
-  `{{validationLink}}`, `{{cancelLink}}`, `{{acceptLink}}`, `{{queueLink}}`,
-  `{{deadline}}`, `{{position}}`, `{{errorMessage}}`, `{{errorDetails}}`.
+- **Subject:** `{{subject}}`
+- **Content:** `{{{message}}}` ← **triple accolade** (rend le HTML : liens/boutons cliquables)
+- From Name: `{{name}}` / Reply To: `{{email}}` (laisser tel quel)
+
+⚠️ Ne PAS remettre de `{{#if type}}` — EmailJS/Handlebars ne sait pas comparer une valeur,
+ça produit des emails vides. Tout le contenu (sujet + corps HTML FR) vient du code.
 
 ---
 
