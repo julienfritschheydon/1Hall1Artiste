@@ -1,6 +1,7 @@
 // Construction du contenu des emails visites guidées.
 // EmailJS/Handlebars ne sait pas comparer ({{#if type "x"}} ne marche pas) → on
-// construit sujet + corps ICI et le template n'affiche que {{subject}} / {{message}}.
+// construit sujet + corps HTML ICI. Le template n'affiche que {{subject}} et {{{message}}}
+// (triple accolade = HTML non échappé, pour des liens cliquables).
 
 export type VisitEmailType =
   | "confirmation"
@@ -12,117 +13,109 @@ export type VisitEmailType =
   | "cancellation"
   | "error";
 
+function esc(s: any): string {
+  return String(s ?? "").replace(/[&<>"]/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c] || c)
+  );
+}
+
+function btn(url: string, label: string): string {
+  return `<p><a href="${esc(url)}" style="display:inline-block;background:#ff7a45;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none">${esc(
+    label
+  )}</a></p>`;
+}
+
+function wrap(paragraphs: string): string {
+  return `<div style="font-family:sans-serif;font-size:15px;line-height:1.5;color:#1a2138">${paragraphs}<p style="color:#888;font-size:13px;margin-top:24px">Collectif Île Feydeau</p></div>`;
+}
+
 export function buildVisitEmail(
   type: VisitEmailType,
   d: Record<string, any>
 ): { subject: string; message: string } {
-  const title = d.tourTitle || "votre visite";
-  const date = d.tourDate ? formatDate(d.tourDate) : "";
-  const hello = `Bonjour ${d.firstName || ""},`.trim();
+  const title = esc(d.tourTitle || "votre visite");
+  const date = d.tourDate ? esc(formatDate(d.tourDate)) : "";
+  const hi = `<p>Bonjour ${esc(d.firstName || "")},</p>`;
 
   switch (type) {
     case "confirmation":
       return {
-        subject: `Confirmation — ${title}`,
-        message: `${hello}
-
-Votre inscription à « ${title} »${date ? ` le ${date}` : ""} est bien enregistrée.
-
-Pour la VALIDER (obligatoire, sous 24h), cliquez ici :
-${d.validationLink}
-
-Sans validation sous 24h, l'inscription sera annulée.
-
-Pour annuler votre inscription :
-${d.cancelLink}
-
-À bientôt !
-Collectif Île Feydeau`,
+        subject: `Confirmation — ${d.tourTitle || "votre visite"}`,
+        message: wrap(
+          `${hi}
+          <p>Votre inscription à « ${title} »${date ? ` le ${date}` : ""} est bien enregistrée.</p>
+          <p><strong>Validez votre inscription sous 24h</strong> (obligatoire) :</p>
+          ${btn(d.validationLink, "Valider mon inscription")}
+          <p style="color:#888;font-size:13px">Sans validation sous 24h, l'inscription sera annulée.</p>
+          ${d.cancelLink ? `<p style="font-size:13px"><a href="${esc(d.cancelLink)}">Annuler mon inscription</a></p>` : ""}`
+        ),
       };
 
     case "reminder_7d":
       return {
-        subject: `Rappel — ${title}`,
-        message: `${hello}
-
-Petit rappel : vous êtes inscrit(e) à « ${title} »${date ? ` le ${date}` : ""}.
-
-À bientôt !
-Collectif Île Feydeau`,
+        subject: `Rappel — ${d.tourTitle || "votre visite"}`,
+        message: wrap(
+          `${hi}<p>Petit rappel : vous êtes inscrit(e) à « ${title} »${date ? ` le ${date}` : ""}.</p><p>À bientôt !</p>`
+        ),
       };
 
     case "reminder_1d_validate":
       return {
-        subject: `Confirmez votre présence — ${title}`,
-        message: `${hello}
-
-Votre visite « ${title} » approche. Merci de CONFIRMER votre présence${
-          d.deadline ? ` avant le ${formatDate(d.deadline)}` : ""
-        }, sinon votre place sera libérée :
-${d.validationLink}
-
-Collectif Île Feydeau`,
+        subject: `Confirmez votre présence — ${d.tourTitle || "votre visite"}`,
+        message: wrap(
+          `${hi}
+          <p>Votre visite « ${title} » approche. Merci de <strong>confirmer votre présence</strong>${
+            d.deadline ? ` avant le ${esc(formatDate(d.deadline))}` : ""
+          }, sinon votre place sera libérée :</p>
+          ${btn(d.validationLink, "Confirmer ma présence")}`
+        ),
       };
 
     case "waitlist_confirmation":
       return {
-        subject: `File d'attente — ${title}`,
-        message: `${hello}
-
-La visite « ${title} » est complète. Vous êtes en file d'attente${
-          d.position ? ` (position #${d.position})` : ""
-        }.
-
-Vous recevrez un email si une place se libère.
-
-Pour quitter la file d'attente :
-${d.queueLink}
-
-Collectif Île Feydeau`,
+        subject: `File d'attente — ${d.tourTitle || "votre visite"}`,
+        message: wrap(
+          `${hi}
+          <p>La visite « ${title} » est complète. Vous êtes en file d'attente${
+            d.position ? ` (position #${esc(d.position)})` : ""
+          }.</p>
+          <p>Vous recevrez un email si une place se libère.</p>
+          ${d.queueLink ? `<p style="font-size:13px"><a href="${esc(d.queueLink)}">Quitter la file d'attente</a></p>` : ""}`
+        ),
       };
 
     case "waitlist_offer":
       return {
-        subject: `Une place s'est libérée — ${title}`,
-        message: `${hello}
-
-Bonne nouvelle ! Une place s'est libérée pour « ${title} ».
-
-Pour l'accepter${d.deadline ? ` avant le ${formatDate(d.deadline)}` : ""}, cliquez ici :
-${d.acceptLink}
-
-Passé ce délai, la place sera proposée à la personne suivante.
-
-Collectif Île Feydeau`,
+        subject: `Une place s'est libérée — ${d.tourTitle || "votre visite"}`,
+        message: wrap(
+          `${hi}
+          <p><strong>Bonne nouvelle !</strong> Une place s'est libérée pour « ${title} ».</p>
+          <p>Pour l'accepter${d.deadline ? ` avant le ${esc(formatDate(d.deadline))}` : ""} :</p>
+          ${btn(d.acceptLink, "Accepter ma place")}
+          <p style="color:#888;font-size:13px">Passé ce délai, la place sera proposée à la personne suivante.</p>`
+        ),
       };
 
     case "validation_expired":
       return {
-        subject: `Lien expiré — ${title}`,
-        message: `${hello}
-
-Votre lien de validation pour « ${title} » a expiré et l'inscription a été annulée.
-
-Vous pouvez vous réinscrire si des places sont disponibles.
-
-Collectif Île Feydeau`,
+        subject: `Lien expiré — ${d.tourTitle || "votre visite"}`,
+        message: wrap(
+          `${hi}<p>Votre lien de validation pour « ${title} » a expiré et l'inscription a été annulée.</p><p>Vous pouvez vous réinscrire si des places sont disponibles.</p>`
+        ),
       };
 
     case "cancellation":
       return {
-        subject: `Annulation — ${title}`,
-        message: `${hello}
-
-Votre inscription à « ${title} »${date ? ` le ${date}` : ""} a bien été annulée.
-
-À une prochaine fois !
-Collectif Île Feydeau`,
+        subject: `Annulation — ${d.tourTitle || "votre visite"}`,
+        message: wrap(
+          `${hi}<p>Votre inscription à « ${title} »${date ? ` le ${date}` : ""} a bien été annulée.</p><p>À une prochaine fois !</p>`
+        ),
       };
 
     case "error":
       return {
         subject: `Erreur application Collectif Feydeau`,
-        message: `${d.errorMessage || "Une erreur est survenue."}\n\n${d.errorDetails || ""}`,
+        message: wrap(`<p>${esc(d.errorMessage || "Une erreur est survenue.")}</p><p>${esc(d.errorDetails || "")}</p>`),
       };
   }
 }
