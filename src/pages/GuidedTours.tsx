@@ -70,9 +70,9 @@ function TourCard({ tour, onClick }: { tour: Tour; onClick: () => void }) {
         {dateStr} à {timeStr}
       </p>
       <p className="text-sm text-gray-600 mb-2">Durée: {tour.durationMinutes} min</p>
-      {tour.labels.length > 0 && (
+      {(tour.labels?.length ?? 0) > 0 && (
         <div className="flex flex-wrap gap-2 mb-2">
-          {tour.labels.map((label) => (
+          {(tour.labels || []).map((label) => (
             <span key={label} className="text-xs bg-gray-200 px-2 py-1 rounded">
               {label}
             </span>
@@ -108,9 +108,9 @@ function TourDetail({ tour, onBack }: { tour: Tour; onBack: () => void }) {
         <p className="font-semibold">
           Départ : {tour.startLocationName || "Lieu à préciser"}
         </p>
-        {tour.labels.length > 0 && (
+        {(tour.labels?.length ?? 0) > 0 && (
           <div className="flex flex-wrap gap-2 mt-2">
-            {tour.labels.map((label) => (
+            {(tour.labels || []).map((label) => (
               <span key={label} className="text-sm bg-gray-300 px-2 py-1 rounded">
                 {label}
               </span>

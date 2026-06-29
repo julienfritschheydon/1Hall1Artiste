@@ -117,7 +117,8 @@ async function handleGet(req: VercelRequest, res: VercelResponse) {
     const enriched = await Promise.all(
       tours.map(async (t) => {
         const taken = await rtdbCountRegisteredByTour(t.id);
-        return { ...t, placesLeft: Math.max(0, t.capacity - taken) };
+        // Firebase ne stocke pas les tableaux vides → labels peut être undefined
+        return { ...t, labels: t.labels || [], placesLeft: Math.max(0, t.capacity - taken) };
       })
     );
 
