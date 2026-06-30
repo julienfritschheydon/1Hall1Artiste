@@ -93,18 +93,6 @@ const AnimatedRoutes: React.FC = () => {
   };
   
 
-  // Sauvegarder la dernière page visitée (sauf admin et pages techniques)
-  useEffect(() => {
-    const excludedPaths = ['/admin', '/coordinates', '/analytics', '/location-history', '/artiste', '/artiste/edit', '/qr'];
-    if (location.pathname !== '/' && !showSplash && !excludedPaths.includes(location.pathname)) {
-      try {
-        localStorage.setItem('lastVisitedPath', location.pathname);
-      } catch (error) {
-        console.warn('[App] Could not save last visited path:', error);
-      }
-    }
-  }, [location.pathname, showSplash]);
-
   // Track route changes for analytics
   useEffect(() => {
     const previousPath = prevPathRef.current;
@@ -178,15 +166,8 @@ const AnimatedRoutes: React.FC = () => {
     }>
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
-        {/* Rediriger vers la dernière page visitée ou la carte */}
-        <Route path="/" element={<Navigate to={(() => {
-          try {
-            const lastPath = localStorage.getItem('lastVisitedPath');
-            return lastPath || '/map';
-          } catch {
-            return '/map';
-          }
-        })()} replace />} />
+        {/* La racine envoie toujours vers la carte (l'URL tapée est respectée) */}
+        <Route path="/" element={<Navigate to="/map" replace />} />
         
         {/* Rediriger l'ancienne page galleries vers la galerie unifiée */}
         <Route path="/galleries" element={<Navigate to="/community" replace />} />
