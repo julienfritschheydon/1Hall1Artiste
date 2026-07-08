@@ -4,7 +4,13 @@
 //   /reservations/accept-waitlist?token=...  → accepter offre file d'attente
 //   /reservations/cancel-waitlist?id=...     → annuler sa place en file d'attente
 import { useState, useEffect } from "react";
-import { useLocation, Link } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
+import { VisitLayout } from "@/components/VisitLayout";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+
+const ORANGE = "#ff7a45";
 
 type Mode = "confirm" | "accept-waitlist" | "cancel-waitlist" | "cancel";
 type Status = "loading" | "success" | "error" | "form";
@@ -16,6 +22,7 @@ function useQuery() {
 
 export default function VisitConfirm() {
   const location = useLocation();
+  const navigate = useNavigate();
   const query = useQuery();
   const [status, setStatus] = useState<Status>("loading");
   const [message, setMessage] = useState("");
@@ -161,51 +168,59 @@ export default function VisitConfirm() {
       : "Annulation file d'attente";
 
   return (
-    <div className="container py-12 max-w-lg mx-auto text-center">
-      <h1 className="text-2xl font-bold mb-6">{title}</h1>
+    <VisitLayout title={title} backTo="/reservations" hideNav>
+      <Card className="bg-white/90 backdrop-blur-sm border-2 border-amber-300 shadow-lg max-w-lg mx-auto">
+        <CardContent className="p-6 text-center">
+          {status === "loading" && (
+            <div className="flex flex-col items-center gap-3 py-4">
+              <div
+                className="w-8 h-8 border-2 border-gray-300 rounded-full animate-spin"
+                style={{ borderTopColor: ORANGE }}
+              />
+              <p className="text-gray-600">Traitement en cours...</p>
+            </div>
+          )}
 
-      {status === "loading" && (
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
-          <p className="text-gray-600">Traitement en cours...</p>
-        </div>
-      )}
+          {status === "form" && (
+            <form onSubmit={submitCancel} className="space-y-3 text-left">
+              {message && (
+                <div className="p-2 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">{message}</div>
+              )}
+              <p className="text-gray-600 text-sm">Confirmez votre email pour annuler votre inscription.</p>
+              <Input
+                type="email"
+                placeholder="Votre email"
+                value={cancelEmail}
+                onChange={(e) => setCancelEmail(e.target.value)}
+                required
+              />
+              <Button type="submit" variant="destructive" className="w-full">
+                Annuler mon inscription
+              </Button>
+            </form>
+          )}
 
-      {status === "form" && (
-        <form onSubmit={submitCancel} className="max-w-sm mx-auto space-y-3 text-left">
-          {message && <div className="p-2 bg-red-100 text-red-700 rounded text-sm">{message}</div>}
-          <p className="text-gray-600 text-sm">
-            Confirmez votre email pour annuler votre inscription.
-          </p>
-          <input
-            type="email"
-            placeholder="Votre email"
-            value={cancelEmail}
-            onChange={(e) => setCancelEmail(e.target.value)}
-            required
-            className="w-full border px-3 py-2 rounded"
-          />
-          <button type="submit" className="w-full bg-red-600 text-white py-2 rounded hover:bg-red-700">
-            Annuler mon inscription
+          {status === "success" && (
+            <div className="p-5 bg-green-50 border border-green-200 text-green-800 rounded-lg">
+              <p className="font-semibold">{message}</p>
+            </div>
+          )}
+
+          {status === "error" && (
+            <div className="p-5 bg-red-50 border border-red-200 text-red-800 rounded-lg">
+              <p className="font-semibold">{message}</p>
+            </div>
+          )}
+
+          <button
+            onClick={() => navigate("/reservations")}
+            className="inline-block mt-6 text-sm font-semibold hover:underline"
+            style={{ color: ORANGE }}
+          >
+            ← Retour aux visites
           </button>
-        </form>
-      )}
-
-      {status === "success" && (
-        <div className="p-6 bg-green-100 text-green-800 rounded-lg">
-          <p className="font-semibold">{message}</p>
-        </div>
-      )}
-
-      {status === "error" && (
-        <div className="p-6 bg-red-100 text-red-800 rounded-lg">
-          <p className="font-semibold">{message}</p>
-        </div>
-      )}
-
-      <Link to="/reservations" className="inline-block mt-8 text-blue-600 hover:underline">
-        ← Retour aux visites
-      </Link>
-    </div>
+        </CardContent>
+      </Card>
+    </VisitLayout>
   );
 }

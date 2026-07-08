@@ -1,5 +1,9 @@
 // Composant login code accès guide
 import { useState } from "react";
+import { IMAGE_PATHS } from "../constants/imagePaths";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 
 interface GuideCodeLoginProps {
   onSubmit: (code: string) => void;
@@ -40,38 +44,45 @@ export default function GuideCodeLogin({ onSubmit }: GuideCodeLoginProps) {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="bg-white p-8 rounded-lg shadow max-w-md w-full">
-        <h1 className="text-2xl font-bold mb-6 text-center">Espace Guide</h1>
+    <div
+      className="min-h-screen flex items-center justify-center px-4"
+      style={{
+        backgroundImage: `url('${IMAGE_PATHS.BACKGROUNDS.PARCHMENT}')`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      }}
+    >
+      <div className="absolute inset-0 bg-white/20 pointer-events-none" />
+      <Card className="relative z-10 bg-white/90 backdrop-blur-sm border-2 border-amber-300 shadow-lg max-w-md w-full">
+        <CardContent className="p-8">
+          <h1 className="text-2xl font-bold mb-6 text-center text-[#ff7a45]">Espace Guide</h1>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-2">Code d'accès</label>
-            <input
-              type="text"
-              value={code}
-              onChange={(e) => setCode(e.target.value.toUpperCase())}
-              placeholder="Entrez votre code"
-              className="w-full border px-3 py-2 rounded"
-              required
-            />
-          </div>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-2 text-[#4a4636]">Code d'accès</label>
+              <Input
+                type="text"
+                value={code}
+                onChange={(e) => setCode(e.target.value.toUpperCase())}
+                placeholder="Entrez votre code"
+                required
+              />
+            </div>
 
-          {error && <div className="p-3 bg-red-100 text-red-700 rounded text-sm">{error}</div>}
+            {error && (
+              <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">{error}</div>
+            )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 disabled:bg-gray-400"
-          >
-            {loading ? "Vérification..." : "Accéder"}
-          </button>
-        </form>
+            <Button type="submit" disabled={loading} className="w-full text-white" style={{ backgroundColor: "#ff7a45" }}>
+              {loading ? "Vérification..." : "Accéder"}
+            </Button>
+          </form>
 
-        <p className="text-xs text-gray-600 mt-4 text-center">
-          Code accès annuel. Vous pouvez utiliser le même code pour plusieurs visites.
-        </p>
-      </div>
+          <p className="text-xs text-gray-600 mt-4 text-center">
+            Code accès annuel. Vous pouvez utiliser le même code pour plusieurs visites.
+          </p>
+        </CardContent>
+      </Card>
     </div>
   );
 }
