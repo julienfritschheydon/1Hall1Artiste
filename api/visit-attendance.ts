@@ -11,6 +11,7 @@ import {
   rtdbRegistrationsListByTour,
   rtdbGuideCodeValidate,
 } from "./_visit-db.js";
+import { placesOf } from "../src/types/visitTypes.js";
 
 // Helper: validate guide code
 async function validateGuideCode(code: string | undefined): Promise<boolean> {
@@ -134,13 +135,17 @@ async function handleListAttendance(req: VercelRequest, res: VercelResponse) {
       return cmp !== 0 ? cmp : a.firstName.localeCompare(b.firstName);
     });
 
-    // Count by status
+    // Comptages en PERSONNES (place = titulaire + accompagnants), cohérent avec la capacité.
+    const sumPlaces = (arr: typeof enriched) => arr.reduce((s, r) => s + placesOf(r), 0);
     const counts = {
-      total: registrations.length,
-      confirmed: registrations.filter((r) => r.status === "confirmé").length,
-      present: enriched.filter((r) => r.markedPresent === true).length,
-      absent: enriched.filter((r) => r.markedPresent === false).length,
-      unmarked: enriched.filter((r) => r.markedPresent === null).length,
+      total: registrations.length, // nb d'inscriptions (lignes)
+      totalPeople: sumPlaces(enriched.filter((r) => r.status === "confirmé" || r.status === "présent")),
+      confirmed: sumPlaces(enriched.filter((r) => r.status === "confirmé")),
+      present: sumPlaces(enriched.filter((r) => r.markedPresent === true)),
+      absent: sumPlaces(enriched.filter((r) => r.markedPresent === false)),
+      unmarked: sumPlaces(
+        enriched.filter((r) => r.markedPresent === null && (r.status === "confirmé" || r.status === "présent"))
+      ),
     };
 
     return res.json({

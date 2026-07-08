@@ -388,9 +388,14 @@ function TourDetails({
                   <Stat label="Confirmés" value={data.counts.confirmed} color="bg-[#f3f0e6]" />
                   <Stat label="Présents" value={data.counts.present} color="bg-green-100" />
                   <Stat label="Absents" value={data.counts.absent} color="bg-red-100" />
-                  <Stat label="File d'attente" value={waitlist.length} color="bg-amber-100" />
+                  <Stat
+                    label="File d'attente"
+                    value={waitlist.reduce((s: number, w: any) => s + (w.places ?? 1), 0)}
+                    color="bg-amber-100"
+                  />
                 </div>
               )}
+              <p className="text-xs text-gray-500 mb-4 -mt-3">Compteurs en nombre de personnes (accompagnants inclus).</p>
 
               <div className="mb-4 flex flex-wrap gap-2">
                 <TabBtn active={tab === "registrations"} onClick={() => setTab("registrations")}>
