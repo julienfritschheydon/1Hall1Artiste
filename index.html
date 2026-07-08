@@ -78,9 +78,25 @@
         }
         
         console.log('Détection de la base URL:', window.APP_CONFIG.BASE_URL);
-        
+
         // Mise à jour dynamique du lien favicon
         document.getElementById('favicon-link').href = window.APP_CONFIG.BASE_URL + 'favicon.ico';
+      })();
+
+      // Redirection URL propre → route hash (HashRouter).
+      // Ex: /reservations → /#/reservations, /reservations/confirm?token=X → /#/reservations/confirm?token=X
+      // Permet de partager/taper des URL sans '#'. Les liens en '#' restent inchangés.
+      (function() {
+        var loc = window.location;
+        if (loc.hash) return;                          // déjà en hash
+        if (loc.search && loc.search[1] === '/') return; // truc 404 GitHub Pages (géré ci-dessous)
+        var base = (window.APP_CONFIG && window.APP_CONFIG.BASE_URL) || '/';
+        var route = loc.pathname.indexOf(base) === 0
+          ? loc.pathname.slice(base.length)
+          : loc.pathname.replace(/^\/+/, '');
+        if (route) {
+          loc.replace(base + '#/' + route + loc.search);
+        }
       })();
       
       // Script de redirection pour les routes SPA sur GitHub Pages
