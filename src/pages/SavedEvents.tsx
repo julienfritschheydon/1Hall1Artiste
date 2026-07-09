@@ -105,6 +105,72 @@ export default function SavedEvents() {
     };
   }, []);
 
+  // Charger automatiquement les réservations si un email est déjà associé
+  // (sinon elles disparaissent au rechargement de la page)
+  useEffect(() => {
+    const attached = getAttachedEmail();
+    if (attached) {
+      void loadForEmail(attached, { announceAttach: false });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const loadForEmail = async (email: string, { announceAttach }: { announceAttach: boolean }) => {
+    if (!email) {
+      setBookingError("Veuillez entrer votre email");
+      return;
+    }
+    setBookingLoading(true);
+    setBookingError("");
+    setFavoritesMessage("");
+
+    // En parallèle : réservations + récupération/association des favoris
+    const [bookingsOutcome, favoritesOutcome] = await Promise.allSettled([
+      fetch(`/api/favorites?type=tours&email=${encodeURIComponent(email)}`),
+      recoverByEmail(email),
+    ]);
+
+    if (bookingsOutcome.status === 'fulfilled') {
+      const res = bookingsOutcome.value;
+      if (res.ok) {
+        setBookings(await res.json());
+      } else if (res.status === 404) {
+        setBookings(null);
+      } else {
+        console.error('API tours error:', res.status);
+        if (announceAttach) setBookingError("Erreur serveur. Réessayez plus tard.");
+        setBookings(null);
+      }
+    } else {
+      if (announceAttach) setBookingError("Connexion indisponible — réessayez plus tard.");
+      setBookings(null);
+    }
+
+    if (favoritesOutcome.status === 'fulfilled') {
+      const r = favoritesOutcome.value;
+      if (r.status === 'ok') {
+        setEmailAttached(true);
+        setEmailEditing(false);
+        if (announceAttach) {
+          const total = r.newEvents + r.newLocations;
+          setFavoritesMessage(total > 0
+            ? `${total} nouveau${total > 1 ? 'x' : ''} favori${total > 1 ? 's' : ''} ajouté${total > 1 ? 's' : ''}.`
+            : "Vos favoris sont sauvegardés avec cet email.");
+        }
+      } else if (r.status === 'not_found') {
+        // Pas encore de favoris associés : on associe cet appareil maintenant
+        setEmailAttached(true);
+        setEmailEditing(false);
+        void attachEmail(email);
+        if (announceAttach) setFavoritesMessage("Vos favoris seront désormais associés à cet email.");
+      } else if (announceAttach) {
+        setFavoritesMessage("Connexion indisponible — vos favoris n'ont pas pu être synchronisés.");
+      }
+    }
+
+    setBookingLoading(false);
+  };
+
   const handleRemoveEvent = (eventId: string) => {
     const updatedEvents = removeSavedEvent(eventId);
     setSavedEvents(updatedEvents);
@@ -268,60 +334,7 @@ export default function SavedEvents() {
                 )}
                 {(emailEditing || !emailAttached) && <ActionButton
                   variant="primary"
-                  onClick={async () => {
-                    const email = bookingEmail.trim();
-                    if (!email) {
-                      setBookingError("Veuillez entrer votre email");
-                      return;
-                    }
-                    setBookingLoading(true);
-                    setBookingError("");
-                    setFavoritesMessage("");
-
-                    // En parallèle : réservations + récupération/association des favoris
-                    const [bookingsOutcome, favoritesOutcome] = await Promise.allSettled([
-                      fetch(`/api/favorites?type=tours&email=${encodeURIComponent(email)}`),
-                      recoverByEmail(email),
-                    ]);
-
-                    if (bookingsOutcome.status === 'fulfilled') {
-                      const res = bookingsOutcome.value;
-                      if (res.ok) {
-                        setBookings(await res.json());
-                      } else if (res.status === 404) {
-                        setBookings(null);
-                      } else {
-                        console.error('API tours error:', res.status);
-                        setBookingError("Erreur serveur. Réessayez plus tard.");
-                        setBookings(null);
-                      }
-                    } else {
-                      setBookingError("Connexion indisponible — réessayez plus tard.");
-                      setBookings(null);
-                    }
-
-                    if (favoritesOutcome.status === 'fulfilled') {
-                      const r = favoritesOutcome.value;
-                      if (r.status === 'ok') {
-                        setEmailAttached(true);
-                        setEmailEditing(false);
-                        const total = r.newEvents + r.newLocations;
-                        setFavoritesMessage(total > 0
-                          ? `${total} nouveau${total > 1 ? 'x' : ''} favori${total > 1 ? 's' : ''} ajouté${total > 1 ? 's' : ''}.`
-                          : "Vos favoris sont sauvegardés avec cet email.");
-                      } else if (r.status === 'not_found') {
-                        // Pas encore de favoris associés : on associe cet appareil maintenant
-                        setEmailAttached(true);
-                        setEmailEditing(false);
-                        void attachEmail(email);
-                        setFavoritesMessage("Vos favoris seront désormais associés à cet email.");
-                      } else {
-                        setFavoritesMessage("Connexion indisponible — vos favoris n'ont pas pu être synchronisés.");
-                      }
-                    }
-
-                    setBookingLoading(false);
-                  }}
+                  onClick={() => loadForEmail(bookingEmail.trim(), { announceAttach: true })}
                   disabled={bookingLoading}
                   className="w-full rounded-full px-6 py-2 font-medium bg-[#ff7a45] text-white hover:bg-[#e8693a]"
                 >
@@ -349,64 +362,76 @@ export default function SavedEvents() {
                   )}
                 </p>
               </div>
-
-              {bookings && (bookings.registrations.length > 0 || bookings.waitlist.length > 0) ? (
-                <div className="mt-4 space-y-2 text-sm">
-                  {bookings.registrations.map((reg) => {
-                    const tour = bookings.tours[reg.tourId];
-                    return tour ? (
-                      <Card key={reg.id} className="border-2 border-amber-300 bg-white/95">
-                        <CardContent className="py-3">
-                          <div className="font-semibold text-[#1a2138]">{tour.title}</div>
-                          <div className="text-gray-600">{new Date(tour.date).toLocaleDateString('fr-FR')} à {new Date(tour.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
-                          <div className="text-xs text-gray-600">Statut: <span className={reg.status === 'confirmé' ? 'text-green-600 font-semibold' : 'text-orange-600'}>{reg.status}</span></div>
-                          <div className="mt-2">
-                            <ActionButton
-                              variant="outline"
-                              size="sm"
-                              className="w-full h-6 text-xs"
-                              onClick={() => {
-                                // TODO: Annuler
-                              }}
-                            >
-                              Annuler
-                            </ActionButton>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ) : null;
-                  })}
-                  {bookings.waitlist.map((wl) => {
-                    const tour = bookings.tours[wl.tourId];
-                    return tour ? (
-                      <Card key={wl.id} className="border-2 border-amber-300 bg-yellow-50/95">
-                        <CardContent className="py-3">
-                          <div className="font-semibold text-[#1a2138]">{tour.title}</div>
-                          <div className="text-gray-600">{new Date(tour.date).toLocaleDateString('fr-FR')}</div>
-                          <div className="text-xs text-orange-600 font-semibold">File d'attente #{wl.position}</div>
-                          <div className="mt-2">
-                            <ActionButton
-                              variant="outline"
-                              size="sm"
-                              className="w-full h-6 text-xs"
-                              onClick={() => {
-                                // TODO: Annuler
-                              }}
-                            >
-                              Annuler
-                            </ActionButton>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ) : null;
-                  })}
-                </div>
-              ) : bookings ? (
-                <p className="text-sm text-gray-600 mt-4">Aucune réservation</p>
-              ) : null}
             </CardContent>
           </Card>
         </div>
+
+        {bookings && (bookings.registrations.length > 0 || bookings.waitlist.length > 0) && (
+          <div className="mb-6">
+            <h2 className="text-lg font-bold text-[#4a5d94] mb-3 flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              Mes réservations
+            </h2>
+            <div className="space-y-4">
+              {bookings.registrations.map((reg, index) => {
+                const tour = bookings.tours[reg.tourId];
+                return tour ? (
+                  <Card key={reg.id} className="border-2 border-amber-300" style={getEventBackgroundStyle(index)}>
+                    <div style={getEventBackgroundPseudoElementStyle(index)} className="absolute inset-0 pointer-events-none" />
+                    <CardContent className="relative z-10 py-3 flex items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <div className="font-semibold text-[#1a2138]">{tour.title}</div>
+                        <div className="text-gray-600 text-sm">{new Date(tour.date).toLocaleDateString('fr-FR')} à {new Date(tour.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
+                        <div className="text-xs text-gray-600">Statut: <span className={reg.status === 'confirmé' ? 'text-green-600 font-semibold' : 'text-orange-600'}>{reg.status}</span></div>
+                        <ActionButton
+                          variant="outline"
+                          size="sm"
+                          className="mt-2 h-6 text-xs"
+                          onClick={() => {
+                            // TODO: Annuler
+                          }}
+                        >
+                          Annuler
+                        </ActionButton>
+                      </div>
+                      <div className="flex-shrink-0 w-16 h-16 rounded-lg bg-amber-100 flex items-center justify-center">
+                        <Calendar className="h-7 w-7 text-[#ff7a45]" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : null;
+              })}
+              {bookings.waitlist.map((wl, index) => {
+                const tour = bookings.tours[wl.tourId];
+                return tour ? (
+                  <Card key={wl.id} className="border-2 border-amber-300" style={getEventBackgroundStyle(bookings.registrations.length + index)}>
+                    <div style={getEventBackgroundPseudoElementStyle(bookings.registrations.length + index)} className="absolute inset-0 pointer-events-none" />
+                    <CardContent className="relative z-10 py-3 flex items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <div className="font-semibold text-[#1a2138]">{tour.title}</div>
+                        <div className="text-gray-600 text-sm">{new Date(tour.date).toLocaleDateString('fr-FR')}</div>
+                        <div className="text-xs text-orange-600 font-semibold">File d'attente #{wl.position}</div>
+                        <ActionButton
+                          variant="outline"
+                          size="sm"
+                          className="mt-2 h-6 text-xs"
+                          onClick={() => {
+                            // TODO: Annuler
+                          }}
+                        >
+                          Annuler
+                        </ActionButton>
+                      </div>
+                      <div className="flex-shrink-0 w-16 h-16 rounded-lg bg-amber-100 flex items-center justify-center">
+                        <Calendar className="h-7 w-7 text-[#ff7a45]" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : null;
+              })}
+            </div>
+          </div>
+        )}
 
         {savedLocations.length > 0 && (
           <div className="mb-6">

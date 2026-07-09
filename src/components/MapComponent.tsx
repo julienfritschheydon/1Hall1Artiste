@@ -79,44 +79,23 @@ const TourPin = memo<TourPinProps>(({ tour, scale, readOnly, onTourClick }) => {
         position: 'absolute',
         left: `${tour.startLocationX * scale}px`,
         top: `${tour.startLocationY * scale}px`,
-        zIndex: 25,
-        pointerEvents: 'none'
+        zIndex: 20,
+        width: `${60 * scale}px`,
+        height: `${60 * scale}px`,
+        transform: 'translate(-50%, -50%)',
+        pointerEvents: !readOnly ? 'auto' : 'none',
+        cursor: !readOnly ? 'pointer' : 'default'
       }}
+      onClick={!readOnly ? handleClick : undefined}
     >
       <div
-        className="absolute rounded-full shadow-lg border-2 border-white bg-[#ff7a45]/90 hover:scale-125 transition-transform cursor-pointer"
+        className="absolute top-1/2 left-1/2 rounded-full shadow-lg border-2 border-white bg-[#ff7a45]/90"
         style={{
           transform: 'translate(-50%, -50%)',
-          width: `${28 * scale}px`,
-          height: `${28 * scale}px`,
-          pointerEvents: !readOnly ? 'auto' : 'none',
-          cursor: !readOnly ? 'pointer' : 'default'
+          width: `${32 * scale}px`,
+          height: `${32 * scale}px`
         }}
-        onClick={!readOnly ? handleClick : undefined}
-      >
-        <span style={{ fontSize: `${8 * scale}px`, position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}>
-          📅
-        </span>
-      </div>
-
-      <button
-        onClick={!readOnly ? handleClick : undefined}
-        className="absolute bg-[#ff7a45] text-white rounded-full font-semibold hover:bg-[#e8693a] transition-colors text-nowrap"
-        style={{
-          left: `${14 * scale}px`,
-          top: '-50%',
-          transform: 'translateY(-50%)',
-          padding: `${4 * scale}px ${8 * scale}px`,
-          fontSize: `${11 * scale}px`,
-          pointerEvents: !readOnly ? 'auto' : 'none',
-          cursor: !readOnly ? 'pointer' : 'default',
-          whiteSpace: 'nowrap',
-          border: 'none'
-        }}
-        disabled={readOnly}
-      >
-        Réserver
-      </button>
+      />
     </div>
   );
 });
