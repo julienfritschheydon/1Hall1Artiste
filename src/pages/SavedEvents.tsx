@@ -21,6 +21,7 @@ import { Event } from "@/data/events";
 import { EventImage } from "@/components/EventImage";
 import { getBackgroundFallback } from "@/utils/backgroundUtils";
 import { analytics, EventAction } from "@/services/firebaseAnalytics";
+import { type Tour, type Registration, type Waitlist } from "@/types/visitTypes";
 
 export default function SavedEvents() {
   const navigate = useNavigate();
@@ -29,15 +30,21 @@ export default function SavedEvents() {
   const [notificationTime, setNotificationTime] = useState<string>("");
   const [activeEvent, setActiveEvent] = useState<string | null>(null);
   const [selectedEventForActions, setSelectedEventForActions] = useState<SavedEvent | null>(null);
-  
+
   // États pour les détails d'événement
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [eventDetailsOpen, setEventDetailsOpen] = useState<boolean>(false);
-  
+
   // États pour les célébrations
   const [showFirstSavedCelebration, setShowFirstSavedCelebration] = useState<boolean>(false);
   const [showMultipleSavedCelebration, setShowMultipleSavedCelebration] = useState<boolean>(false);
   const [showNotificationCelebration, setShowNotificationCelebration] = useState<boolean>(false);
+
+  // États pour "Mes réservations"
+  const [bookingEmail, setBookingEmail] = useState<string>("");
+  const [bookingLoading, setBookingLoading] = useState<boolean>(false);
+  const [bookings, setBookings] = useState<{ tours: Record<string, Tour>, registrations: Registration[], waitlist: Waitlist[] } | null>(null);
+  const [bookingError, setBookingError] = useState<string>("");
 
   useEffect(() => {
     // Charger les événements sauvegardés
@@ -182,17 +189,120 @@ export default function SavedEvents() {
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
-              <p className="text-sm text-gray-600 mb-4">Consulter et gérer vos réservations aux visites guidées.</p>
-              <ActionButton
-                variant="primary"
-                onClick={() => {
-                  navigate("/reservations");
-                  analytics.trackInteraction(EventAction.CLICK, "view_reservations", { from: "saved_events" });
-                }}
-                className="w-full rounded-full px-6 py-2 font-medium bg-[#ff7a45] text-white hover:bg-[#e8693a]"
-              >
-                Voir mes réservations
-              </ActionButton>
+              <div className="space-y-3">
+                <Input
+                  type="email"
+                  placeholder="Votre email"
+                  value={bookingEmail}
+                  onChange={(e) => {
+                    setBookingEmail(e.target.value);
+                    setBookingError("");
+                  }}
+                  className="text-sm"
+                />
+                <ActionButton
+                  variant="primary"
+                  onClick={async () => {
+                    if (!bookingEmail.trim()) {
+                      setBookingError("Veuillez entrer votre email");
+                      return;
+                    }
+                    setBookingLoading(true);
+                    setBookingError("");
+                    try {
+                      const res = await fetch(`/api/tours?email=${encodeURIComponent(bookingEmail)}`);
+                      if (res.ok) {
+                        const data = await res.json();
+                        setBookings(data);
+                      } else {
+                        setBookingError("Aucune réservation trouvée");
+                        setBookings(null);
+                      }
+                    } catch (err) {
+                      setBookingError("Erreur lors du chargement");
+                      console.error(err);
+                    } finally {
+                      setBookingLoading(false);
+                    }
+                  }}
+                  disabled={bookingLoading}
+                  className="w-full rounded-full px-6 py-2 font-medium bg-[#ff7a45] text-white hover:bg-[#e8693a]"
+                >
+                  {bookingLoading ? "Chargement..." : "Charger"}
+                </ActionButton>
+                {bookingError && <p className="text-xs text-red-600">{bookingError}</p>}
+              </div>
+
+              {bookings && (bookings.registrations.length > 0 || bookings.waitlist.length > 0) ? (
+                <div className="mt-4 space-y-2 text-sm">
+                  {bookings.registrations.map((reg) => {
+                    const tour = bookings.tours[reg.tourId];
+                    return tour ? (
+                      <div key={reg.id} className="border border-gray-200 rounded p-2 bg-gray-50">
+                        <div className="font-semibold text-[#1a2138]">{tour.title}</div>
+                        <div className="text-gray-600">{new Date(tour.date).toLocaleDateString('fr-FR')} à {new Date(tour.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
+                        <div className="text-xs text-gray-600">Statut: <span className={reg.status === 'confirmé' ? 'text-green-600 font-semibold' : 'text-orange-600'}>{reg.status}</span></div>
+                        <div className="flex gap-1 mt-2">
+                          <ActionButton
+                            variant="outline"
+                            size="sm"
+                            className="flex-1 h-6 text-xs"
+                            onClick={() => {
+                              // TODO: Annuler
+                            }}
+                          >
+                            Annuler
+                          </ActionButton>
+                          <ActionButton
+                            variant="outline"
+                            size="sm"
+                            className="flex-1 h-6 text-xs"
+                            onClick={() => {
+                              // TODO: Détails
+                            }}
+                          >
+                            Détails
+                          </ActionButton>
+                        </div>
+                      </div>
+                    ) : null;
+                  })}
+                  {bookings.waitlist.map((wl) => {
+                    const tour = bookings.tours[wl.tourId];
+                    return tour ? (
+                      <div key={wl.id} className="border border-gray-200 rounded p-2 bg-yellow-50">
+                        <div className="font-semibold text-[#1a2138]">{tour.title}</div>
+                        <div className="text-gray-600">{new Date(tour.date).toLocaleDateString('fr-FR')}</div>
+                        <div className="text-xs text-orange-600 font-semibold">File d'attente #{wl.position}</div>
+                        <div className="flex gap-1 mt-2">
+                          <ActionButton
+                            variant="outline"
+                            size="sm"
+                            className="flex-1 h-6 text-xs"
+                            onClick={() => {
+                              // TODO: Annuler
+                            }}
+                          >
+                            Annuler
+                          </ActionButton>
+                          <ActionButton
+                            variant="outline"
+                            size="sm"
+                            className="flex-1 h-6 text-xs"
+                            onClick={() => {
+                              // TODO: Détails
+                            }}
+                          >
+                            Détails
+                          </ActionButton>
+                        </div>
+                      </div>
+                    ) : null;
+                  })}
+                </div>
+              ) : bookings ? (
+                <p className="text-sm text-gray-600 mt-4">Aucune réservation</p>
+              ) : null}
             </CardContent>
           </Card>
         </div>

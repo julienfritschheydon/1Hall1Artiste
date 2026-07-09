@@ -15,6 +15,7 @@ import { getSavedEvents, saveEvent, removeSavedEvent } from "../services/savedEv
 import { IMAGE_PATHS } from "../constants/imagePaths";
 import { getImagePath } from "@/utils/imagePaths";
 import { toast } from "@/components/ui/use-toast";
+import { type Tour } from "@/types/visitTypes";
 
 const Program = () => {
   const location = useLocation();
@@ -26,11 +27,27 @@ const Program = () => {
   const [currentFilter, setCurrentFilter] = useState<string>("");
   const [savedEventIds, setSavedEventIds] = useState<string[]>([]);
   const [eventSwipeIndex, setEventSwipeIndex] = useState<number>(0);
+  const [tours, setTours] = useState<Tour[]>([]);
   
   useEffect(() => {
     analytics.trackPageView('/program', 'Programme');
     const saved = getSavedEvents();
     setSavedEventIds(saved.map(e => e.id));
+  }, []);
+
+  useEffect(() => {
+    const loadTours = async () => {
+      try {
+        const res = await fetch('/api/visit-tours');
+        if (res.ok) {
+          const data = await res.json();
+          setTours(Array.isArray(data) ? data : data.tours || []);
+        }
+      } catch (err) {
+        console.error('Error loading tours:', err);
+      }
+    };
+    loadTours();
   }, []);
   
   // Effet séparé pour gérer l'ouverture d'événement depuis l'URL
@@ -83,12 +100,18 @@ const Program = () => {
   // Catégorie d'affichage d'un event : "Type d'événement" (Sheet) sinon label du type technique.
   const catOf = (e: Event) => e.category || (e.type === 'exposition' ? 'Exposition' : 'Concert');
 
-  // Onglets dynamiques : une catégorie par valeur présente. Expositions/Concerts en tête.
+  // Onglets dynamiques : une catégorie par valeur présente. Expositions/Concerts en tête, puis Visites guidées.
   const categories = useMemo(() => {
     const set = new Set(allRemoteEvents.map(catOf));
-    const order = (c: string) => (c === 'Exposition' || c === 'Expositions' ? 0 : c === 'Concert' || c === 'Concerts' ? 1 : 2);
+    if (tours.length > 0) set.add('Visites guidées');
+    const order = (c: string) => {
+      if (c === 'Exposition' || c === 'Expositions') return 0;
+      if (c === 'Concert' || c === 'Concerts') return 1;
+      if (c === 'Visites guidées') return 2;
+      return 3;
+    };
     return Array.from(set).sort((a, b) => order(a) - order(b) || a.localeCompare(b));
-  }, [allRemoteEvents]);
+  }, [allRemoteEvents, tours]);
 
   // Sélectionne le premier onglet dès que les catégories sont connues.
   useEffect(() => {
@@ -208,41 +231,74 @@ const Program = () => {
         
         {/* Contenu avec padding-top pour compenser le header fixe (hauteur titre + filtres + onglets) */}
         <div className="container mx-auto px-4 max-w-4xl relative z-10" style={{ paddingTop: '200px' }}>
-          {/* Bannière visites guidées (spec §3) */}
-          <button
-            onClick={() => navigate('/reservations')}
-            className="w-full mb-4 p-4 bg-[#ff7a45] text-white rounded-lg shadow hover:bg-[#e8693a] transition-colors text-left flex items-center justify-between"
-          >
-            <span className="font-semibold">Visites guidées — Réservez votre place</span>
-            <span aria-hidden>&rsaquo;</span>
-          </button>
-          <TabsContent value="samedi" className="space-y-4">
-            {sortByStartTime(filterEvents(getEventsByDay("samedi"), currentFilter)).map((event, index) => (
-              <div key={`samedi-${event.id}`}>
-                <EventCardModern
-                  event={event}
-                  isSaved={savedEventIds.includes(event.id)}
-                  cardIndex={index}
-                  onEventClick={() => setSelectedEvent(event)}
-                  onSaveClick={(e) => handleSaveEvent(event, e)}
-                />
-              </div>
-            ))}
-          </TabsContent>
-          
-          <TabsContent value="dimanche" className="space-y-4">
-            {sortByStartTime(filterEvents(getEventsByDay("dimanche"), currentFilter)).map((event, index) => (
-              <div key={`dimanche-${event.id}`}>
-                <EventCardModern
-                  event={event}
-                  isSaved={savedEventIds.includes(event.id)}
-                  cardIndex={index}
-                  onEventClick={() => setSelectedEvent(event)}
-                  onSaveClick={(e) => handleSaveEvent(event, e)}
-                />
-              </div>
-            ))}
-          </TabsContent>
+          {currentFilter === 'Visites guidées' ? (
+            <>
+              <TabsContent value="samedi" className="space-y-4">
+                {tours.map((tour, index) => (
+                  <div key={`tour-${tour.id}`} className="bg-white/90 border-2 border-amber-300 rounded-lg p-4 hover:shadow-md transition-all cursor-pointer" onClick={() => navigate('/reservations')}>
+                    <div className="flex justify-between items-start mb-2">
+                      <h3 className="font-bold text-lg text-[#1a2138]">{tour.title}</h3>
+                      <span className="text-sm bg-orange-100 text-orange-800 px-2 py-1 rounded-full font-medium">{tour.placesLeft || tour.capacity} places</span>
+                    </div>
+                    <div className="text-sm text-gray-600 mb-3">
+                      <p>{new Date(tour.date).toLocaleDateString('fr-FR', { weekday: 'long', month: 'long', day: 'numeric' })} à {new Date(tour.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</p>
+                    </div>
+                    <button className="w-full bg-[#ff7a45] text-white py-2 rounded-lg font-medium hover:bg-[#e8693a] transition-colors">
+                      Réserver
+                    </button>
+                  </div>
+                ))}
+                {tours.length === 0 && <p className="text-gray-600 py-4 text-center">Aucune visite guidée disponible</p>}
+              </TabsContent>
+              <TabsContent value="dimanche" className="space-y-4">
+                {tours.map((tour, index) => (
+                  <div key={`tour-${tour.id}`} className="bg-white/90 border-2 border-amber-300 rounded-lg p-4 hover:shadow-md transition-all cursor-pointer" onClick={() => navigate('/reservations')}>
+                    <div className="flex justify-between items-start mb-2">
+                      <h3 className="font-bold text-lg text-[#1a2138]">{tour.title}</h3>
+                      <span className="text-sm bg-orange-100 text-orange-800 px-2 py-1 rounded-full font-medium">{tour.placesLeft || tour.capacity} places</span>
+                    </div>
+                    <div className="text-sm text-gray-600 mb-3">
+                      <p>{new Date(tour.date).toLocaleDateString('fr-FR', { weekday: 'long', month: 'long', day: 'numeric' })} à {new Date(tour.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</p>
+                    </div>
+                    <button className="w-full bg-[#ff7a45] text-white py-2 rounded-lg font-medium hover:bg-[#e8693a] transition-colors">
+                      Réserver
+                    </button>
+                  </div>
+                ))}
+                {tours.length === 0 && <p className="text-gray-600 py-4 text-center">Aucune visite guidée disponible</p>}
+              </TabsContent>
+            </>
+          ) : (
+            <>
+              <TabsContent value="samedi" className="space-y-4">
+                {sortByStartTime(filterEvents(getEventsByDay("samedi"), currentFilter)).map((event, index) => (
+                  <div key={`samedi-${event.id}`}>
+                    <EventCardModern
+                      event={event}
+                      isSaved={savedEventIds.includes(event.id)}
+                      cardIndex={index}
+                      onEventClick={() => setSelectedEvent(event)}
+                      onSaveClick={(e) => handleSaveEvent(event, e)}
+                    />
+                  </div>
+                ))}
+              </TabsContent>
+
+              <TabsContent value="dimanche" className="space-y-4">
+                {sortByStartTime(filterEvents(getEventsByDay("dimanche"), currentFilter)).map((event, index) => (
+                  <div key={`dimanche-${event.id}`}>
+                    <EventCardModern
+                      event={event}
+                      isSaved={savedEventIds.includes(event.id)}
+                      cardIndex={index}
+                      onEventClick={() => setSelectedEvent(event)}
+                      onSaveClick={(e) => handleSaveEvent(event, e)}
+                    />
+                  </div>
+                ))}
+              </TabsContent>
+            </>
+          )}
         </div>
         
         {/* Fin Tabs englobant */}
