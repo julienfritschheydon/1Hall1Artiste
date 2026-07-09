@@ -14,7 +14,43 @@
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { rtdbGet, rtdbPatch, rtdbDelete } from "./_firebase.js";
-import { emailKey } from "./_visit-db.js";
+import {
+  emailKey,
+  rtdbRegistrationsListByEmail,
+  rtdbWaitlistListByEmail,
+  rtdbTourGet,
+} from "./_visit-db.js";
+
+// Fusionné avec l'ancien api/tours.ts (GET ?email=&type=tours) : Vercel Hobby
+// plafonne à 12 fonctions serverless, chaque fichier api/*.ts non préfixé
+// par _ en compte une. Domaine différent mais même page appelante
+// (SavedEvents.tsx), fusion pragmatique pour rester sous la limite.
+async function handleGetTours(email: string, res: VercelResponse) {
+  try {
+    const [registrations, waitlist] = await Promise.all([
+      rtdbRegistrationsListByEmail(email),
+      rtdbWaitlistListByEmail(email),
+    ]);
+
+    const tourIds = new Set<string>();
+    registrations.forEach((r) => tourIds.add(r.tourId));
+    waitlist.forEach((w) => tourIds.add(w.tourId));
+
+    const tours: Record<string, unknown> = {};
+    for (const tourId of tourIds) {
+      const tour = await rtdbTourGet(tourId);
+      if (tour) tours[tourId] = tour;
+    }
+
+    if (registrations.length === 0 && waitlist.length === 0) {
+      return res.status(404).json({ error: "no bookings found" });
+    }
+    return res.status(200).json({ tours, registrations, waitlist });
+  } catch (e) {
+    console.error("[favorites GET tours]", e);
+    return res.status(500).json({ error: "fetch failed" });
+  }
+}
 
 const FAVORITES_PATH = "user-favorites";
 const EMAIL_INDEX_PATH = "favorites-email-index";
@@ -188,6 +224,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === "GET") {
       const deviceId = typeof req.query.deviceId === "string" ? req.query.deviceId : "";
       const email = typeof req.query.email === "string" ? req.query.email : "";
+      const type = typeof req.query.type === "string" ? req.query.type : "";
+      if (type === "tours") {
+        if (!email) return res.status(400).json({ error: "email requis" });
+        return await handleGetTours(email, res);
+      }
       if (deviceId && DEVICE_ID_RE.test(deviceId)) return await handleGetByDevice(deviceId, res);
       if (email) return await handleGetByEmail(email, res);
       return res.status(400).json({ error: "deviceId ou email requis" });

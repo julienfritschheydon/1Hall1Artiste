@@ -265,7 +265,7 @@ export default function SavedEvents() {
 
                     // En parallèle : réservations + récupération/association des favoris
                     const [bookingsOutcome, favoritesOutcome] = await Promise.allSettled([
-                      fetch(`/api/tours?email=${encodeURIComponent(email)}`),
+                      fetch(`/api/favorites?type=tours&email=${encodeURIComponent(email)}`),
                       recoverByEmail(email),
                     ]);
 
