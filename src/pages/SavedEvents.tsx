@@ -25,6 +25,8 @@ import { EventImage } from "@/components/EventImage";
 import { getBackgroundFallback } from "@/utils/backgroundUtils";
 import { analytics, EventAction } from "@/services/firebaseAnalytics";
 import { type Tour, type Registration, type Waitlist } from "@/types/visitTypes";
+import { recoverByEmail, attachEmail, detachEmail, getAttachedEmail } from "@/services/favoritesSync";
+import X from "lucide-react/dist/esm/icons/x";
 
 export default function SavedEvents() {
   const navigate = useNavigate();
@@ -44,11 +46,16 @@ export default function SavedEvents() {
   const [showMultipleSavedCelebration, setShowMultipleSavedCelebration] = useState<boolean>(false);
   const [showNotificationCelebration, setShowNotificationCelebration] = useState<boolean>(false);
 
-  // États pour "Mes réservations"
-  const [bookingEmail, setBookingEmail] = useState<string>("");
+  // États pour "Mon email" (réservations + récupération de favoris)
+  const [bookingEmail, setBookingEmail] = useState<string>(() => getAttachedEmail() || "");
   const [bookingLoading, setBookingLoading] = useState<boolean>(false);
   const [bookings, setBookings] = useState<{ tours: Record<string, Tour>, registrations: Registration[], waitlist: Waitlist[] } | null>(null);
   const [bookingError, setBookingError] = useState<string>("");
+  const [favoritesMessage, setFavoritesMessage] = useState<string>("");
+  const [emailAttached, setEmailAttached] = useState<boolean>(() => Boolean(getAttachedEmail()));
+  const [nudgeDismissed, setNudgeDismissed] = useState<boolean>(() => {
+    try { return localStorage.getItem('favorites-nudge-dismissed') === 'true'; } catch { return true; }
+  });
 
   useEffect(() => {
     // Charger les événements et lieux sauvegardés
@@ -57,6 +64,9 @@ export default function SavedEvents() {
 
     const onLocationsChanged = () => setSavedLocations(getSavedLocations());
     window.addEventListener('savedLocationsChanged', onLocationsChanged);
+    // Rafraîchir aussi la liste des événements (sync serveur / recover par email)
+    const onEventsChanged = () => setSavedEvents(getSavedEvents());
+    window.addEventListener('savedEventsChanged', onEventsChanged);
 
     // Analytics: page view
     analytics.trackPageView("/saved", "Événements enregistrés");
@@ -87,7 +97,10 @@ export default function SavedEvents() {
     // Sauvegarder l'état des célébrations montrées
     localStorage.setItem('celebrationsShown', JSON.stringify(shownCelebrations));
 
-    return () => window.removeEventListener('savedLocationsChanged', onLocationsChanged);
+    return () => {
+      window.removeEventListener('savedLocationsChanged', onLocationsChanged);
+      window.removeEventListener('savedEventsChanged', onEventsChanged);
+    };
   }, []);
 
   const handleRemoveEvent = (eventId: string) => {
@@ -195,14 +208,35 @@ export default function SavedEvents() {
           <div className="w-20"></div>
         </header>
 
-        {/* Section: Mes réservations */}
+        {/* Nudge : inciter à associer un email pour ne pas perdre ses favoris */}
+        {!nudgeDismissed && !emailAttached && (savedEvents.length + savedLocations.length) >= 3 && (
+          <div className="mb-4 flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-300 rounded-lg text-sm text-amber-900">
+            <Bookmark className="h-4 w-4 flex-shrink-0" />
+            <span className="flex-1">Ne perdez pas vos favoris — associez votre email ci-dessous.</span>
+            <button
+              onClick={() => {
+                setNudgeDismissed(true);
+                try { localStorage.setItem('favorites-nudge-dismissed', 'true'); } catch { /* privé */ }
+              }}
+              className="p-1 rounded-full hover:bg-amber-100"
+              title="Fermer"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
+        {/* Section: Mon email (réservations + favoris) */}
         <div className="mb-6">
           <Card className="border-2 border-[#ff7a45] bg-white/95">
             <CardHeader className="pb-2">
               <CardTitle className="text-lg font-bold text-[#ff7a45] flex items-center gap-2">
                 <Calendar className="h-5 w-5" />
-                Mes réservations
+                Mon email
               </CardTitle>
+              <p className="text-xs text-gray-600">
+                Retrouvez vos réservations et vos favoris, même sur un autre appareil.
+              </p>
             </CardHeader>
             <CardContent className="pt-0">
               <div className="space-y-3">
@@ -213,46 +247,89 @@ export default function SavedEvents() {
                   onChange={(e) => {
                     setBookingEmail(e.target.value);
                     setBookingError("");
+                    setFavoritesMessage("");
                   }}
                   className="text-sm"
                 />
                 <ActionButton
                   variant="primary"
                   onClick={async () => {
-                    if (!bookingEmail.trim()) {
+                    const email = bookingEmail.trim();
+                    if (!email) {
                       setBookingError("Veuillez entrer votre email");
                       return;
                     }
                     setBookingLoading(true);
                     setBookingError("");
-                    try {
-                      const res = await fetch(`/api/tours?email=${encodeURIComponent(bookingEmail)}`);
+                    setFavoritesMessage("");
+
+                    // En parallèle : réservations + récupération/association des favoris
+                    const [bookingsOutcome, favoritesOutcome] = await Promise.allSettled([
+                      fetch(`/api/tours?email=${encodeURIComponent(email)}`),
+                      recoverByEmail(email),
+                    ]);
+
+                    if (bookingsOutcome.status === 'fulfilled') {
+                      const res = bookingsOutcome.value;
                       if (res.ok) {
-                        const data = await res.json();
-                        setBookings(data);
+                        setBookings(await res.json());
                       } else if (res.status === 404) {
-                        setBookingError("Aucune réservation trouvée pour cet email");
                         setBookings(null);
                       } else {
-                        const text = await res.text();
-                        console.error('API error:', res.status, text);
+                        console.error('API tours error:', res.status);
                         setBookingError("Erreur serveur. Réessayez plus tard.");
                         setBookings(null);
                       }
-                    } catch (err) {
-                      console.error('Fetch error:', err);
-                      setBookingError("Erreur de connexion. Vérifiez votre connexion.");
+                    } else {
+                      setBookingError("Connexion indisponible — réessayez plus tard.");
                       setBookings(null);
-                    } finally {
-                      setBookingLoading(false);
                     }
+
+                    if (favoritesOutcome.status === 'fulfilled') {
+                      const r = favoritesOutcome.value;
+                      if (r.status === 'ok') {
+                        setEmailAttached(true);
+                        const total = r.newEvents + r.newLocations;
+                        setFavoritesMessage(total > 0
+                          ? `${total} nouveau${total > 1 ? 'x' : ''} favori${total > 1 ? 's' : ''} ajouté${total > 1 ? 's' : ''}.`
+                          : "Vos favoris sont sauvegardés avec cet email.");
+                      } else if (r.status === 'not_found') {
+                        // Pas encore de favoris associés : on associe cet appareil maintenant
+                        setEmailAttached(true);
+                        void attachEmail(email);
+                        setFavoritesMessage("Vos favoris seront désormais associés à cet email.");
+                      } else {
+                        setFavoritesMessage("Connexion indisponible — vos favoris n'ont pas pu être synchronisés.");
+                      }
+                    }
+
+                    setBookingLoading(false);
                   }}
                   disabled={bookingLoading}
                   className="w-full rounded-full px-6 py-2 font-medium bg-[#ff7a45] text-white hover:bg-[#e8693a]"
                 >
-                  {bookingLoading ? "Chargement..." : "Charger"}
+                  {bookingLoading ? "Chargement..." : "Retrouver mes infos"}
                 </ActionButton>
                 {bookingError && <p className="text-xs text-red-600">{bookingError}</p>}
+                {favoritesMessage && <p className="text-xs text-green-700">{favoritesMessage}</p>}
+                <p className="text-[11px] text-gray-500">
+                  Votre email sert uniquement à retrouver vos réservations et favoris. Jamais partagé.
+                  {emailAttached && (
+                    <>
+                      {" "}
+                      <button
+                        className="underline hover:text-gray-700"
+                        onClick={async () => {
+                          await detachEmail();
+                          setEmailAttached(false);
+                          setFavoritesMessage("Email dissocié de vos favoris.");
+                        }}
+                      >
+                        Dissocier mon email
+                      </button>
+                    </>
+                  )}
+                </p>
               </div>
 
               {bookings && (bookings.registrations.length > 0 || bookings.waitlist.length > 0) ? (
