@@ -346,7 +346,20 @@ export const EventDetailsNew = ({
           <div className="flex justify-end items-center gap-2 mb-2">
             {/* Bouton de like - Logique partagée, UI simple */}
             <LikeButtonSimple entryId={`event-${event.id}`} />
-            
+
+            {/* Bouton enregistrer/retirer des favoris */}
+            <button
+              onClick={toggleSaveEvent}
+              className={`h-10 w-10 flex items-center justify-center rounded-full border-2 transition-colors ${
+                isSaved
+                  ? 'bg-amber-50 border-amber-500 text-amber-500'
+                  : 'bg-white/70 border-gray-300 text-gray-600 hover:border-amber-500 hover:text-amber-500'
+              }`}
+              title={isSaved ? "Retirer des favoris" : "Ajouter aux favoris"}
+            >
+              {isSaved ? <BookmarkCheck className="h-5 w-5" /> : <Bookmark className="h-5 w-5" />}
+            </button>
+
             {/* Bouton témoignage/citation */}
             <button
               onClick={(e) => {

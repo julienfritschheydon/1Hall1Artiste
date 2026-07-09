@@ -13,6 +13,9 @@ import Share2 from "lucide-react/dist/esm/icons/share-2";
 import Calendar from "lucide-react/dist/esm/icons/calendar";
 import Bookmark from "lucide-react/dist/esm/icons/bookmark";
 import BookmarkCheck from "lucide-react/dist/esm/icons/bookmark-check";
+import SquareCheck from "lucide-react/dist/esm/icons/square-check";
+import Square from "lucide-react/dist/esm/icons/square";
+import { isLocationSaved, toggleSavedLocation } from "@/services/savedLocations";
 import Navigation from "lucide-react/dist/esm/icons/navigation";
 import AlertCircle from "lucide-react/dist/esm/icons/alert-circle";
 import Volume2 from "lucide-react/dist/esm/icons/volume-2";
@@ -113,6 +116,16 @@ export const LocationDetailsModern: React.FC<LocationDetailsModernProps> = ({
   const [duration, setDuration] = useState(0);
   const [audioLoading, setAudioLoading] = useState(false);
   const [showFullDescription, setShowFullDescription] = useState(false);
+  const [isLocSaved, setIsLocSaved] = useState(() => isLocationSaved(location.id));
+
+  useEffect(() => {
+    setIsLocSaved(isLocationSaved(location.id));
+  }, [location.id]);
+
+  const handleToggleSaveLocation = () => {
+    toggleSavedLocation(location.id);
+    setIsLocSaved(isLocationSaved(location.id));
+  };
 
   const handleHistoryClick = () => {
     navigate('/location-history', { 
@@ -216,22 +229,38 @@ export const LocationDetailsModern: React.FC<LocationDetailsModernProps> = ({
               {/* Bouton de like */}
               <LikeButtonSimple entryId={`building-${location.id}`} />
               
-              {/* Bouton save - Marquer visité */}
+              {/* Bouton Marquer visité */}
               <button
                 onClick={() => onMarkVisited(!isVisited)}
                 className={`h-10 w-10 flex items-center justify-center rounded-full border-2 transition-colors ${
-                  isVisited 
-                    ? 'bg-amber-50 border-amber-500 text-amber-500' 
-                    : 'bg-white/70 border-gray-300 text-gray-600 hover:border-amber-500 hover:text-amber-500'
+                  isVisited
+                    ? 'bg-green-50 border-green-500 text-green-600'
+                    : 'bg-white/70 border-gray-300 text-gray-600 hover:border-green-500 hover:text-green-500'
                 }`}
                 title={isVisited ? "Retirer des visités" : "Marquer comme visité"}
               >
-                {isVisited ? 
-                  <BookmarkCheck className="h-5 w-5" /> : 
+                {isVisited ?
+                  <SquareCheck className="h-5 w-5" /> :
+                  <Square className="h-5 w-5" />
+                }
+              </button>
+
+              {/* Bouton save - Enregistrer le bâtiment */}
+              <button
+                onClick={handleToggleSaveLocation}
+                className={`h-10 w-10 flex items-center justify-center rounded-full border-2 transition-colors ${
+                  isLocSaved
+                    ? 'bg-amber-50 border-amber-500 text-amber-500'
+                    : 'bg-white/70 border-gray-300 text-gray-600 hover:border-amber-500 hover:text-amber-500'
+                }`}
+                title={isLocSaved ? "Retirer des favoris" : "Enregistrer ce bâtiment"}
+              >
+                {isLocSaved ?
+                  <BookmarkCheck className="h-5 w-5" /> :
                   <Bookmark className="h-5 w-5" />
                 }
               </button>
-              
+
               {/* Bouton témoignage/citation */}
               <button
                 onClick={() => {

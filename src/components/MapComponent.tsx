@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo, memo } from 'react';
 import { createLogger } from "@/utils/logger";
 import { Location } from "@/data/locations";
 import { getImagePath } from "@/utils/imagePaths";
@@ -57,9 +57,76 @@ export interface MapComponentProps {
   onPanEnd?: (info: { totalDx: number; totalDy: number; distance: number; durationMs: number }) => void;
 };
 
+// Memoized component for tour pins to prevent re-renders on scale change
+interface TourPinProps {
+  tour: { id: string; title: string; startLocationX: number; startLocationY: number };
+  scale: number;
+  readOnly: boolean;
+  onTourClick?: (tourId: string) => void;
+}
+
+const TourPin = memo<TourPinProps>(({ tour, scale, readOnly, onTourClick }) => {
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onTourClick) onTourClick(tour.id);
+  };
+
+  return (
+    <div
+      key={`tour-${tour.id}`}
+      className="absolute"
+      style={{
+        position: 'absolute',
+        left: `${tour.startLocationX * scale}px`,
+        top: `${tour.startLocationY * scale}px`,
+        zIndex: 25,
+        pointerEvents: 'none'
+      }}
+    >
+      <div
+        className="absolute rounded-full shadow-lg border-2 border-white bg-[#ff7a45]/90 hover:scale-125 transition-transform cursor-pointer"
+        style={{
+          transform: 'translate(-50%, -50%)',
+          width: `${28 * scale}px`,
+          height: `${28 * scale}px`,
+          pointerEvents: !readOnly ? 'auto' : 'none',
+          cursor: !readOnly ? 'pointer' : 'default'
+        }}
+        onClick={!readOnly ? handleClick : undefined}
+        title={tour.title}
+      >
+        <span style={{ fontSize: `${8 * scale}px`, position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}>
+          📅
+        </span>
+      </div>
+
+      <button
+        onClick={!readOnly ? handleClick : undefined}
+        className="absolute bg-[#ff7a45] text-white rounded-full font-semibold hover:bg-[#e8693a] transition-colors text-nowrap"
+        style={{
+          left: `${14 * scale}px`,
+          top: '-50%',
+          transform: 'translateY(-50%)',
+          padding: `${4 * scale}px ${8 * scale}px`,
+          fontSize: `${11 * scale}px`,
+          pointerEvents: !readOnly ? 'auto' : 'none',
+          cursor: !readOnly ? 'pointer' : 'default',
+          whiteSpace: 'nowrap',
+          border: 'none'
+        }}
+        disabled={readOnly}
+      >
+        Réserver
+      </button>
+    </div>
+  );
+});
+
+TourPin.displayName = 'TourPin';
+
 /**
  * Composant de carte
- * 
+ *
  * Affiche une carte interactive avec des points représentant les lieux.
  * Les dimensions de la carte sont fixes pour assurer la cohérence des coordonnées.
  * Les coordonnées des points sont définies directement dans le fichier de données.
@@ -459,62 +526,13 @@ export const MapComponent: React.FC<MapComponentProps> = ({
 
         {/* Tours (visites guidées) */}
         {tours?.map((tour) => (
-          <div
+          <TourPin
             key={`tour-${tour.id}`}
-            className="absolute"
-            style={{
-              position: 'absolute',
-              left: `${tour.startLocationX * scale}px`,
-              top: `${tour.startLocationY * scale}px`,
-              zIndex: 25,
-              pointerEvents: 'none'
-            }}
-          >
-            {/* Point visite (orange) */}
-            <div
-              className="absolute rounded-full shadow-lg border-2 border-white bg-[#ff7a45]/90 hover:scale-125 transition-transform cursor-pointer"
-              style={{
-                transform: 'translate(-50%, -50%)',
-                width: `${28 * scale}px`,
-                height: `${28 * scale}px`,
-                pointerEvents: !readOnly ? 'auto' : 'none',
-                cursor: !readOnly ? 'pointer' : 'default'
-              }}
-              onClick={!readOnly ? (e) => {
-                e.stopPropagation();
-                if (onTourClick) onTourClick(tour.id);
-              } : undefined}
-              title={tour.title}
-            >
-              {/* Icône visite (📅) */}
-              <span style={{ fontSize: `${8 * scale}px`, position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}>
-                📅
-              </span>
-            </div>
-
-            {/* Bouton Réserver à droite du point */}
-            <button
-              onClick={!readOnly ? (e) => {
-                e.stopPropagation();
-                if (onTourClick) onTourClick(tour.id);
-              } : undefined}
-              className="absolute bg-[#ff7a45] text-white rounded-full font-semibold hover:bg-[#e8693a] transition-colors text-nowrap"
-              style={{
-                left: `${14 * scale}px`,
-                top: '-50%',
-                transform: 'translateY(-50%)',
-                padding: `${4 * scale}px ${8 * scale}px`,
-                fontSize: `${11 * scale}px`,
-                pointerEvents: !readOnly ? 'auto' : 'none',
-                cursor: !readOnly ? 'pointer' : 'default',
-                whiteSpace: 'nowrap',
-                border: 'none'
-              }}
-              disabled={readOnly}
-            >
-              Réserver
-            </button>
-          </div>
+            tour={tour}
+            scale={scale}
+            readOnly={readOnly}
+            onTourClick={onTourClick}
+          />
         ))}
       </div>
       

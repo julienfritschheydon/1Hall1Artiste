@@ -46,7 +46,7 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
     // Couleurs spécifiques par type d'action
     const actionColors: Record<ActionVariant, string> = {
       like: active ? 'text-red-500 hover:text-red-600' : 'text-gray-500 hover:text-red-500',
-      save: active ? 'text-blue-500 hover:text-blue-600' : 'text-gray-500 hover:text-blue-500',
+      save: active ? 'text-amber-500 hover:text-amber-600' : 'text-gray-500 hover:text-amber-500',
       share: 'text-gray-600 hover:text-gray-700',
       calendar: 'text-green-600 hover:text-green-700',
       delete: 'text-red-500 hover:text-red-600',

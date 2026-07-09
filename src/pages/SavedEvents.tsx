@@ -5,6 +5,9 @@ import { BackButton } from "@/components/ui/BackButton";
 import { ActionButton } from "@/components/ui/ActionButton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SavedEvent, getSavedEvents, removeSavedEvent, setEventNotification } from "@/services/savedEvents";
+import { Location } from "@/data/locations";
+import { getSavedLocations, removeSavedLocation } from "@/services/savedLocations";
+import Bookmark from "lucide-react/dist/esm/icons/bookmark";
 import { useNavigate } from "react-router-dom";
 import { Calendar, MapPin, Info } from "lucide-react";
 import Bell from "lucide-react/dist/esm/icons/bell";
@@ -26,6 +29,7 @@ import { type Tour, type Registration, type Waitlist } from "@/types/visitTypes"
 export default function SavedEvents() {
   const navigate = useNavigate();
   const [savedEvents, setSavedEvents] = useState<SavedEvent[]>([]);
+  const [savedLocations, setSavedLocations] = useState<Location[]>([]);
   const [notificationDate, setNotificationDate] = useState<string>("");
   const [notificationTime, setNotificationTime] = useState<string>("");
   const [activeEvent, setActiveEvent] = useState<string | null>(null);
@@ -47,9 +51,13 @@ export default function SavedEvents() {
   const [bookingError, setBookingError] = useState<string>("");
 
   useEffect(() => {
-    // Charger les événements sauvegardés
+    // Charger les événements et lieux sauvegardés
     setSavedEvents(getSavedEvents());
-    
+    setSavedLocations(getSavedLocations());
+
+    const onLocationsChanged = () => setSavedLocations(getSavedLocations());
+    window.addEventListener('savedLocationsChanged', onLocationsChanged);
+
     // Analytics: page view
     analytics.trackPageView("/saved", "Événements enregistrés");
     
@@ -78,6 +86,8 @@ export default function SavedEvents() {
     
     // Sauvegarder l'état des célébrations montrées
     localStorage.setItem('celebrationsShown', JSON.stringify(shownCelebrations));
+
+    return () => window.removeEventListener('savedLocationsChanged', onLocationsChanged);
   }, []);
 
   const handleRemoveEvent = (eventId: string) => {
@@ -85,6 +95,12 @@ export default function SavedEvents() {
     setSavedEvents(updatedEvents);
     // Analytics: unsave
     analytics.trackContentInteraction(EventAction.UNSAVE, "event", eventId, { source: "saved" });
+  };
+
+  const handleRemoveLocation = (locationId: string) => {
+    removeSavedLocation(locationId);
+    setSavedLocations(getSavedLocations());
+    analytics.trackContentInteraction(EventAction.UNSAVE, "location", locationId, { source: "saved" });
   };
 
   const handleSetNotification = (eventId: string) => {
@@ -313,9 +329,46 @@ export default function SavedEvents() {
           </Card>
         </div>
 
-        {savedEvents.length === 0 ? (
+        {savedLocations.length > 0 && (
+          <div className="mb-6">
+            <h2 className="text-lg font-bold text-[#4a5d94] mb-3 flex items-center gap-2">
+              <Bookmark className="h-5 w-5" />
+              Lieux enregistrés
+            </h2>
+            <div className="space-y-3">
+              {savedLocations.map((loc) => (
+                <Card
+                  key={loc.id}
+                  className="cursor-pointer transition-all duration-200 hover:shadow-lg border-2 border-amber-300 bg-white/95"
+                  onClick={() => {
+                    navigate(`/map?location=${loc.id}`);
+                    analytics.trackContentInteraction(EventAction.CLICK, "location", loc.id, { source: "saved" });
+                  }}
+                >
+                  <CardContent className="py-3 flex items-center justify-between">
+                    <div className="flex-1 pr-4">
+                      <div className="font-semibold text-[#1a2138]">{loc.name}</div>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemoveLocation(loc.id);
+                      }}
+                      className="h-8 w-8 flex items-center justify-center rounded-full text-gray-500 hover:text-red-500 hover:bg-gray-100 transition-colors"
+                      title="Retirer des favoris"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {savedEvents.length === 0 && savedLocations.length === 0 ? (
           <div className="text-center py-8">
-            <p className="text-gray-600 mb-4 text-lg">Vous n'avez pas encore sauvegardé d'événements.</p>
+            <p className="text-gray-600 mb-4 text-lg">Vous n'avez encore rien sauvegardé.</p>
             <ActionButton
               variant="primary"
               onClick={() => navigate("/program")}

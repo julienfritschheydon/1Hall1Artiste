@@ -1,4 +1,5 @@
-import { Event, events as allEvents } from "@/data/events";
+import { Event } from "@/data/events";
+import { dataService } from "./dataService";
 import { AchievementType, unlockAchievement } from "./achievements";
 
 // Type pour les événements sauvegardés
@@ -22,7 +23,7 @@ export const getSavedEvents = (): SavedEvent[] => {
     
     return ids.map(id => {
       if (!id) return null;
-      const event = allEvents.find((e: Event) => e && e.id === id);
+      const event = dataService.getEventById(id);
       if (!event) return null;
       
       return {

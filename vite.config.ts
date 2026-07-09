@@ -37,12 +37,9 @@ export default defineConfig(({ mode }) => ({
   },
   server: {
     host: "0.0.0.0",
-    port: 8082,
-    strictPort: true,
+    port: Number(process.env.PORT) || 8082,
+    strictPort: false,
     // Désactivation de HTTPS pour éviter les problèmes de certificat
-    hmr: {
-      port: 8082
-    },
   },
 
   plugins: [
