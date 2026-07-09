@@ -25,6 +25,15 @@ export async function rtdbPut(path: string, value: unknown): Promise<void> {
   if (!res.ok) throw new Error(`RTDB PUT ${path} failed: ${res.status}`);
 }
 
+export async function rtdbPatch(path: string, value: unknown): Promise<void> {
+  const res = await fetch(`${FIREBASE_DB_URL}/${path}.json${authQuery()}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(value),
+  });
+  if (!res.ok) throw new Error(`RTDB PATCH ${path} failed: ${res.status}`);
+}
+
 export async function rtdbDelete(path: string): Promise<void> {
   const res = await fetch(`${FIREBASE_DB_URL}/${path}.json${authQuery()}`, { method: "DELETE" });
   if (!res.ok) throw new Error(`RTDB DELETE ${path} failed: ${res.status}`);

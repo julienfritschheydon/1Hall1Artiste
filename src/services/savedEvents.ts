@@ -96,6 +96,19 @@ export const saveEvent = (event: Event): SavedEvent[] => {
   }
 };
 
+// Remplacer la liste complète des IDs sauvegardés (utilisé par la sync serveur).
+// Volontairement SANS achievements ni célébrations : un merge au démarrage ne
+// doit pas déclencher les récompenses de saveEvent. Un seul dispatch.
+export const replaceSavedEvents = (ids: string[]): void => {
+  try {
+    const clean = Array.from(new Set(ids.filter(id => typeof id === 'string' && id)));
+    localStorage.setItem('savedEvents', JSON.stringify(clean));
+    window.dispatchEvent(new CustomEvent('savedEventsChanged'));
+  } catch (error) {
+    console.error('Erreur dans replaceSavedEvents:', error);
+  }
+};
+
 // Supprimer un événement sauvegardé
 export const removeSavedEvent = (eventId: string): SavedEvent[] => {
   try {

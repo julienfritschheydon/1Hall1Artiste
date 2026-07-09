@@ -45,6 +45,16 @@ export const removeSavedLocation = (locationId: string): string[] => {
   return updated;
 };
 
+// Remplacer la liste complète (sync serveur) — un seul dispatch, aucun effet de bord
+export const replaceSavedLocations = (ids: string[]): void => {
+  try {
+    const clean = Array.from(new Set(ids.filter(id => typeof id === 'string' && id)));
+    writeIds(clean);
+  } catch (error) {
+    console.error('Erreur dans replaceSavedLocations:', error);
+  }
+};
+
 export const toggleSavedLocation = (locationId: string): string[] => {
   return isLocationSaved(locationId) ? removeSavedLocation(locationId) : saveLocation(locationId);
 };

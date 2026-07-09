@@ -24,6 +24,7 @@ import OfflineIndicator from "./components/OfflineIndicator";
 // Utilitaires
 import { registerServiceWorker } from "./utils/serviceWorkerRegistration";
 import { preloadAllOfflineData } from "./services/offlineService";
+import { initFavoritesSync } from "./services/favoritesSync";
 
 // Pages — chargées à la demande (code-splitting par route).
 // SplashScreen reste en statique car affiché au tout premier rendu.
@@ -292,6 +293,9 @@ const App: React.FC = () => {
     // Initialiser Firebase Analytics (nouveau système)
     initFirebaseAnalytics();
     console.log('[App] Firebase Analytics initialisé');
+
+    // Synchronisation des favoris (backup serveur, fire-and-forget)
+    initFavoritesSync();
     
     // Démarrer une nouvelle session analytics
     analytics.startSession();
