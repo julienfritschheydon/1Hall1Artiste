@@ -66,6 +66,8 @@ export interface MapComponentProps {
  */
 export const MapComponent: React.FC<MapComponentProps> = ({
   locations,
+  tours,
+  onTourClick,
   visitedLocations = [],
   onLocationClick,
   highlightedLocation = null,
