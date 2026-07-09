@@ -169,15 +169,13 @@ const Program = () => {
       <div className="brush-stroke-left"></div>
       <div className="brush-stroke-left-2"></div>
 
-      {/* Pinceaux pour expositions OU Clé de sol pour concerts en bas à droite */}
-      <div 
-        className="fixed bottom-14 right-0 pointer-events-none z-20 transition-all duration-500"
+      {/* Pinceaux en bas à droite */}
+      <div
+        className="fixed bottom-14 right-0 pointer-events-none z-20"
         style={{
-          width: currentFilter.toLowerCase().includes('concert') ? '75px' : '201px',
-          height: currentFilter.toLowerCase().includes('concert') ? '210px' : '259px',
-          backgroundImage: currentFilter === 'concert' 
-            ? `url('${getImagePath('/images/Petite Clef 50.png')}')`
-            : `url('${getImagePath('/images/Pinceaux.png')}')`,
+          width: '201px',
+          height: '259px',
+          backgroundImage: `url('${getImagePath('/images/Pinceaux.png')}')`,
           backgroundSize: 'contain',
           backgroundRepeat: 'no-repeat',
           backgroundPosition: 'bottom right'
