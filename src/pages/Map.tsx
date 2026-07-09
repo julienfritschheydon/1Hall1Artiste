@@ -41,12 +41,6 @@ interface MapProps {
   fullScreen?: boolean;
 }
 
-// Point(s) de départ des visites guidées, à ajouter/retirer à la main quand une
-// visite existe réellement — pas d'appel API, pas de fetch dynamique.
-// Récupérer id/coordonnées depuis /guide (espace guide) au moment de créer la visite.
-const STATIC_TOUR_POINTS: { id: string; title: string; startLocationX: number; startLocationY: number }[] = [
-  // { id: "tour_xxx", title: "Visite du samedi", startLocationX: 120, startLocationY: 340 },
-];
 
 const Map = ({ fullScreen = false }: MapProps) => {
   const navigate = useNavigate();
@@ -548,11 +542,6 @@ const Map = ({ fullScreen = false }: MapProps) => {
             <div className="relative h-full">
               <MapComponent
                 locations={mapLocations}
-                tours={STATIC_TOUR_POINTS}
-                onTourClick={(tourId) => {
-                  navigate(`/reservations?tour=${tourId}`);
-                  analytics.trackInteraction(EventAction.CLICK, 'tour_map_pin', { tourId });
-                }}
                 activeLocation={activeLocation}
                 highlightedLocation={highlightedLocation}
                 onClick={(e) => {

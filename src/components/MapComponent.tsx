@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useMemo, memo } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { createLogger } from "@/utils/logger";
 import { Location } from "@/data/locations";
 import { getImagePath } from "@/utils/imagePaths";
@@ -34,8 +34,6 @@ import { GeoPosition } from "./UserLocation";
 
 export interface MapComponentProps {
   locations: Location[];
-  tours?: Array<{ id: string; title: string; startLocationX: number; startLocationY: number; placesLeft?: number }>;
-  onTourClick?: (tourId: string) => void;
   visitedLocations?: string[];
   onLocationClick?: (locationId: string) => void;
   highlightedLocation?: string | null;
@@ -57,51 +55,6 @@ export interface MapComponentProps {
   onPanEnd?: (info: { totalDx: number; totalDy: number; distance: number; durationMs: number }) => void;
 };
 
-// Memoized component for tour pins to prevent re-renders on scale change
-interface TourPinProps {
-  tour: { id: string; title: string; startLocationX: number; startLocationY: number };
-  scale: number;
-  readOnly: boolean;
-  onTourClick?: (tourId: string) => void;
-}
-
-const TourPin = memo<TourPinProps>(({ tour, scale, readOnly, onTourClick }) => {
-  const handleClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (onTourClick) onTourClick(tour.id);
-  };
-
-  return (
-    <div
-      key={`tour-${tour.id}`}
-      className="absolute"
-      style={{
-        position: 'absolute',
-        left: `${tour.startLocationX * scale}px`,
-        top: `${tour.startLocationY * scale}px`,
-        zIndex: 20,
-        width: `${60 * scale}px`,
-        height: `${60 * scale}px`,
-        transform: 'translate(-50%, -50%)',
-        pointerEvents: !readOnly ? 'auto' : 'none',
-        cursor: !readOnly ? 'pointer' : 'default'
-      }}
-      onClick={!readOnly ? handleClick : undefined}
-    >
-      <div
-        className="absolute top-1/2 left-1/2 rounded-full shadow-lg border-2 border-white bg-[#ff7a45]/90"
-        style={{
-          transform: 'translate(-50%, -50%)',
-          width: `${32 * scale}px`,
-          height: `${32 * scale}px`
-        }}
-      />
-    </div>
-  );
-});
-
-TourPin.displayName = 'TourPin';
-
 /**
  * Composant de carte
  *
@@ -111,8 +64,6 @@ TourPin.displayName = 'TourPin';
  */
 export const MapComponent: React.FC<MapComponentProps> = ({
   locations,
-  tours,
-  onTourClick,
   visitedLocations = [],
   onLocationClick,
   highlightedLocation = null,
@@ -500,17 +451,6 @@ export const MapComponent: React.FC<MapComponentProps> = ({
               }}
             />
           </div>
-        ))}
-
-        {/* Tours (visites guidées) */}
-        {tours?.map((tour) => (
-          <TourPin
-            key={`tour-${tour.id}`}
-            tour={tour}
-            scale={scale}
-            readOnly={readOnly}
-            onTourClick={onTourClick}
-          />
         ))}
       </div>
       
