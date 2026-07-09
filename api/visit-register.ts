@@ -17,6 +17,8 @@ import {
   rtdbRegistrationSoftDelete,
   rtdbAuditLog,
   rtdbGuideCodeValidate,
+  rtdbWaitlistGetNext,
+  rtdbWaitlistUpdate,
 } from "./_visit-db.js";
 import { rtdbGet } from "./_firebase.js";
 import { buildVisitEmail } from "./_visit-email.js";
@@ -33,7 +35,7 @@ function sanitizeText(text: string): string {
 }
 
 // Helper: send email via EmailJS with retry + idempotency (Q1, Q2)
-async function sendRegistrationEmail(
+export async function sendRegistrationEmail(
   emailType: "confirmation" | "waitlist_confirmation" | "validation_expired" | "cancellation",
   data: Record<string, any>
 ): Promise<void> {
@@ -357,9 +359,61 @@ async function handleConfirmRegistration(req: VercelRequest, res: VercelResponse
   }
 }
 
+// Promote next waitlist entry when place becomes available
+export async function promoteWaitlist(tourId: string): Promise<void> {
+  try {
+    const nextWaitlist = await rtdbWaitlistGetNext(tourId);
+    if (!nextWaitlist) return; // No one waiting
+
+    const tour = await rtdbTourGet(tourId);
+    if (!tour) return;
+
+    // Create invitation token (24H)
+    const invitationToken = createRegistrationToken(nextWaitlist.id, nextWaitlist.email);
+
+    // Update waitlist entry with token
+    await rtdbWaitlistUpdate(nextWaitlist.id, {
+      invitationToken: invitationToken.token,
+      invitationExpiresAt: invitationToken.expiresAt,
+      invitationSentAt: new Date().toISOString(),
+    });
+
+    // Send offer email (immédiat)
+    try {
+      await sendRegistrationEmail("waitlist_offer", {
+        to: nextWaitlist.email,
+        firstName: nextWaitlist.firstName,
+        tourTitle: tour.title,
+        tourDate: tour.date,
+        acceptLink: `${SITE_URL}/#/reservations/confirm?token=${invitationToken.token}`,
+        deadline: new Date(new Date().getTime() + 24 * 60 * 60 * 1000),
+        registrationId: nextWaitlist.id,
+        idempotencyKey: `${nextWaitlist.id}_waitlist_offer`,
+      });
+    } catch (e) {
+      console.error("[visit-register] Failed to send waitlist offer email:", e);
+      // Log failure but don't throw — token is set, person can check their email
+      await rtdbAuditLog("waitlist_offer_email_failed", {
+        waitlistId: nextWaitlist.id,
+        tourId,
+        email: nextWaitlist.email,
+        error: String(e),
+      });
+    }
+
+    console.log(`[visit-register] Promoted waitlist: ${nextWaitlist.id} for tour ${tourId}`);
+  } catch (e) {
+    console.error("[visit-register promoteWaitlist]", e);
+    await rtdbAuditLog("waitlist_promotion_failed", {
+      tourId,
+      error: String(e),
+    });
+  }
+}
+
 // POST /api/visit-register?action=cancel — user annule son inscription (spec §5)
 // Body: { registrationId, email }. Email = clé d'auth faible (visite gratuite).
-// Place libérée → cron promote-waitlist prévient le premier en file.
+// Place libérée → immédiat promotion waitlist + email offre
 async function handleCancelRegistration(req: VercelRequest, res: VercelResponse) {
   const { registrationId, email } = req.body;
 
@@ -405,6 +459,9 @@ async function handleCancelRegistration(req: VercelRequest, res: VercelResponse)
     } catch (e) {
       console.error("[visit-register] cancellation email failed:", e);
     }
+
+    // Promote waitlist: send offer to next person immediately
+    await promoteWaitlist(registration.tourId);
 
     return res.json({ ok: true, message: "Inscription annulée" });
   } catch (e) {

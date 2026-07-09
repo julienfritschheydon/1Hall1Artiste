@@ -5,6 +5,7 @@
 
 import { VercelRequest, VercelResponse } from "@vercel/node";
 import { rtdbTourCreate, rtdbTourGet, rtdbTourUpdate, rtdbToursListFuture, rtdbToursListAll, rtdbGuideCodeValidate, rtdbCountRegisteredByTour } from "./_visit-db.js";
+import { promoteWaitlist } from "./visit-register.js";
 import { Tour, TourCreateInput } from "../src/types/visitTypes.js";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -189,12 +190,19 @@ async function handlePut(req: VercelRequest, res: VercelResponse) {
     await rtdbTourUpdate(id, updates);
 
     // Spec §9: capacity reduced below confirmed count → warn guide (no auto-removal).
-    // Capacity increase auto-fills via promote-waitlist cron (free-slot logic).
     let warning: string | undefined;
     if (updates.capacity !== undefined && updates.capacity < tour.capacity) {
       const confirmedCount = await rtdbCountRegisteredByTour(id);
       if (updates.capacity < confirmedCount) {
         warning = `Nouvelle capacité (${updates.capacity}) < inscrits confirmés (${confirmedCount}). ${confirmedCount - updates.capacity} personne(s) en surnombre — à gérer manuellement (annuler des inscriptions).`;
+      }
+    }
+
+    // Capacity increase: promote waitlist (immediate, not batch)
+    if (updates.capacity !== undefined && updates.capacity > tour.capacity) {
+      const newPlaces = updates.capacity - tour.capacity;
+      for (let i = 0; i < newPlaces; i++) {
+        await promoteWaitlist(id);
       }
     }
 

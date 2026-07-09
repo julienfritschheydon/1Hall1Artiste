@@ -83,8 +83,8 @@ Plateforme d'inscription aux visites guidées. Guides gèrent création/inscript
 ## 4. File d'Attente
 
 ### Si place libérée
-- **Processus**:
-  1. Email auto → personne suivante file attente
+- **Processus** (immédiat):
+  1. Email auto immédiat → personne suivante file attente
   2. Contient lien pour s'inscrire (24H valide)
   3. Passé 24H: → personne suivante
   4. Boucle jusqu'à acceptation ou fin queue
@@ -242,8 +242,8 @@ Plateforme d'inscription aux visites guidées. Guides gèrent création/inscript
 - Email dédup check: max 2 places sur TOUTE la visite
 
 ### Si place se libère en cascade
-- Batch traite file attente: email → 24H → next
-- Parallélisation possible si plusieurs libérations
+- Immédiat: email d'offre → 24H → next
+- Plusieurs libérations en même temps: chacun reçoit offre immédiate (sans attendre le précédent)
 
 ### Données avant suppression
 - Dashboard affiche "données supprimées" 24H après
@@ -251,7 +251,7 @@ Plateforme d'inscription aux visites guidées. Guides gèrent création/inscript
 
 ### Guide modifie capacité
 - Si réduit: surnuméraires vont en file attente
-- Si augmente: email auto aux premiers en queue
+- Si augmente: email auto immédiat aux premiers en queue
 
 ---
 
@@ -262,9 +262,9 @@ Plateforme d'inscription aux visites guidées. Guides gèrent création/inscript
 | **Immédiat** | User inscrit | Confirmation + lien validation | Cliquer lien (24H) |
 | **Immédiat** | User file attente | Position queue + lien consultation | Voir queue ou annuler |
 | **+24H** | User (si pas validation) | "Expirée, supprimée" | Réinscrire si possible |
-| **+24H** | Queue (si place libérée) | "Place dispo, lien inscription" | Cliquer lien (24H) |
+| **Immédiat** | Queue (si place libérée) | "Place dispo, lien inscription" | Cliquer lien (24H) |
+| **+24H après** | Queue suivante (si refusée) | "Place repassée à file" | Attendre |
 | **+7j** | Confirmés | Rappel visite | Lecture info |
-| **+7j** | Confirmés aussi | "24H avant, confirmez ou annulation" | Confirmer ou annuler |
 | **+1j avant** | Confirmés | Demande confirmation (24H deadline) | Confirmer ou annuler |
 | **+24H après** | Inscrits | "Données supprimées RGPD" | N/A |
 
@@ -295,6 +295,7 @@ Plateforme d'inscription aux visites guidées. Guides gèrent création/inscript
 
 - **Authentification**: Code accès guide (pas de login/mdp, lien protégé comme artiste)
 - **Tokens email**: JWT ou UUID, expiration 24H ou 7j selon contexte
-- **Batch jobs**: Suppression 24H après, relance file attente, rappels 7j/1j
+- **Promotions waitlist**: **Immédiat** lors libération place (pas batch) — déclenché dans flux annulation/confirma...
+- **Batch jobs**: Suppression 24H après, rappels 7j/1j (24H avant), vérification expiration offres waitlist
 - **Emails**: Template HTML, replay test possible
 - **Audit logs**: Garder trace suppression RGPD (soft delete + log table)
