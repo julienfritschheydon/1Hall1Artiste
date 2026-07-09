@@ -355,65 +355,49 @@ export default function SavedEvents() {
                   {bookings.registrations.map((reg) => {
                     const tour = bookings.tours[reg.tourId];
                     return tour ? (
-                      <div key={reg.id} className="border border-gray-200 rounded p-2 bg-gray-50">
-                        <div className="font-semibold text-[#1a2138]">{tour.title}</div>
-                        <div className="text-gray-600">{new Date(tour.date).toLocaleDateString('fr-FR')} à {new Date(tour.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
-                        <div className="text-xs text-gray-600">Statut: <span className={reg.status === 'confirmé' ? 'text-green-600 font-semibold' : 'text-orange-600'}>{reg.status}</span></div>
-                        <div className="flex gap-1 mt-2">
-                          <ActionButton
-                            variant="outline"
-                            size="sm"
-                            className="flex-1 h-6 text-xs"
-                            onClick={() => {
-                              // TODO: Annuler
-                            }}
-                          >
-                            Annuler
-                          </ActionButton>
-                          <ActionButton
-                            variant="outline"
-                            size="sm"
-                            className="flex-1 h-6 text-xs"
-                            onClick={() => {
-                              // TODO: Détails
-                            }}
-                          >
-                            Détails
-                          </ActionButton>
-                        </div>
-                      </div>
+                      <Card key={reg.id} className="border-2 border-amber-300 bg-white/95">
+                        <CardContent className="py-3">
+                          <div className="font-semibold text-[#1a2138]">{tour.title}</div>
+                          <div className="text-gray-600">{new Date(tour.date).toLocaleDateString('fr-FR')} à {new Date(tour.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
+                          <div className="text-xs text-gray-600">Statut: <span className={reg.status === 'confirmé' ? 'text-green-600 font-semibold' : 'text-orange-600'}>{reg.status}</span></div>
+                          <div className="mt-2">
+                            <ActionButton
+                              variant="outline"
+                              size="sm"
+                              className="w-full h-6 text-xs"
+                              onClick={() => {
+                                // TODO: Annuler
+                              }}
+                            >
+                              Annuler
+                            </ActionButton>
+                          </div>
+                        </CardContent>
+                      </Card>
                     ) : null;
                   })}
                   {bookings.waitlist.map((wl) => {
                     const tour = bookings.tours[wl.tourId];
                     return tour ? (
-                      <div key={wl.id} className="border border-gray-200 rounded p-2 bg-yellow-50">
-                        <div className="font-semibold text-[#1a2138]">{tour.title}</div>
-                        <div className="text-gray-600">{new Date(tour.date).toLocaleDateString('fr-FR')}</div>
-                        <div className="text-xs text-orange-600 font-semibold">File d'attente #{wl.position}</div>
-                        <div className="flex gap-1 mt-2">
-                          <ActionButton
-                            variant="outline"
-                            size="sm"
-                            className="flex-1 h-6 text-xs"
-                            onClick={() => {
-                              // TODO: Annuler
-                            }}
-                          >
-                            Annuler
-                          </ActionButton>
-                          <ActionButton
-                            variant="outline"
-                            size="sm"
-                            className="flex-1 h-6 text-xs"
-                            onClick={() => {
-                              // TODO: Détails
-                            }}
-                          >
-                            Détails
-                          </ActionButton>
-                        </div>
-                      </div>
+                      <Card key={wl.id} className="border-2 border-amber-300 bg-yellow-50/95">
+                        <CardContent className="py-3">
+                          <div className="font-semibold text-[#1a2138]">{tour.title}</div>
+                          <div className="text-gray-600">{new Date(tour.date).toLocaleDateString('fr-FR')}</div>
+                          <div className="text-xs text-orange-600 font-semibold">File d'attente #{wl.position}</div>
+                          <div className="mt-2">
+                            <ActionButton
+                              variant="outline"
+                              size="sm"
+                              className="w-full h-6 text-xs"
+                              onClick={() => {
+                                // TODO: Annuler
+                              }}
+                            >
+                              Annuler
+                            </ActionButton>
+                          </div>
+                        </CardContent>
+                      </Card>
                     ) : null;
                   })}
                 </div>

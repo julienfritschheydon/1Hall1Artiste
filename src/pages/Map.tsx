@@ -17,7 +17,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import ArrowLeft from "lucide-react/dist/esm/icons/arrow-left";
 import X from "lucide-react/dist/esm/icons/x";
 import Info from "lucide-react/dist/esm/icons/info";
-import Calendar from "lucide-react/dist/esm/icons/calendar";
 import { Tour } from "../types/visitTypes";
 import Bookmark from "lucide-react/dist/esm/icons/bookmark";
 import BookmarkCheck from "lucide-react/dist/esm/icons/bookmark-check";
@@ -631,27 +630,6 @@ const Map = ({ fullScreen = false }: MapProps) => {
             </div>
           </div>
 
-          {/* FAB: Réserver une visite */}
-          <button
-            onClick={() => {
-              navigate('/reservations');
-              analytics.trackInteraction(EventAction.CLICK, 'fab_reserve_tour');
-            }}
-            className="fixed bottom-20 right-4 bg-[#ff7a45] hover:bg-[#e8693a] text-white rounded-full shadow-lg transition-all duration-200 hover:scale-110 active:scale-95 z-40"
-            style={{
-              padding: '12px',
-              width: '48px',
-              height: '48px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontWeight: 600,
-              fontSize: '14px'
-            }}
-            aria-label="Réserver une visite guidée"
-          >
-            <Calendar style={{ width: '24px', height: '24px' }} />
-          </button>
         </div>
 
       </div>
