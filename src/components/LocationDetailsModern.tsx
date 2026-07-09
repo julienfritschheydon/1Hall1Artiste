@@ -36,6 +36,9 @@ import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
 import { SwipeIndicator } from "@/components/ui/SwipeIndicator";
 import { AudioGuide } from "@/components/AudioGuide";
 import { buildShareUrl } from "@/utils/url";
+import { useTours } from "@/hooks/useTours";
+import { toursAtLocation } from "@/utils/tourLocation";
+import { Tour } from "@/types/visitTypes";
 
 // Composant Like simple avec logique partagée
 interface LikeButtonSimpleProps {
@@ -87,6 +90,7 @@ interface LocationDetailsModernProps {
   onClose: () => void;
   onSaveEvent: (event: Event, e: React.MouseEvent) => void;
   onSelectEvent: (event: Event) => void;
+  onSelectTour?: (tour: Tour) => void;
   onMarkVisited: (visited: boolean) => void;
   onNavigate: () => void;
   isVisited: boolean;
@@ -103,6 +107,7 @@ export const LocationDetailsModern: React.FC<LocationDetailsModernProps> = ({
   onClose,
   onSaveEvent,
   onSelectEvent,
+  onSelectTour,
   onMarkVisited,
   onNavigate,
   isVisited
@@ -117,37 +122,14 @@ export const LocationDetailsModern: React.FC<LocationDetailsModernProps> = ({
   const [audioLoading, setAudioLoading] = useState(false);
   const [showFullDescription, setShowFullDescription] = useState(false);
   const [isLocSaved, setIsLocSaved] = useState(() => isLocationSaved(location.id));
-  const [visits, setVisits] = useState<Array<{ id: string; title: string; date: string; placesLeft?: number }>>([]);
-  const [visitsLoading, setVisitsLoading] = useState(false);
+  // Requête partagée (react-query) — même cache que Map/Program, aucun fetch
+  // dédié à l'ouverture de la fiche.
+  const { tours: allTours, isLoading: visitsLoading } = useTours();
+  const visits = toursAtLocation(allTours, location);
 
   useEffect(() => {
     setIsLocSaved(isLocationSaved(location.id));
   }, [location.id]);
-
-  // Visites guidées partant de ce lieu — chargées à l'ouverture de la fiche
-  // uniquement (pas au chargement de la carte), filtrées par coordonnées.
-  useEffect(() => {
-    let cancelled = false;
-    setVisitsLoading(true);
-    fetch("/api/visit-tours")
-      .then((res) => (res.ok ? res.json() : []))
-      .then((data: Array<{ id: string; title: string; date: string; startLocationX: number; startLocationY: number; placesLeft?: number }>) => {
-        if (cancelled) return;
-        const matching = Array.isArray(data)
-          ? data.filter((t) => t.startLocationX === location.x && t.startLocationY === location.y)
-          : [];
-        setVisits(matching);
-      })
-      .catch(() => {
-        if (!cancelled) setVisits([]);
-      })
-      .finally(() => {
-        if (!cancelled) setVisitsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [location.id, location.x, location.y]);
 
   const handleToggleSaveLocation = () => {
     toggleSavedLocation(location.id);
@@ -488,22 +470,19 @@ export const LocationDetailsModern: React.FC<LocationDetailsModernProps> = ({
           )}
 
           {/* Visites guidées partant de ce lieu */}
-          {(visitsLoading || visits.length > 0) && (
+          {visits.length > 0 && (
             <div className="mb-6">
               <h3 className="font-semibold text-[#1a2138] mb-3 font-serif text-lg">
                 Visites guidées
               </h3>
-              {visitsLoading ? (
-                <p className="text-sm text-gray-500">Chargement…</p>
-              ) : (
-                <div className="space-y-2">
+              <div className="space-y-2">
                   {visits.map((visit) => (
                     <div
                       key={visit.id}
                       className="flex items-center justify-between bg-white/80 border-2 border-amber-300 rounded-lg p-3 cursor-pointer hover:bg-white transition-colors"
                       onClick={() => {
                         onClose();
-                        navigate(`/reservations?tour=${visit.id}`);
+                        if (onSelectTour) onSelectTour(visit);
                       }}
                     >
                       <div>
@@ -515,8 +494,7 @@ export const LocationDetailsModern: React.FC<LocationDetailsModernProps> = ({
                       <span className="text-xs font-semibold text-[#ff7a45]">Réserver</span>
                     </div>
                   ))}
-                </div>
-              )}
+              </div>
             </div>
           )}
 

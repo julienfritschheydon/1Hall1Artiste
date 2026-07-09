@@ -34,6 +34,8 @@ import { GeoPosition } from "./UserLocation";
 
 export interface MapComponentProps {
   locations: Location[];
+  // IDs des lieux hébergeant une visite guidée — anneau distinctif sur le point existant
+  locationsWithTours?: string[];
   visitedLocations?: string[];
   onLocationClick?: (locationId: string) => void;
   highlightedLocation?: string | null;
@@ -64,6 +66,7 @@ export interface MapComponentProps {
  */
 export const MapComponent: React.FC<MapComponentProps> = ({
   locations,
+  locationsWithTours = [],
   visitedLocations = [],
   onLocationClick,
   highlightedLocation = null,
@@ -443,6 +446,10 @@ export const MapComponent: React.FC<MapComponentProps> = ({
                       : location.visited
                         ? 'bg-[#4CAF50]/90'
                         : 'bg-[#4a5d94]/90'
+                } ${
+                  locationsWithTours.includes(location.id) && activeLocation !== location.id && highlightedLocation !== location.id
+                    ? 'ring-2 ring-[#ff7a45] ring-offset-1'
+                    : ''
                 }`}
               style={{
                 transform: 'translate(-50%, -50%)',

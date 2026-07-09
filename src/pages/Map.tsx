@@ -34,6 +34,9 @@ import { unlockAchievement, AchievementType } from "../services/achievements";
 import { AudioGuideButton } from "@/components/AudioGuideButton";
 import { AudioGuidePlayer } from "@/components/AudioGuidePlayer";
 import { MapHeader } from "@/components/MapHeader";
+import { TourDetailsModal } from "@/components/TourDetailsModal";
+import { useTours } from "@/hooks/useTours";
+import { type Tour } from "@/types/visitTypes";
 // Créer un logger pour le composant Map
 const logger = createLogger('Map');
 
@@ -52,6 +55,12 @@ const Map = ({ fullScreen = false }: MapProps) => {
 
   // Utiliser directement les emplacements du service de données
   const [mapLocations, setMapLocations] = useState(locations);
+  const [selectedTour, setSelectedTour] = useState<Tour | null>(null);
+  const { tours: allTours } = useTours();
+  const locationsWithTours = useMemo(
+    () => mapLocations.filter((loc) => allTours.some((t) => t.startLocationX === loc.x && t.startLocationY === loc.y)).map((loc) => loc.id),
+    [mapLocations, allTours]
+  );
   const [savedEventIds, setSavedEventIds] = useState<string[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [activeLocation, setActiveLocation] = useState<string | null>(null);
@@ -542,6 +551,7 @@ const Map = ({ fullScreen = false }: MapProps) => {
             <div className="relative h-full">
               <MapComponent
                 locations={mapLocations}
+                locationsWithTours={locationsWithTours}
                 activeLocation={activeLocation}
                 highlightedLocation={highlightedLocation}
                 onClick={(e) => {
@@ -640,6 +650,10 @@ const Map = ({ fullScreen = false }: MapProps) => {
             analytics.trackProgramInteraction(EventAction.EVENT_DETAILS, { event_id: event.id, source: 'map' });
             setSelectedEvent(event);
           }}
+          onSelectTour={(tour) => {
+            analytics.trackInteraction(EventAction.CLICK, 'tour_details', { tour_id: tour.id, source: 'map' });
+            setSelectedTour(tour);
+          }}
           onMarkVisited={(visited) => {
             if (activeLocation) {
               markLocationAsVisited(activeLocation, visited);
@@ -672,6 +686,13 @@ const Map = ({ fullScreen = false }: MapProps) => {
       
       {/* Boîte de dialogue de consentement de localisation retirée */}
       
+      {/* Détails d'une visite guidée — inscription intégrée, aucune navigation */}
+      <TourDetailsModal
+        tour={selectedTour}
+        isOpen={!!selectedTour}
+        onClose={() => setSelectedTour(null)}
+      />
+
       {/* Audio Guide Player Global */}
       <AudioGuidePlayer />
       

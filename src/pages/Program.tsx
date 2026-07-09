@@ -16,6 +16,13 @@ import { IMAGE_PATHS } from "../constants/imagePaths";
 import { getImagePath } from "@/utils/imagePaths";
 import { toast } from "@/components/ui/use-toast";
 import { type Tour } from "@/types/visitTypes";
+import { useTours } from "@/hooks/useTours";
+import { TourDetailsModal } from "@/components/TourDetailsModal";
+import { TourCardModern } from "@/components/TourCardModern";
+
+const DAY_INDEX: Record<"samedi" | "dimanche", number> = { samedi: 6, dimanche: 0 };
+const toursByDay = (tours: Tour[], day: "samedi" | "dimanche") =>
+  tours.filter((t) => new Date(t.date).getDay() === DAY_INDEX[day]);
 
 const Program = () => {
   const location = useLocation();
@@ -24,32 +31,18 @@ const Program = () => {
   const getEventsByDay = (day: "samedi" | "dimanche") =>
     allRemoteEvents.filter(e => e.days.includes(day));
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+  const [selectedTour, setSelectedTour] = useState<Tour | null>(null);
   const [currentFilter, setCurrentFilter] = useState<string>("");
   const [savedEventIds, setSavedEventIds] = useState<string[]>([]);
   const [eventSwipeIndex, setEventSwipeIndex] = useState<number>(0);
-  const [tours, setTours] = useState<Tour[]>([]);
-  
+  const { tours, isLoading: toursLoading } = useTours();
+
   useEffect(() => {
     analytics.trackPageView('/program', 'Programme');
     const saved = getSavedEvents();
     setSavedEventIds(saved.map(e => e.id));
   }, []);
 
-  useEffect(() => {
-    const loadTours = async () => {
-      try {
-        const res = await fetch('/api/visit-tours');
-        if (res.ok) {
-          const data = await res.json();
-          setTours(Array.isArray(data) ? data : data.tours || []);
-        }
-      } catch (err) {
-        console.error('Error loading tours:', err);
-      }
-    };
-    loadTours();
-  }, []);
-  
   // Effet séparé pour gérer l'ouverture d'événement depuis l'URL
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -103,7 +96,9 @@ const Program = () => {
   // Onglets dynamiques : une catégorie par valeur présente. Expositions/Concerts en tête, puis Visites guidées.
   const categories = useMemo(() => {
     const set = new Set(allRemoteEvents.map(catOf));
-    if (tours.length > 0) set.add('Visites guidées');
+    // Afficher l'onglet dès le chargement (pas d'attente du fetch) pour éviter
+    // qu'il n'apparaisse en retard ; il disparaît si le fetch confirme 0 visite.
+    if (tours.length > 0 || toursLoading) set.add('Visites guidées');
     const order = (c: string) => {
       if (c === 'Exposition' || c === 'Expositions') return 0;
       if (c === 'Concert' || c === 'Concerts') return 1;
@@ -111,7 +106,7 @@ const Program = () => {
       return 3;
     };
     return Array.from(set).sort((a, b) => order(a) - order(b) || a.localeCompare(b));
-  }, [allRemoteEvents, tours]);
+  }, [allRemoteEvents, tours, toursLoading]);
 
   // Sélectionne le premier onglet dès que les catégories sont connues.
   useEffect(() => {
@@ -234,42 +229,32 @@ const Program = () => {
           {currentFilter === 'Visites guidées' ? (
             <>
               <TabsContent value="samedi" className="space-y-4">
-                {tours.map((tour, index) => (
-                  <div key={`tour-${tour.id}`} className="bg-white/95 border-2 border-amber-300 rounded-lg p-4 hover:shadow-lg transition-all cursor-pointer" onClick={() => navigate('/reservations')}>
-                    <div className="flex justify-between items-start mb-2">
-                      <div className="flex-1">
-                        <h3 className="font-bold text-lg text-[#1a2138]">{tour.title}</h3>
-                        <div className="text-xs text-gray-500 mt-1">
-                          {new Date(tour.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                        </div>
-                      </div>
-                      <span className="text-xs font-semibold bg-orange-100 text-orange-800 px-2 py-1 rounded-full whitespace-nowrap ml-2">{tour.placesLeft || tour.capacity} places</span>
-                    </div>
-                    <button className="w-full mt-3 bg-[#ff7a45] text-white py-2 rounded-full font-medium hover:bg-[#e8693a] transition-colors text-sm">
-                      Réserver
-                    </button>
-                  </div>
-                ))}
-                {tours.length === 0 && <p className="text-gray-600 py-4 text-center text-sm">Aucune visite guidée disponible</p>}
+                {toursLoading ? (
+                  <p className="text-gray-600 py-4 text-center text-sm">Chargement…</p>
+                ) : (
+                  <>
+                    {toursByDay(tours, "samedi").map((tour, index) => (
+                      <TourCardModern key={tour.id} tour={tour} cardIndex={index} onTourClick={() => setSelectedTour(tour)} />
+                    ))}
+                    {toursByDay(tours, "samedi").length === 0 && (
+                      <p className="text-gray-600 py-4 text-center text-sm">Aucune visite guidée disponible</p>
+                    )}
+                  </>
+                )}
               </TabsContent>
               <TabsContent value="dimanche" className="space-y-4">
-                {tours.map((tour, index) => (
-                  <div key={`tour-${tour.id}`} className="bg-white/95 border-2 border-amber-300 rounded-lg p-4 hover:shadow-lg transition-all cursor-pointer" onClick={() => navigate('/reservations')}>
-                    <div className="flex justify-between items-start mb-2">
-                      <div className="flex-1">
-                        <h3 className="font-bold text-lg text-[#1a2138]">{tour.title}</h3>
-                        <div className="text-xs text-gray-500 mt-1">
-                          {new Date(tour.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                        </div>
-                      </div>
-                      <span className="text-xs font-semibold bg-orange-100 text-orange-800 px-2 py-1 rounded-full whitespace-nowrap ml-2">{tour.placesLeft || tour.capacity} places</span>
-                    </div>
-                    <button className="w-full mt-3 bg-[#ff7a45] text-white py-2 rounded-full font-medium hover:bg-[#e8693a] transition-colors text-sm">
-                      Réserver
-                    </button>
-                  </div>
-                ))}
-                {tours.length === 0 && <p className="text-gray-600 py-4 text-center text-sm">Aucune visite guidée disponible</p>}
+                {toursLoading ? (
+                  <p className="text-gray-600 py-4 text-center text-sm">Chargement…</p>
+                ) : (
+                  <>
+                    {toursByDay(tours, "dimanche").map((tour, index) => (
+                      <TourCardModern key={tour.id} tour={tour} cardIndex={index} onTourClick={() => setSelectedTour(tour)} />
+                    ))}
+                    {toursByDay(tours, "dimanche").length === 0 && (
+                      <p className="text-gray-600 py-4 text-center text-sm">Aucune visite guidée disponible</p>
+                    )}
+                  </>
+                )}
               </TabsContent>
             </>
           ) : (
@@ -329,7 +314,13 @@ const Program = () => {
           }
         }}
       />
-      
+
+      <TourDetailsModal
+        tour={selectedTour}
+        isOpen={!!selectedTour}
+        onClose={() => setSelectedTour(null)}
+      />
+
       <BottomNavigation />
     </div>
   );
