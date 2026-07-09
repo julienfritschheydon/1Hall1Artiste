@@ -632,28 +632,26 @@ const Map = ({ fullScreen = false }: MapProps) => {
           </div>
 
           {/* FAB: Réserver une visite */}
-          {tours.length > 0 && (
-            <button
-              onClick={() => {
-                navigate('/reservations');
-                analytics.trackInteraction(EventAction.CLICK, 'fab_reserve_tour');
-              }}
-              className="fixed bottom-20 right-4 bg-[#ff7a45] hover:bg-[#e8693a] text-white rounded-full shadow-lg transition-all duration-200 hover:scale-110 active:scale-95 z-40"
-              style={{
-                padding: '12px',
-                width: '48px',
-                height: '48px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: 600,
-                fontSize: '14px'
-              }}
-              aria-label="Réserver une visite guidée"
-            >
-              <Calendar style={{ width: '24px', height: '24px' }} />
-            </button>
-          )}
+          <button
+            onClick={() => {
+              navigate('/reservations');
+              analytics.trackInteraction(EventAction.CLICK, 'fab_reserve_tour');
+            }}
+            className="fixed bottom-20 right-4 bg-[#ff7a45] hover:bg-[#e8693a] text-white rounded-full shadow-lg transition-all duration-200 hover:scale-110 active:scale-95 z-40"
+            style={{
+              padding: '12px',
+              width: '48px',
+              height: '48px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: 600,
+              fontSize: '14px'
+            }}
+            aria-label="Réserver une visite guidée"
+          >
+            <Calendar style={{ width: '24px', height: '24px' }} />
+          </button>
         </div>
 
       </div>
