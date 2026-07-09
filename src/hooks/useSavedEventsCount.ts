@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { getSavedEvents } from '@/services/savedEvents';
+import { getSavedLocationIds } from '@/services/savedLocations';
 
 export function useSavedEventsCount() {
   const [count, setCount] = useState(0);
 
   const updateCount = () => {
-    setCount(getSavedEvents().length);
+    setCount(getSavedEvents().length + getSavedLocationIds().length);
   };
 
   useEffect(() => {
@@ -14,7 +15,7 @@ export function useSavedEventsCount() {
 
     // Écouter les changements dans le localStorage
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'savedEvents') {
+      if (e.key === 'savedEvents' || e.key === 'savedLocations') {
         updateCount();
       }
     };
@@ -27,10 +28,12 @@ export function useSavedEventsCount() {
     };
 
     window.addEventListener('savedEventsChanged', handleCustomEvent);
+    window.addEventListener('savedLocationsChanged', handleCustomEvent);
 
     return () => {
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('savedEventsChanged', handleCustomEvent);
+      window.removeEventListener('savedLocationsChanged', handleCustomEvent);
     };
   }, []);
 

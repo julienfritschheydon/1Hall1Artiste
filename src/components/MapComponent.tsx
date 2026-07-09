@@ -93,7 +93,6 @@ const TourPin = memo<TourPinProps>(({ tour, scale, readOnly, onTourClick }) => {
           cursor: !readOnly ? 'pointer' : 'default'
         }}
         onClick={!readOnly ? handleClick : undefined}
-        title={tour.title}
       >
         <span style={{ fontSize: `${8 * scale}px`, position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}>
           📅

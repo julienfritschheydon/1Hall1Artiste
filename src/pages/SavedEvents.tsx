@@ -27,6 +27,7 @@ import { analytics, EventAction } from "@/services/firebaseAnalytics";
 import { type Tour, type Registration, type Waitlist } from "@/types/visitTypes";
 import { recoverByEmail, attachEmail, detachEmail, getAttachedEmail } from "@/services/favoritesSync";
 import X from "lucide-react/dist/esm/icons/x";
+import Pencil from "lucide-react/dist/esm/icons/pencil";
 
 export default function SavedEvents() {
   const navigate = useNavigate();
@@ -53,6 +54,7 @@ export default function SavedEvents() {
   const [bookingError, setBookingError] = useState<string>("");
   const [favoritesMessage, setFavoritesMessage] = useState<string>("");
   const [emailAttached, setEmailAttached] = useState<boolean>(() => Boolean(getAttachedEmail()));
+  const [emailEditing, setEmailEditing] = useState<boolean>(() => !getAttachedEmail());
   const [nudgeDismissed, setNudgeDismissed] = useState<boolean>(() => {
     try { return localStorage.getItem('favorites-nudge-dismissed') === 'true'; } catch { return true; }
   });
@@ -240,18 +242,31 @@ export default function SavedEvents() {
             </CardHeader>
             <CardContent className="pt-0">
               <div className="space-y-3">
-                <Input
-                  type="email"
-                  placeholder="Votre email"
-                  value={bookingEmail}
-                  onChange={(e) => {
-                    setBookingEmail(e.target.value);
-                    setBookingError("");
-                    setFavoritesMessage("");
-                  }}
-                  className="text-sm"
-                />
-                <ActionButton
+                {!emailEditing && emailAttached ? (
+                  <div className="flex items-center justify-between text-sm bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                    <span className="text-gray-800 truncate">{bookingEmail}</span>
+                    <button
+                      onClick={() => setEmailEditing(true)}
+                      className="flex items-center gap-1 text-[#ff7a45] hover:text-[#e8693a] text-xs font-medium flex-shrink-0 ml-2"
+                    >
+                      <Pencil className="h-3 w-3" />
+                      Modifier
+                    </button>
+                  </div>
+                ) : (
+                  <Input
+                    type="email"
+                    placeholder="Votre email"
+                    value={bookingEmail}
+                    onChange={(e) => {
+                      setBookingEmail(e.target.value);
+                      setBookingError("");
+                      setFavoritesMessage("");
+                    }}
+                    className="text-sm"
+                  />
+                )}
+                {(emailEditing || !emailAttached) && <ActionButton
                   variant="primary"
                   onClick={async () => {
                     const email = bookingEmail.trim();
@@ -289,6 +304,7 @@ export default function SavedEvents() {
                       const r = favoritesOutcome.value;
                       if (r.status === 'ok') {
                         setEmailAttached(true);
+                        setEmailEditing(false);
                         const total = r.newEvents + r.newLocations;
                         setFavoritesMessage(total > 0
                           ? `${total} nouveau${total > 1 ? 'x' : ''} favori${total > 1 ? 's' : ''} ajouté${total > 1 ? 's' : ''}.`
@@ -296,6 +312,7 @@ export default function SavedEvents() {
                       } else if (r.status === 'not_found') {
                         // Pas encore de favoris associés : on associe cet appareil maintenant
                         setEmailAttached(true);
+                        setEmailEditing(false);
                         void attachEmail(email);
                         setFavoritesMessage("Vos favoris seront désormais associés à cet email.");
                       } else {
@@ -309,7 +326,7 @@ export default function SavedEvents() {
                   className="w-full rounded-full px-6 py-2 font-medium bg-[#ff7a45] text-white hover:bg-[#e8693a]"
                 >
                   {bookingLoading ? "Chargement..." : "Retrouver mes infos"}
-                </ActionButton>
+                </ActionButton>}
                 {bookingError && <p className="text-xs text-red-600">{bookingError}</p>}
                 {favoritesMessage && <p className="text-xs text-green-700">{favoritesMessage}</p>}
                 <p className="text-[11px] text-gray-500">
@@ -322,6 +339,7 @@ export default function SavedEvents() {
                         onClick={async () => {
                           await detachEmail();
                           setEmailAttached(false);
+                          setEmailEditing(true);
                           setFavoritesMessage("Email dissocié de vos favoris.");
                         }}
                       >
@@ -490,12 +508,22 @@ export default function SavedEvents() {
                       </div>
                       
                       {/* Image de l'événement */}
-                      <div className="flex-shrink-0 ml-4">
-                        <EventImage 
+                      <div className="flex-shrink-0 ml-4 relative">
+                        <EventImage
                           event={event}
                           className="w-24 h-18 md:w-32 md:h-24 rounded-lg object-cover"
                           priority={index < 6}
                         />
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveEvent(event.id);
+                          }}
+                          className="absolute -top-2 -right-2 h-7 w-7 flex items-center justify-center rounded-full bg-white shadow border border-gray-200 text-gray-500 hover:text-red-500 hover:bg-gray-100 transition-colors"
+                          title="Retirer des favoris"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
                       </div>
                     </div>
                   </CardHeader>

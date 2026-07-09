@@ -22,12 +22,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { NotificationBadge } from "@/components/ui/notification-badge";
 import { useNewPhotosNotification } from "@/hooks/useNewPhotosNotification";
+import { useSavedEventsCount } from "@/hooks/useSavedEventsCount";
 
 export function BottomNavigation() {
   const location = useLocation();
   const currentPath = location.pathname;
   const notificationHook = useNewPhotosNotification();
   const { hasNewPhotos, newPhotosCount, markAsViewed } = notificationHook;
+  const savedCount = useSavedEventsCount();
   
   
   
@@ -77,7 +79,9 @@ export function BottomNavigation() {
             isActive("/saved") ? "text-[#1a2138] font-bold" : "text-amber-800/70"
           }`}
         >
-          <Bookmark className={`${isActive("/saved") ? "h-7 w-7" : "h-6 w-6"}`} />
+          <NotificationBadge count={savedCount} show={savedCount > 0}>
+            <Bookmark className={`${isActive("/saved") ? "h-7 w-7" : "h-6 w-6"}`} />
+          </NotificationBadge>
           <span className={`mt-1 leading-tight ${isActive("/saved") ? "text-[11px]" : "text-[10px]"}`}>Enregistrés</span>
 
         </Link>

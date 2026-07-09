@@ -1,5 +1,7 @@
 import { Location } from "@/data/locations";
 import { dataService } from "./dataService";
+import { getSavedEvents } from "./savedEvents";
+import { AchievementType, unlockAchievement } from "./achievements";
 
 const STORAGE_KEY = 'savedLocations';
 
@@ -34,6 +36,14 @@ export const saveLocation = (locationId: string): string[] => {
   if (!ids.includes(locationId)) {
     const updated = [...ids, locationId];
     writeIds(updated);
+
+    // Réalisations partagées avec les événements sauvegardés (même compteur global)
+    const total = getSavedEvents().length + updated.length;
+    setTimeout(() => {
+      if (total === 1) unlockAchievement(AchievementType.FIRST_EVENT_SAVED);
+      if (total >= 5) unlockAchievement(AchievementType.MULTIPLE_EVENTS_SAVED);
+    }, 500);
+
     return updated;
   }
   return ids;
