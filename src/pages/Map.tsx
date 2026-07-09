@@ -17,7 +17,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import ArrowLeft from "lucide-react/dist/esm/icons/arrow-left";
 import X from "lucide-react/dist/esm/icons/x";
 import Info from "lucide-react/dist/esm/icons/info";
-import { Tour } from "../types/visitTypes";
 import Bookmark from "lucide-react/dist/esm/icons/bookmark";
 import BookmarkCheck from "lucide-react/dist/esm/icons/bookmark-check";
 import Navigation from "lucide-react/dist/esm/icons/navigation";
@@ -42,6 +41,13 @@ interface MapProps {
   fullScreen?: boolean;
 }
 
+// Point(s) de départ des visites guidées, à ajouter/retirer à la main quand une
+// visite existe réellement — pas d'appel API, pas de fetch dynamique.
+// Récupérer id/coordonnées depuis /guide (espace guide) au moment de créer la visite.
+const STATIC_TOUR_POINTS: { id: string; title: string; startLocationX: number; startLocationY: number }[] = [
+  // { id: "tour_xxx", title: "Visite du samedi", startLocationX: 120, startLocationY: 340 },
+];
+
 const Map = ({ fullScreen = false }: MapProps) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -57,10 +63,6 @@ const Map = ({ fullScreen = false }: MapProps) => {
   const [activeLocation, setActiveLocation] = useState<string | null>(null);
   const [highlightedLocation, setHighlightedLocation] = useState<string | null>(null);
 
-  // États pour les visites guidées
-  const [tours, setTours] = useState<Tour[]>([]);
-  const [toursLoading, setToursLoading] = useState(true);
-  
   // États pour la navigation par swipe entre lieux
   const [locationSwipeIndex, setLocationSwipeIndex] = useState<number>(0);
   
@@ -145,26 +147,6 @@ const Map = ({ fullScreen = false }: MapProps) => {
       setSavedEventIds(savedIds);
     }
   }, [selectedEvent]);
-
-  // Charger les visites guidées
-  useEffect(() => {
-    async function fetchTours() {
-      try {
-        setToursLoading(true);
-        const res = await fetch("/api/visit-tours");
-        if (!res.ok) throw new Error("Failed to load tours");
-        const data = await res.json();
-        setTours(data);
-        logger.info('Tours chargées', { count: data.length });
-      } catch (e) {
-        logger.error("Erreur chargement tours", { error: e });
-        setTours([]);
-      } finally {
-        setToursLoading(false);
-      }
-    }
-    fetchTours();
-  }, []);
 
   // Mettre à jour les emplacements lorsque les données changent
   useEffect(() => {
@@ -566,7 +548,7 @@ const Map = ({ fullScreen = false }: MapProps) => {
             <div className="relative h-full">
               <MapComponent
                 locations={mapLocations}
-                tours={tours}
+                tours={STATIC_TOUR_POINTS}
                 onTourClick={(tourId) => {
                   navigate(`/reservations?tour=${tourId}`);
                   analytics.trackInteraction(EventAction.CLICK, 'tour_map_pin', { tourId });
