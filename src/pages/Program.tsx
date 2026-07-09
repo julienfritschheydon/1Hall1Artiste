@@ -235,37 +235,41 @@ const Program = () => {
             <>
               <TabsContent value="samedi" className="space-y-4">
                 {tours.map((tour, index) => (
-                  <div key={`tour-${tour.id}`} className="bg-white/90 border-2 border-amber-300 rounded-lg p-4 hover:shadow-md transition-all cursor-pointer" onClick={() => navigate('/reservations')}>
+                  <div key={`tour-${tour.id}`} className="bg-white/95 border-2 border-amber-300 rounded-lg p-4 hover:shadow-lg transition-all cursor-pointer" onClick={() => navigate('/reservations')}>
                     <div className="flex justify-between items-start mb-2">
-                      <h3 className="font-bold text-lg text-[#1a2138]">{tour.title}</h3>
-                      <span className="text-sm bg-orange-100 text-orange-800 px-2 py-1 rounded-full font-medium">{tour.placesLeft || tour.capacity} places</span>
+                      <div className="flex-1">
+                        <h3 className="font-bold text-lg text-[#1a2138]">{tour.title}</h3>
+                        <div className="text-xs text-gray-500 mt-1">
+                          {new Date(tour.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      </div>
+                      <span className="text-xs font-semibold bg-orange-100 text-orange-800 px-2 py-1 rounded-full whitespace-nowrap ml-2">{tour.placesLeft || tour.capacity} places</span>
                     </div>
-                    <div className="text-sm text-gray-600 mb-3">
-                      <p>{new Date(tour.date).toLocaleDateString('fr-FR', { weekday: 'long', month: 'long', day: 'numeric' })} à {new Date(tour.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</p>
-                    </div>
-                    <button className="w-full bg-[#ff7a45] text-white py-2 rounded-lg font-medium hover:bg-[#e8693a] transition-colors">
+                    <button className="w-full mt-3 bg-[#ff7a45] text-white py-2 rounded-full font-medium hover:bg-[#e8693a] transition-colors text-sm">
                       Réserver
                     </button>
                   </div>
                 ))}
-                {tours.length === 0 && <p className="text-gray-600 py-4 text-center">Aucune visite guidée disponible</p>}
+                {tours.length === 0 && <p className="text-gray-600 py-4 text-center text-sm">Aucune visite guidée disponible</p>}
               </TabsContent>
               <TabsContent value="dimanche" className="space-y-4">
                 {tours.map((tour, index) => (
-                  <div key={`tour-${tour.id}`} className="bg-white/90 border-2 border-amber-300 rounded-lg p-4 hover:shadow-md transition-all cursor-pointer" onClick={() => navigate('/reservations')}>
+                  <div key={`tour-${tour.id}`} className="bg-white/95 border-2 border-amber-300 rounded-lg p-4 hover:shadow-lg transition-all cursor-pointer" onClick={() => navigate('/reservations')}>
                     <div className="flex justify-between items-start mb-2">
-                      <h3 className="font-bold text-lg text-[#1a2138]">{tour.title}</h3>
-                      <span className="text-sm bg-orange-100 text-orange-800 px-2 py-1 rounded-full font-medium">{tour.placesLeft || tour.capacity} places</span>
+                      <div className="flex-1">
+                        <h3 className="font-bold text-lg text-[#1a2138]">{tour.title}</h3>
+                        <div className="text-xs text-gray-500 mt-1">
+                          {new Date(tour.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      </div>
+                      <span className="text-xs font-semibold bg-orange-100 text-orange-800 px-2 py-1 rounded-full whitespace-nowrap ml-2">{tour.placesLeft || tour.capacity} places</span>
                     </div>
-                    <div className="text-sm text-gray-600 mb-3">
-                      <p>{new Date(tour.date).toLocaleDateString('fr-FR', { weekday: 'long', month: 'long', day: 'numeric' })} à {new Date(tour.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</p>
-                    </div>
-                    <button className="w-full bg-[#ff7a45] text-white py-2 rounded-lg font-medium hover:bg-[#e8693a] transition-colors">
+                    <button className="w-full mt-3 bg-[#ff7a45] text-white py-2 rounded-full font-medium hover:bg-[#e8693a] transition-colors text-sm">
                       Réserver
                     </button>
                   </div>
                 ))}
-                {tours.length === 0 && <p className="text-gray-600 py-4 text-center">Aucune visite guidée disponible</p>}
+                {tours.length === 0 && <p className="text-gray-600 py-4 text-center text-sm">Aucune visite guidée disponible</p>}
               </TabsContent>
             </>
           ) : (

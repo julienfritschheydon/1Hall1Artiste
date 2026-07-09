@@ -214,13 +214,19 @@ export default function SavedEvents() {
                       if (res.ok) {
                         const data = await res.json();
                         setBookings(data);
+                      } else if (res.status === 404) {
+                        setBookingError("Aucune réservation trouvée pour cet email");
+                        setBookings(null);
                       } else {
-                        setBookingError("Aucune réservation trouvée");
+                        const text = await res.text();
+                        console.error('API error:', res.status, text);
+                        setBookingError("Erreur serveur. Réessayez plus tard.");
                         setBookings(null);
                       }
                     } catch (err) {
-                      setBookingError("Erreur lors du chargement");
-                      console.error(err);
+                      console.error('Fetch error:', err);
+                      setBookingError("Erreur de connexion. Vérifiez votre connexion.");
+                      setBookings(null);
                     } finally {
                       setBookingLoading(false);
                     }

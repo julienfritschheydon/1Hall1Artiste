@@ -467,32 +467,53 @@ export const MapComponent: React.FC<MapComponentProps> = ({
               left: `${tour.startLocationX * scale}px`,
               top: `${tour.startLocationY * scale}px`,
               zIndex: 25,
-              width: `${60 * scale}px`,
-              height: `${60 * scale}px`,
-              transform: 'translate(-50%, -50%)',
-              pointerEvents: !readOnly ? 'auto' : 'none',
-              cursor: !readOnly ? 'pointer' : 'default'
+              pointerEvents: 'none'
             }}
-            onClick={!readOnly ? (e) => {
-              e.stopPropagation();
-              if (onTourClick) onTourClick(tour.id);
-            } : undefined}
-            title={tour.title}
           >
             {/* Point visite (orange) */}
             <div
-              className="absolute top-1/2 left-1/2 w-6 h-6 rounded-full shadow-lg border-2 border-white bg-[#ff7a45]/90 hover:scale-125 transition-transform"
+              className="absolute rounded-full shadow-lg border-2 border-white bg-[#ff7a45]/90 hover:scale-125 transition-transform cursor-pointer"
               style={{
                 transform: 'translate(-50%, -50%)',
                 width: `${28 * scale}px`,
-                height: `${28 * scale}px`
+                height: `${28 * scale}px`,
+                pointerEvents: !readOnly ? 'auto' : 'none',
+                cursor: !readOnly ? 'pointer' : 'default'
               }}
+              onClick={!readOnly ? (e) => {
+                e.stopPropagation();
+                if (onTourClick) onTourClick(tour.id);
+              } : undefined}
+              title={tour.title}
             >
               {/* Icône visite (📅) */}
               <span style={{ fontSize: `${8 * scale}px`, position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}>
                 📅
               </span>
             </div>
+
+            {/* Bouton Réserver à droite du point */}
+            <button
+              onClick={!readOnly ? (e) => {
+                e.stopPropagation();
+                if (onTourClick) onTourClick(tour.id);
+              } : undefined}
+              className="absolute bg-[#ff7a45] text-white rounded-full font-semibold hover:bg-[#e8693a] transition-colors text-nowrap"
+              style={{
+                left: `${14 * scale}px`,
+                top: '-50%',
+                transform: 'translateY(-50%)',
+                padding: `${4 * scale}px ${8 * scale}px`,
+                fontSize: `${11 * scale}px`,
+                pointerEvents: !readOnly ? 'auto' : 'none',
+                cursor: !readOnly ? 'pointer' : 'default',
+                whiteSpace: 'nowrap',
+                border: 'none'
+              }}
+              disabled={readOnly}
+            >
+              Réserver
+            </button>
           </div>
         ))}
       </div>

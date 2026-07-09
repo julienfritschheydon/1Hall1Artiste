@@ -204,6 +204,14 @@ export async function rtdbRegistrationsListByCancelledSince(since: Date): Promis
   );
 }
 
+export async function rtdbRegistrationsListByEmail(email: string): Promise<Registration[]> {
+  const allRegs = await rtdbGet<Record<string, Registration>>("registrations");
+  if (!allRegs) return [];
+  return Object.values(allRegs).filter(
+    (r) => r.email.toLowerCase() === email.toLowerCase() && !r.deletedAt
+  );
+}
+
 // ============ WAITLIST ============
 
 export async function rtdbWaitlistGet(waitId: string): Promise<Waitlist | null> {
@@ -282,6 +290,14 @@ export async function rtdbWaitlistReorderAfter(tourId: string, position: number)
       await rtdbWaitlistUpdate(wait.id, { position: wait.position - 1 });
     }
   }
+}
+
+export async function rtdbWaitlistListByEmail(email: string): Promise<Waitlist[]> {
+  const allWaits = await rtdbGet<Record<string, Waitlist>>("waitlist");
+  if (!allWaits) return [];
+  return Object.values(allWaits).filter(
+    (w) => w.email.toLowerCase() === email.toLowerCase() && !w.deletedAt && !w.rejectedAt
+  );
 }
 
 // ============ ATTENDANCE ============
