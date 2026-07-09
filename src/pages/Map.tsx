@@ -18,6 +18,7 @@ import ArrowLeft from "lucide-react/dist/esm/icons/arrow-left";
 import X from "lucide-react/dist/esm/icons/x";
 import Info from "lucide-react/dist/esm/icons/info";
 import Calendar from "lucide-react/dist/esm/icons/calendar";
+import { Tour } from "../types/visitTypes";
 import Bookmark from "lucide-react/dist/esm/icons/bookmark";
 import BookmarkCheck from "lucide-react/dist/esm/icons/bookmark-check";
 import Navigation from "lucide-react/dist/esm/icons/navigation";
@@ -45,17 +46,21 @@ interface MapProps {
 const Map = ({ fullScreen = false }: MapProps) => {
   const navigate = useNavigate();
   const location = useLocation();
-  
+
   // Utiliser les hooks pour accéder aux données centralisées
   const { locations } = useLocations();
   const { events: allEvents, isLoading: eventsLoading, getEventById, getEventsByLocationId } = useEvents();
-  
+
   // Utiliser directement les emplacements du service de données
   const [mapLocations, setMapLocations] = useState(locations);
   const [savedEventIds, setSavedEventIds] = useState<string[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [activeLocation, setActiveLocation] = useState<string | null>(null);
   const [highlightedLocation, setHighlightedLocation] = useState<string | null>(null);
+
+  // États pour les visites guidées
+  const [tours, setTours] = useState<Tour[]>([]);
+  const [toursLoading, setToursLoading] = useState(true);
   
   // États pour la navigation par swipe entre lieux
   const [locationSwipeIndex, setLocationSwipeIndex] = useState<number>(0);
@@ -141,7 +146,27 @@ const Map = ({ fullScreen = false }: MapProps) => {
       setSavedEventIds(savedIds);
     }
   }, [selectedEvent]);
-  
+
+  // Charger les visites guidées
+  useEffect(() => {
+    async function fetchTours() {
+      try {
+        setToursLoading(true);
+        const res = await fetch("/api/visit-tours");
+        if (!res.ok) throw new Error("Failed to load tours");
+        const data = await res.json();
+        setTours(data);
+        logger.info('Tours chargées', { count: data.length });
+      } catch (e) {
+        logger.error("Erreur chargement tours", { error: e });
+        setTours([]);
+      } finally {
+        setToursLoading(false);
+      }
+    }
+    fetchTours();
+  }, []);
+
   // Mettre à jour les emplacements lorsque les données changent
   useEffect(() => {
     logger.info('Mise à jour des emplacements sur la carte depuis le service de données');
@@ -540,8 +565,13 @@ const Map = ({ fullScreen = false }: MapProps) => {
           {/* Map container */}
           <div className="bg-transparent rounded-lg mb-4 border-0 transition-all duration-300 w-full">
             <div className="relative h-full">
-              <MapComponent 
+              <MapComponent
                 locations={mapLocations}
+                tours={tours}
+                onTourClick={(tourId) => {
+                  navigate(`/reservations?tour=${tourId}`);
+                  analytics.trackInteraction(EventAction.CLICK, 'tour_map_pin', { tourId });
+                }}
                 activeLocation={activeLocation}
                 highlightedLocation={highlightedLocation}
                 onClick={(e) => {
@@ -600,12 +630,35 @@ const Map = ({ fullScreen = false }: MapProps) => {
               )}
             </div>
           </div>
+
+          {/* FAB: Réserver une visite */}
+          {tours.length > 0 && (
+            <button
+              onClick={() => {
+                navigate('/reservations');
+                analytics.trackInteraction(EventAction.CLICK, 'fab_reserve_tour');
+              }}
+              className="fixed bottom-20 right-4 bg-[#ff7a45] hover:bg-[#e8693a] text-white rounded-full shadow-lg transition-all duration-200 hover:scale-110 active:scale-95 z-40"
+              style={{
+                padding: '16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontWeight: 600,
+                fontSize: '14px'
+              }}
+              aria-label="Réserver une visite guidée"
+            >
+              <Calendar style={{ width: '20px', height: '20px' }} />
+              <span className="hidden sm:inline">Réserver</span>
+            </button>
+          )}
         </div>
-        
+
       </div>
-      
+
       {/* Removed visit confirmation dialog */}
-      
+
       {/* Location details overlay - Version modernisée */}
       {activeLocation && (
         <LocationDetailsModern

@@ -34,6 +34,8 @@ import { GeoPosition } from "./UserLocation";
 
 export interface MapComponentProps {
   locations: Location[];
+  tours?: Array<{ id: string; title: string; startLocationX: number; startLocationY: number; placesLeft?: number }>;
+  onTourClick?: (tourId: string) => void;
   visitedLocations?: string[];
   onLocationClick?: (locationId: string) => void;
   highlightedLocation?: string | null;
@@ -408,14 +410,14 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         )}
         
         {locations.map((location) => (
-          <div 
+          <div
             key={location.id}
             id={`location-${location.id}`}
             data-location-id={location.id}
-            className="absolute"  
-            style={{ 
+            className="absolute"
+            style={{
               position: 'absolute',
-              left: `${location.x * scale}px`, 
+              left: `${location.x * scale}px`,
               top: `${location.y * scale}px`,
               zIndex: 20,
               width: `${60 * scale}px`, // Zone de clic mise à l'échelle
@@ -432,16 +434,16 @@ export const MapComponent: React.FC<MapComponentProps> = ({
             {/* Point visible */}
             <div
               className={`absolute top-1/2 left-1/2 w-8 h-8 rounded-full shadow-lg border-2 border-white
-                ${activeLocation === location.id 
-                  ? 'bg-[#ff7a45]/90 ring-2 ring-[#ff7a45] ring-opacity-70 scale-110' 
+                ${activeLocation === location.id
+                  ? 'bg-[#ff7a45]/90 ring-2 ring-[#ff7a45] ring-opacity-70 scale-110'
                   : highlightedLocation === location.id
-                    ? location.visited 
-                      ? 'bg-[#4CAF50]/90 ring-4 ring-green-400 ring-opacity-80' 
+                    ? location.visited
+                      ? 'bg-[#4CAF50]/90 ring-4 ring-green-400 ring-opacity-80'
                       : 'bg-[#ff7a45]/90 ring-4 ring-yellow-400 ring-opacity-80'
                     : location.hasProgram === false
                       ? 'bg-[#757575]/90' // Gris pour les lieux sans programmation
-                      : location.visited 
-                        ? 'bg-[#4CAF50]/90' 
+                      : location.visited
+                        ? 'bg-[#4CAF50]/90'
                         : 'bg-[#4a5d94]/90'
                 }`}
               style={{
@@ -450,6 +452,45 @@ export const MapComponent: React.FC<MapComponentProps> = ({
                 height: `${32 * scale}px`
               }}
             />
+          </div>
+        ))}
+
+        {/* Tours (visites guidées) */}
+        {tours?.map((tour) => (
+          <div
+            key={`tour-${tour.id}`}
+            className="absolute"
+            style={{
+              position: 'absolute',
+              left: `${tour.startLocationX * scale}px`,
+              top: `${tour.startLocationY * scale}px`,
+              zIndex: 25,
+              width: `${60 * scale}px`,
+              height: `${60 * scale}px`,
+              transform: 'translate(-50%, -50%)',
+              pointerEvents: !readOnly ? 'auto' : 'none',
+              cursor: !readOnly ? 'pointer' : 'default'
+            }}
+            onClick={!readOnly ? (e) => {
+              e.stopPropagation();
+              if (onTourClick) onTourClick(tour.id);
+            } : undefined}
+            title={tour.title}
+          >
+            {/* Point visite (orange) */}
+            <div
+              className="absolute top-1/2 left-1/2 w-6 h-6 rounded-full shadow-lg border-2 border-white bg-[#ff7a45]/90 hover:scale-125 transition-transform"
+              style={{
+                transform: 'translate(-50%, -50%)',
+                width: `${28 * scale}px`,
+                height: `${28 * scale}px`
+              }}
+            >
+              {/* Icône visite (📅) */}
+              <span style={{ fontSize: `${8 * scale}px`, position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}>
+                📅
+              </span>
+            </div>
           </div>
         ))}
       </div>

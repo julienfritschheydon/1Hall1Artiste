@@ -168,14 +168,39 @@ export default function SavedEvents() {
       <div className="relative z-10 max-w-md mx-auto">
         <header className="mb-4 flex items-center justify-between">
           <BackButton onClick={() => { analytics.trackInteraction(EventAction.BACK, "button", { from: "saved_events" }); navigate("/map"); }} />
-          <h1 className="text-xl font-bold text-[#4a5d94]">Événements enregistrés</h1>
+          <h1 className="text-xl font-bold text-[#4a5d94]">Enregistrés</h1>
           <div className="w-20"></div>
         </header>
+
+        {/* Section: Mes réservations */}
+        <div className="mb-6">
+          <Card className="border-2 border-[#ff7a45] bg-white/95">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg font-bold text-[#ff7a45] flex items-center gap-2">
+                <Calendar className="h-5 w-5" />
+                Mes réservations
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <p className="text-sm text-gray-600 mb-4">Consulter et gérer vos réservations aux visites guidées.</p>
+              <ActionButton
+                variant="primary"
+                onClick={() => {
+                  navigate("/reservations");
+                  analytics.trackInteraction(EventAction.CLICK, "view_reservations", { from: "saved_events" });
+                }}
+                className="w-full rounded-full px-6 py-2 font-medium bg-[#ff7a45] text-white hover:bg-[#e8693a]"
+              >
+                Voir mes réservations
+              </ActionButton>
+            </CardContent>
+          </Card>
+        </div>
 
         {savedEvents.length === 0 ? (
           <div className="text-center py-8">
             <p className="text-gray-600 mb-4 text-lg">Vous n'avez pas encore sauvegardé d'événements.</p>
-            <ActionButton 
+            <ActionButton
               variant="primary"
               onClick={() => navigate("/program")}
               className="rounded-full px-6 py-2 font-medium"
