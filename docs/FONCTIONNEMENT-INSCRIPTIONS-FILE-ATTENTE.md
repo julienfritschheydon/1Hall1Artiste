@@ -43,18 +43,21 @@ places occupées. Compte une place si :
 Une fois `validationExpiresAt` dépassé, la place n'est **plus comptée** (même si le statut DB
 dit encore `attente_validation` — voir §4, le ménage DB peut être en retard sur le calcul).
 
-`rtdbCountPendingWaitlistOffers(tourId)` ([api/_visit-db.ts:284](../api/_visit-db.ts:284)) compte
-en plus les places réservées par une **offre waitlist en cours** (envoyée, ni acceptée ni
-expirée/refusée) — sinon un nouvel inscrit pourrait doubler la personne qui attend déjà une
-réponse.
+`rtdbCountWaitlistedPlaces(tourId)` ([api/_visit-db.ts](../api/_visit-db.ts)) compte les places
+réservées par TOUTE la file d'attente non rejetée — offre envoyée ou pas (voir §6.7). Une entrée
+`rejectedAt` set (offre expirée/déclinée) ne compte plus, elle a rendu son rang.
 
-**Formule utilisée à l'inscription** ([api/visit-register.ts:210](../api/visit-register.ts:210)) :
+**Formule utilisée à l'inscription** ([api/visit-register.ts](../api/visit-register.ts)) :
 
 ```
-hasSpace = registeredPlaces + pendingWaitlistPlaces + groupSize(nouvelle inscription) <= capacity
+hasSpace = registeredPlaces + waitlistedPlaces + groupSize(nouvelle inscription) <= capacity
 ```
 
 Si `hasSpace` → inscription directe (`attente_validation`). Sinon → file d'attente.
+
+`rtdbCountPendingWaitlistOffers(tourId)` ([api/_visit-db.ts:284](../api/_visit-db.ts:284)) reste
+utilisée ailleurs, uniquement par l'algorithme de **promotion** (`promoteWaitlist` /
+`promoteFromWaitlist`) pour calculer les places libres à offrir — voir §6.7.
 
 ---
 
@@ -161,15 +164,21 @@ expiré). B en file d'attente position #1, aucune offre envoyée. C tente de s'i
      supprimer les données d'une personne qui occupait une place (confirmée, en attente de
      validation non expirée, ou avec une offre active) doit promouvoir la file d'attente du/des
      tour(s) concerné(s), pas juste soft-delete silencieusement.
-7. **[Nuance de conception, pas un bug] Une entrée en file d'attente SANS offre envoyée
-   (`invitationSentAt` absent) ne réserve aucune place.** `hasSpace` ne compte que
-   `registeredPlaces + pendingWaitlistPlaces` (offres actives) — un groupe en position #1 qui ne
-   rentrait pas au moment de son inscription peut donc être dépassé par un plus petit groupe qui
-   s'inscrit après lui et qui, lui, rentre dans la capacité brute restante. L'ordre de `position`
-   en base reste correct (le groupe garde son rang), mais l'allocation de capacité ne lui réserve
-   rien tant qu'il n'a pas reçu d'offre. Comportement actuel assumé (pas de gaspillage de place
-   pour un groupe qui ne peut de toute façon pas encore rentrer) — à trancher si un jour jugé
-   contre-intuitif pour les utilisateurs.
+7. **Toute entrée en file d'attente, même SANS offre envoyée, réserve sa place — pas de saut de
+   rang.** `hasSpace` (inscription d'un nouvel arrivant) compte
+   `registeredPlaces + rtdbCountWaitlistedPlaces` où `rtdbCountWaitlistedPlaces`
+   ([api/_visit-db.ts](../api/_visit-db.ts)) additionne `placesOf` de TOUTE entrée waitlist non
+   rejetée (offre envoyée ou pas). Un groupe en position #1 qui ne rentrait pas au moment de son
+   inscription reste donc prioritaire : un plus petit groupe/solo arrivé après lui ne peut plus le
+   doubler juste parce qu'il rentre dans la capacité brute restante. Ancien comportement (corrigé
+   sur demande explicite) : seules les offres actives réservaient une place, ce qui permettait ce
+   saut de rang — jugé contre-intuitif, éliminé.
+
+   **Important : `promoteWaitlist`/`promoteFromWaitlist` ne doivent PAS utiliser
+   `rtdbCountWaitlistedPlaces` pour leur propre calcul de places libres.** Ces fonctions décident
+   qui promouvoir PARMI les gens déjà en attente ; elles calculent `freeSlots = capacity -
+   confirmé - offres actives` (candidats sans offre exclus du calcul), sinon un candidat se
+   réserverait contre lui-même et `freeSlots` ne serait jamais positif.
 
 ---
 

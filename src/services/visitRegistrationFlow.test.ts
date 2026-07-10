@@ -165,13 +165,10 @@ describe("Groupe 1 — groupes / accompagnants (placesOf, équité FIFO)", () =>
     expect(groupRes.body.position).toBe(1);
   });
 
-  it("[constat documenté] un groupe en attente sans offre active ne réserve rien : un solo derrière lui peut prendre la place restante", async () => {
-    // Comportement réel confirmé (pas un bug corrigé — nuance de conception à trancher) :
-    // hasSpace ne compte que registeredPlaces + pendingWaitlistPlaces (offres ENVOYÉES).
-    // Un groupe simplement mis en file (position posée, pas d'invitationSentAt) ne bloque
-    // donc pas une place qu'il ne peut pas utiliser — un plus petit groupe arrivé après lui
-    // peut la prendre directement. L'ordre de POSITION en file reste correct (le groupe
-    // garde le rang 1), mais l'allocation de capacité ne réserve rien pour lui.
+  it("un groupe en tête de file bloque un solo derrière lui (pas de saut de rang)", async () => {
+    // hasSpace compte registeredPlaces + rtdbCountWaitlistedPlaces (TOUTE la file, offre
+    // envoyée ou pas) — un groupe déjà en attente réserve son rang même sans offre active.
+    // Un plus petit groupe/solo arrivé après lui ne peut donc plus le doubler.
     const tourId = makeTour(5);
     await register(tourId, "a1@t.fr");
     await register(tourId, "a2@t.fr");
@@ -181,9 +178,10 @@ describe("Groupe 1 — groupes / accompagnants (placesOf, équité FIFO)", () =>
     const group = await register(tourId, "group@t.fr", { companions: [{ firstName: "C1" }] });
     expect(group.body.status).toBe("waitlist");
     expect(group.body.position).toBe(1);
-    // Solo qui rentre dans la place restante → inscription DIRECTE (dépasse le groupe en attente).
+    // Solo derrière : la place restante est déjà réservée par le groupe → file d'attente aussi.
     const solo = await register(tourId, "solo@t.fr");
-    expect(solo.body.status).toBe("attente_validation");
+    expect(solo.body.status).toBe("waitlist");
+    expect(solo.body.position).toBe(2);
   });
 });
 
@@ -322,11 +320,12 @@ describe("Groupe 6 — cycle complet réaliste", () => {
     const p3 = await register(tourId, "p3@t.fr"); // solo — 4/5 pris
     const p4 = await register(tourId, "p4@t.fr", { companions: [{ firstName: "c1" }, { firstName: "c2" }] }); // groupe 3, ne rentre pas (1 place restante) → waitlist
     expect(p4.body.status).toBe("waitlist");
-    const p5 = await register(tourId, "p5@t.fr"); // solo, rentre dans la place restante (1/5) → direct
-    expect(p5.body.status).toBe("attente_validation");
-    const p6 = await register(tourId, "p6@t.fr"); // tour plein maintenant → waitlist derrière p4
+    const p5 = await register(tourId, "p5@t.fr"); // solo — p4 réserve déjà la place restante → waitlist
+    expect(p5.body.status).toBe("waitlist");
+    expect(p5.body.position).toBe(2);
+    const p6 = await register(tourId, "p6@t.fr"); // tour plein maintenant → waitlist derrière p5
     expect(p6.body.status).toBe("waitlist");
-    expect(p6.body.position).toBe(2);
+    expect(p6.body.position).toBe(3);
 
     await confirm(p1.body.registrationId);
     await confirm(p3.body.registrationId);

@@ -12,6 +12,7 @@ import {
   rtdbCountUserTours,
   rtdbCountRegisteredByTour,
   rtdbCountPendingWaitlistOffers,
+  rtdbCountWaitlistedPlaces,
   rtdbRegistrationsListByTour,
   rtdbWaitlistAdd,
   rtdbWaitlistCount,
@@ -211,12 +212,13 @@ async function handleCreateRegistration(req: VercelRequest, res: VercelResponse)
       }
     }
 
-    // Count places taken (confirmés + offres waitlist en cours). Whole group must fit, else waitlist.
-    // Une offre waitlist en cours réserve la place tant qu'elle n'a pas expiré/été refusée,
-    // sinon un nouvel inscrit peut doubler la personne qui attend déjà une réponse.
+    // Count places taken (confirmés + TOUTE la file d'attente, offre envoyée ou pas).
+    // Toute personne déjà en attente réserve son rang — sinon un nouvel inscrit avec un
+    // groupe plus petit pourrait la doubler simplement parce qu'il rentre dans la capacité
+    // brute restante, alors qu'elle est arrivée avant lui (voir doc §6.7).
     const registeredPlaces = await rtdbCountRegisteredByTour(tourId);
-    const pendingWaitlistPlaces = await rtdbCountPendingWaitlistOffers(tourId);
-    const hasSpace = registeredPlaces + pendingWaitlistPlaces + groupSize <= tour.capacity;
+    const waitlistedPlaces = await rtdbCountWaitlistedPlaces(tourId);
+    const hasSpace = registeredPlaces + waitlistedPlaces + groupSize <= tour.capacity;
 
     // Guide manual on-site registration (spec §2): create directly as confirmé, no email.
     const guideCode = req.headers["x-guide-code"] as string | undefined;

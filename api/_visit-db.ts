@@ -289,6 +289,15 @@ export async function rtdbCountPendingWaitlistOffers(tourId: string): Promise<nu
     .reduce((sum, w) => sum + placesOf(w), 0);
 }
 
+// Places réservées par TOUTE la file d'attente (offre envoyée ou pas), pour empêcher
+// qu'un nouvel inscrit ne double une personne déjà en attente simplement parce que son
+// groupe est plus petit et rentrerait dans la capacité brute restante. Une entrée refusée
+// (offre expirée/déclinée) ne compte plus — elle a rendu son rang.
+export async function rtdbCountWaitlistedPlaces(tourId: string): Promise<number> {
+  const waits = await rtdbWaitlistListByTour(tourId);
+  return waits.filter((w) => !w.rejectedAt).reduce((sum, w) => sum + placesOf(w), 0);
+}
+
 export async function rtdbWaitlistListByTour(tourId: string): Promise<Waitlist[]> {
   const waitlists = await rtdbGet<Record<string, string>>(`waitlist_by_tour/${tourId}`);
   if (!waitlists) return [];
