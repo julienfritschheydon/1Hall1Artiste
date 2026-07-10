@@ -45,6 +45,7 @@ export async function rtdbTourCreate(input: TourCreateInput): Promise<Tour> {
     startLocationX: input.startLocationX,
     startLocationY: input.startLocationY,
     startLocationName: input.startLocationName,
+    startLocationId: input.startLocationId,
     capacity: input.capacity,
     labels: input.labels,
     status: input.status || "upcoming",

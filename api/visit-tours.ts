@@ -70,7 +70,7 @@ async function handlePost(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: "guide code required" });
   }
 
-  const { title, date, durationMinutes, startLocationX, startLocationY, startLocationName, capacity, labels } = req.body;
+  const { title, date, durationMinutes, startLocationX, startLocationY, startLocationName, startLocationId, capacity, labels } = req.body;
   const validation = validateTourInput(req.body);
 
   if (!validation.valid) {
@@ -85,6 +85,7 @@ async function handlePost(req: VercelRequest, res: VercelResponse) {
       startLocationX,
       startLocationY,
       startLocationName: typeof startLocationName === "string" ? startLocationName : undefined,
+      startLocationId: typeof startLocationId === "string" ? startLocationId : undefined,
       capacity,
       labels: labels.map((l: string) => l.trim()),
       guideId: "all-guides",

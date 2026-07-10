@@ -26,7 +26,8 @@ export interface Tour {
   durationMinutes: number
   startLocationX: number // Coordonnée X sur la carte custom
   startLocationY: number // Coordonnée Y sur la carte custom
-  startLocationName?: string // Nom du lieu (dénormalisé depuis LocationPoint)
+  startLocationName?: string // Nom du lieu (dénormalisé)
+  startLocationId?: string // Id réel du bâtiment (data/locations.ts) — lien fiable, pas de coïncidence de pixels
   capacity: number
   labels: string[] // Free tags: ['nature', 'architecture', 'enfants']
   status: 'upcoming' | 'ongoing' | 'completed'
@@ -112,6 +113,7 @@ export interface TourCreateInput {
   startLocationX: number
   startLocationY: number
   startLocationName?: string
+  startLocationId?: string
   capacity: number
   labels: string[]
   guideId?: string

@@ -2,7 +2,8 @@
 // Fonctions: créer/modifier visite, voir inscrits + file d'attente,
 // inscription manuelle sur place, appel présences, export CSV + impression.
 import { useState, useEffect } from "react";
-import { Tour, LocationPoint } from "../types/visitTypes";
+import { Tour } from "../types/visitTypes";
+import { locations as buildingLocations, Location } from "../data/locations";
 import GuideCodeLogin from "../components/GuideCodeLogin";
 import GuideToursList from "../components/GuideToursList";
 import TourAttendanceSheet from "../components/TourAttendanceSheet";
@@ -164,29 +165,12 @@ function TourForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Lieux de départ prédéfinis (gérés par l'admin). Le guide choisit dans la liste.
-  const [locations, setLocations] = useState<LocationPoint[]>([]);
-  const [locationId, setLocationId] = useState<string>("");
-
-  useEffect(() => {
-    async function loadLocations() {
-      try {
-        const res = await fetch("/api/visit-locations");
-        if (res.ok) {
-          const locs: LocationPoint[] = await res.json();
-          setLocations(locs);
-          if (tour) {
-            const match = locs.find((l) => l.x === tour.startLocationX && l.y === tour.startLocationY);
-            if (match) setLocationId(match.id);
-          }
-        }
-      } catch (e) {
-        console.error("Failed to load locations:", e);
-      }
-    }
-    loadLocations();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Lieux de départ = les vrais bâtiments de la carte (data/locations.ts).
+  // Plus de liste RTDB séparée à maintenir à la main ni de fetch : la source
+  // est la même que celle utilisée partout ailleurs sur la carte, donc l'id
+  // choisi ici correspond forcément au bon point sur la carte.
+  const locations: Location[] = buildingLocations;
+  const [locationId, setLocationId] = useState<string>(() => tour?.startLocationId || "");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -205,6 +189,7 @@ function TourForm({
         startLocationX: loc.x,
         startLocationY: loc.y,
         startLocationName: loc.name,
+        startLocationId: loc.id,
         capacity: Number(capacity),
         labels: labels.split(",").map((l) => l.trim()).filter(Boolean),
       };
