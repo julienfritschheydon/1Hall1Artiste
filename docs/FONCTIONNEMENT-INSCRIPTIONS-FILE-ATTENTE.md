@@ -132,6 +132,16 @@ expiré). B en file d'attente position #1, aucune offre envoyée. C tente de s'i
 2. **Toute libération de place doit appeler `promoteWaitlist(tourId)` immédiatement** (annulation
    manuelle, expiration détectée en lazy, ou cron) — jamais laisser une place "silencieusement"
    libre pendant que des gens attendent en file. Sinon un nouvel inscrit peut doubler la file.
+
+   **Corollaire (bug corrigé) : `promoteWaitlist` doit ignorer qui a déjà une offre active.**
+   Si deux places se libèrent avant qu'une seule offre soit acceptée/refusée (ex: une expiration
+   lazy suivie d'une annulation), l'algorithme naïf "prendre la position #1" relance sans arrêt
+   la même personne (déjà offerte, pas encore répondue) au lieu d'offrir la 2e place libre à la
+   personne suivante — celle-ci reste bloquée jusqu'à ce que la première réponde ou que son
+   délai expire (24H), alors qu'une place lui est en réalité disponible tout de suite.
+   `promoteWaitlist` doit donc recalculer les places libres (`capacity - confirmé - offres en
+   cours`) et parcourir les candidats **sans offre active**, comme le fait déjà le cron
+   `promoteFromWaitlist`.
 3. **Le sweep d'expiration doit rester scopé à un seul tour** quand déclenché depuis une route
    publique à fort trafic (`GET /api/visit-tours`) — jamais de scan global ni d'écriture depuis
    une lecture publique anonyme (coût + risque d'abus).

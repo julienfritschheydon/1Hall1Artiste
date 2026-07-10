@@ -15,16 +15,17 @@ import {
   rtdbRegistrationsListByTour,
   rtdbWaitlistAdd,
   rtdbWaitlistCount,
+  rtdbWaitlistListByTour,
   rtdbWaitlistSoftDelete,
   rtdbRegistrationSoftDelete,
   rtdbAuditLog,
   rtdbGuideCodeValidate,
-  rtdbWaitlistGetNext,
   rtdbWaitlistUpdate,
 } from "./_visit-db.js";
 import { rtdbGet } from "./_firebase.js";
 import { buildVisitEmail } from "./_visit-email.js";
 import { createRegistrationToken, verifyRegistrationToken } from "./_token.js";
+import { placesOf } from "../src/types/visitTypes.js";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Public site URL for email links. HashRouter → links use /#/ prefix.
@@ -376,49 +377,68 @@ async function handleConfirmRegistration(req: VercelRequest, res: VercelResponse
   }
 }
 
-// Promote next waitlist entry when place becomes available
+// Promeut autant de personnes en file d'attente que de places réellement libres.
+// Ignore quiconque a déjà une offre active (invitationSentAt, non expirée, non
+// refusée) — sinon on relance la même personne en boucle pendant qu'une place
+// libre pour la suivante reste silencieusement inoccupée (bug corrigé : voir
+// docs/FONCTIONNEMENT-INSCRIPTIONS-FILE-ATTENTE.md §6.2). Même algorithme que
+// le cron `promoteFromWaitlist` (api/visit-emails.ts), scopé à un seul tour
+// pour un appel immédiat (annulation, expiration détectée en lazy).
 export async function promoteWaitlist(tourId: string): Promise<void> {
   try {
-    const nextWaitlist = await rtdbWaitlistGetNext(tourId);
-    if (!nextWaitlist) return; // No one waiting
-
     const tour = await rtdbTourGet(tourId);
     if (!tour) return;
 
-    // Create invitation token (24H)
-    const invitationToken = createRegistrationToken(nextWaitlist.id, nextWaitlist.email);
+    const now = new Date();
+    const confirmedCount = await rtdbCountRegisteredByTour(tourId);
+    const waits = await rtdbWaitlistListByTour(tourId); // triés par position, exclut les supprimés
 
-    // Update waitlist entry with token
-    await rtdbWaitlistUpdate(nextWaitlist.id, {
-      invitationToken: invitationToken.token,
-      invitationExpiresAt: invitationToken.expiresAt,
-      invitationSentAt: new Date().toISOString(),
-    });
+    // Une offre en cours (envoyée, ni acceptée ni expirée/refusée) réserve sa place.
+    const pendingPlaces = waits
+      .filter((w) => w.invitationSentAt && !w.rejectedAt && w.invitationExpiresAt && new Date(w.invitationExpiresAt) >= now)
+      .reduce((sum, w) => sum + placesOf(w), 0);
 
-    // Send offer email (immédiat)
-    try {
-      await sendRegistrationEmail("waitlist_offer", {
-        to: nextWaitlist.email,
-        firstName: nextWaitlist.firstName,
-        tourTitle: tour.title,
-        tourDate: tour.date,
-        acceptLink: `${SITE_URL}/#/reservations/confirm?token=${invitationToken.token}`,
-        deadline: new Date(new Date().getTime() + 24 * 60 * 60 * 1000),
-        registrationId: nextWaitlist.id,
-        idempotencyKey: `${nextWaitlist.id}_waitlist_offer`,
+    let freeSlots = tour.capacity - confirmedCount - pendingPlaces;
+    if (freeSlots <= 0) return;
+
+    // Candidats = ceux sans offre active/refusée, dans l'ordre de position (FIFO).
+    const candidates = waits.filter((w) => !w.invitationSentAt && !w.rejectedAt);
+
+    for (const next of candidates) {
+      const need = placesOf(next);
+      if (need > freeSlots) break; // groupe ne rentre pas — équité FIFO, on ne saute pas de rang
+
+      const invitationToken = createRegistrationToken(next.id, next.email);
+      await rtdbWaitlistUpdate(next.id, {
+        invitationToken: invitationToken.token,
+        invitationExpiresAt: invitationToken.expiresAt,
+        invitationSentAt: new Date().toISOString(),
       });
-    } catch (e) {
-      console.error("[visit-register] Failed to send waitlist offer email:", e);
-      // Log failure but don't throw — token is set, person can check their email
-      await rtdbAuditLog("waitlist_offer_email_failed", {
-        waitlistId: nextWaitlist.id,
-        tourId,
-        email: nextWaitlist.email,
-        error: String(e),
-      });
+      freeSlots -= need;
+
+      try {
+        await sendRegistrationEmail("waitlist_offer", {
+          to: next.email,
+          firstName: next.firstName,
+          tourTitle: tour.title,
+          tourDate: tour.date,
+          acceptLink: `${SITE_URL}/#/reservations/confirm?token=${invitationToken.token}`,
+          deadline: new Date(new Date().getTime() + 24 * 60 * 60 * 1000),
+          registrationId: next.id,
+          idempotencyKey: `${next.id}_waitlist_offer`,
+        });
+      } catch (e) {
+        console.error("[visit-register] Failed to send waitlist offer email:", e);
+        await rtdbAuditLog("waitlist_offer_email_failed", {
+          waitlistId: next.id,
+          tourId,
+          email: next.email,
+          error: String(e),
+        });
+      }
+
+      console.log(`[visit-register] Promoted waitlist: ${next.id} for tour ${tourId}`);
     }
-
-    console.log(`[visit-register] Promoted waitlist: ${nextWaitlist.id} for tour ${tourId}`);
   } catch (e) {
     console.error("[visit-register promoteWaitlist]", e);
     await rtdbAuditLog("waitlist_promotion_failed", {
