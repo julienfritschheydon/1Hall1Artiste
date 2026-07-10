@@ -52,6 +52,15 @@ const Map = ({ fullScreen = false }: MapProps) => {
   const { locations } = useLocations();
   const { events: allEvents, isLoading: eventsLoading, getEventById, getEventsByLocationId } = useEvents();
 
+  // Déclarée avant navigableLocations (plus bas) qui l'utilise — sinon TDZ :
+  // une location sans history ni audio (court-circuit du ||) forçait l'appel
+  // avant l'initialisation de la const, crash silencieux du composant Map.
+  const getLocationEvents = (locationId: string) => {
+    const eventsWithThisLocation = getEventsByLocationId(locationId);
+    logger.debug(`Événements trouvés pour ${locationId} via getEventsByLocationId`, eventsWithThisLocation);
+    return eventsWithThisLocation;
+  };
+
   // Utiliser directement les emplacements du service de données
   const [mapLocations, setMapLocations] = useState(locations);
   const [selectedTour, setSelectedTour] = useState<Tour | null>(null);
@@ -61,7 +70,7 @@ const Map = ({ fullScreen = false }: MapProps) => {
   // pas forcément avec la carte. Ajouter/retirer un id ici quand une visite
   // existe réellement.
   const locationsWithTours: string[] = [
-    // "maison-jules-verne",
+    "allee-duguay-trouin-17",
   ];
   const [savedEventIds, setSavedEventIds] = useState<string[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
@@ -355,17 +364,6 @@ const Map = ({ fullScreen = false }: MapProps) => {
     }
   };
 
-  // Cette fonction n'est plus nécessaire car elle est gérée par le composant EventDetails
-
-  const getLocationEvents = (locationId: string) => {
-    // Utiliser la fonction getEventsByLocationId du hook useEvents
-    // qui a été mise à jour pour fonctionner avec la nouvelle structure de données
-    const eventsWithThisLocation = getEventsByLocationId(locationId);
-    
-    logger.debug(`Événements trouvés pour ${locationId} via getEventsByLocationId`, eventsWithThisLocation);
-    
-    return eventsWithThisLocation;
-  };
 
   // Calculate visited locations count
   const visitedCount = mapLocations.filter(loc => loc.visited).length;

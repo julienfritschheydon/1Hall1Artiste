@@ -204,6 +204,19 @@ export const locations: Location[] = [
     }
   },
   {
+    id: "allee-duguay-trouin-17",
+    name: "17 allée Duguay Trouin",
+    x: 105,
+    y: 493,
+    description: "17 allée Duguay Trouin, Île Feydeau, Nantes.",
+    hasProgram: false,
+    visited: false,
+    gps: {
+      latitude: 47.21256,
+      longitude: -1.557039
+    }
+  },
+  {
     id: "rue-kervegan-32",
     name: "32 rue Kervégan / 2 place de la Petite Hollande",
     x: 185,
