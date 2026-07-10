@@ -4,7 +4,7 @@
 // PUT /api/visit-tours/{id} — modifier visite (guide)
 
 import { VercelRequest, VercelResponse } from "@vercel/node";
-import { rtdbTourCreate, rtdbTourGet, rtdbTourUpdate, rtdbToursListFuture, rtdbToursListAll, rtdbGuideCodeValidate, rtdbCountRegisteredByTour } from "./_visit-db.js";
+import { rtdbTourCreate, rtdbTourGet, rtdbTourUpdate, rtdbToursListFuture, rtdbToursListAll, rtdbGuideCodeValidate, rtdbCountRegisteredByTour, rtdbCountPendingWaitlistOffers } from "./_visit-db.js";
 import { promoteWaitlist } from "./visit-register.js";
 import { Tour, TourCreateInput } from "../src/types/visitTypes.js";
 
@@ -41,10 +41,10 @@ function validateTourInput(data: any): { valid: boolean; errors: string[] } {
   if (!Number.isFinite(data.durationMinutes) || data.durationMinutes < 1) {
     errors.push("durationMinutes: number >= 1 required");
   }
-  if (!Number.isFinite(data.startLocationX) || data.startLocationX < 0 || data.startLocationX > COORD_MAX) {
+  if (data.startLocationX !== undefined && (!Number.isFinite(data.startLocationX) || data.startLocationX < 0 || data.startLocationX > COORD_MAX)) {
     errors.push(`startLocationX: number in [0, ${COORD_MAX}] required`);
   }
-  if (!Number.isFinite(data.startLocationY) || data.startLocationY < 0 || data.startLocationY > COORD_MAX) {
+  if (data.startLocationY !== undefined && (!Number.isFinite(data.startLocationY) || data.startLocationY < 0 || data.startLocationY > COORD_MAX)) {
     errors.push(`startLocationY: number in [0, ${COORD_MAX}] required`);
   }
   if (!Number.isFinite(data.capacity) || data.capacity < 1) {
@@ -70,7 +70,7 @@ async function handlePost(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: "guide code required" });
   }
 
-  const { title, date, durationMinutes, startLocationX, startLocationY, startLocationName, startLocationId, capacity, labels } = req.body;
+  const { title, description, date, durationMinutes, startLocationX, startLocationY, startLocationName, startLocationId, capacity, labels } = req.body;
   const validation = validateTourInput(req.body);
 
   if (!validation.valid) {
@@ -80,10 +80,11 @@ async function handlePost(req: VercelRequest, res: VercelResponse) {
   try {
     const input: TourCreateInput = {
       title: title.trim(),
+      description: typeof description === "string" ? description.trim() : undefined,
       date,
       durationMinutes,
-      startLocationX,
-      startLocationY,
+      startLocationX: Number.isFinite(startLocationX) ? startLocationX : 0,
+      startLocationY: Number.isFinite(startLocationY) ? startLocationY : 0,
       startLocationName: typeof startLocationName === "string" ? startLocationName : undefined,
       startLocationId: typeof startLocationId === "string" ? startLocationId : undefined,
       capacity,
@@ -115,12 +116,13 @@ async function handleGet(req: VercelRequest, res: VercelResponse) {
       tours = await rtdbToursListFuture();
     }
 
-    // Enrichir avec places restantes (capacité - places confirmées)
+    // Enrichir avec places restantes (capacité - places confirmées - offres waitlist en cours)
     const enriched = await Promise.all(
       tours.map(async (t) => {
         const taken = await rtdbCountRegisteredByTour(t.id);
+        const pending = await rtdbCountPendingWaitlistOffers(t.id);
         // Firebase ne stocke pas les tableaux vides → labels peut être undefined
-        return { ...t, labels: t.labels || [], placesLeft: Math.max(0, t.capacity - taken) };
+        return { ...t, labels: t.labels || [], placesLeft: Math.max(0, t.capacity - taken - pending) };
       })
     );
 

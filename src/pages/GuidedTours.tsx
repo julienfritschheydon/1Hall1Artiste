@@ -74,6 +74,7 @@ function TourCard({ tour, onClick }: { tour: Tour; onClick: () => void }) {
     >
       <CardContent className="p-5">
         <h3 className="font-bold text-lg text-[#1a2138] mb-1">{tour.title}</h3>
+        {tour.description && <p className="text-sm text-gray-600 mb-1 line-clamp-2">{tour.description}</p>}
         <p className="text-sm text-gray-600 capitalize">{dateStr} à {timeStr}</p>
         <p className="text-sm text-gray-600">Durée : {tour.durationMinutes} min</p>
         {(tour.labels?.length ?? 0) > 0 && (
@@ -108,9 +109,10 @@ function TourDetail({ tour }: { tour: Tour }) {
     <Card className="bg-white/90 backdrop-blur-sm border-2 border-amber-300 shadow-lg">
       <CardContent className="p-6">
         <h2 className="text-2xl font-bold text-[#1a2138] mb-1">{tour.title}</h2>
-        <p className="text-gray-600 mb-4 capitalize">
+        <p className="text-gray-600 mb-2 capitalize">
           {dateStr} à {timeStr} • Durée : {tour.durationMinutes} min
         </p>
+        {tour.description && <p className="text-gray-700 mb-4 whitespace-pre-wrap">{tour.description}</p>}
 
         <div className="mb-3 p-3 rounded-lg bg-[#fbf7ec] border border-amber-200 font-semibold text-[#1a2138]">
           Départ : {tour.startLocationName || "Lieu à préciser"}

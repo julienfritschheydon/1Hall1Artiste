@@ -3,7 +3,6 @@
 // inscription manuelle sur place, appel présences, export CSV + impression.
 import { useState, useEffect } from "react";
 import { Tour } from "../types/visitTypes";
-import { locations as buildingLocations, Location } from "../data/locations";
 import GuideCodeLogin from "../components/GuideCodeLogin";
 import GuideToursList from "../components/GuideToursList";
 import TourAttendanceSheet from "../components/TourAttendanceSheet";
@@ -11,6 +10,7 @@ import { VisitLayout } from "@/components/VisitLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { getFestivalDates } from "@/utils/festival";
 
 const ORANGE = "#ff7a45";
 const orangeBtn = { backgroundColor: ORANGE };
@@ -157,39 +157,30 @@ function TourForm({
 }) {
   const isEdit = Boolean(tour);
   const [title, setTitle] = useState(tour?.title || "");
-  // datetime-local needs "YYYY-MM-DDTHH:mm"
-  const [date, setDate] = useState(tour ? toLocalInput(tour.date) : "");
+  const [description, setDescription] = useState(tour?.description || "");
+  const festivalDates = getFestivalDates();
+  const initialLocal = tour ? toLocalInput(tour.date) : "";
+  const [day, setDay] = useState<"samedi" | "dimanche">(
+    initialLocal && initialLocal.slice(0, 10) === festivalDates.dimanche ? "dimanche" : "samedi"
+  );
+  const [time, setTime] = useState(initialLocal ? initialLocal.slice(11, 16) : "10:00");
+  const date = `${festivalDates[day]}T${time}`;
   const [durationMinutes, setDurationMinutes] = useState(tour?.durationMinutes || 90);
   const [capacity, setCapacity] = useState(tour?.capacity || 15);
   const [labels, setLabels] = useState((tour?.labels || []).join(", "));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Lieux de départ = les vrais bâtiments de la carte (data/locations.ts).
-  // Plus de liste RTDB séparée à maintenir à la main ni de fetch : la source
-  // est la même que celle utilisée partout ailleurs sur la carte, donc l'id
-  // choisi ici correspond forcément au bon point sur la carte.
-  const locations: Location[] = buildingLocations;
-  const [locationId, setLocationId] = useState<string>(() => tour?.startLocationId || "");
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    const loc = locations.find((l) => l.id === locationId);
-    if (!loc) {
-      setError("Choisissez un lieu de départ.");
-      return;
-    }
     setSaving(true);
     try {
       const body = {
         title,
+        description: description.trim(),
         date: new Date(date).toISOString(),
         durationMinutes: Number(durationMinutes),
-        startLocationX: loc.x,
-        startLocationY: loc.y,
-        startLocationName: loc.name,
-        startLocationId: loc.id,
         capacity: Number(capacity),
         labels: labels.split(",").map((l) => l.trim()).filter(Boolean),
       };
@@ -230,8 +221,41 @@ function TourForm({
             <Input value={title} onChange={(e) => setTitle(e.target.value)} required />
           </div>
           <div>
-            <label className={labelCls}>Date & heure de départ *</label>
-            <Input type="datetime-local" value={date} onChange={(e) => setDate(e.target.value)} required />
+            <label className={labelCls}>Descriptif</label>
+            <textarea
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              rows={3}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Présentation de la visite pour les visiteurs"
+            />
+          </div>
+          <div>
+            <label className={labelCls}>Jour *</label>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant={day === "samedi" ? undefined : "outline"}
+                style={day === "samedi" ? orangeBtn : undefined}
+                className={day === "samedi" ? "text-white" : ""}
+                onClick={() => setDay("samedi")}
+              >
+                Samedi {new Date(festivalDates.samedi).toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}
+              </Button>
+              <Button
+                type="button"
+                variant={day === "dimanche" ? undefined : "outline"}
+                style={day === "dimanche" ? orangeBtn : undefined}
+                className={day === "dimanche" ? "text-white" : ""}
+                onClick={() => setDay("dimanche")}
+              >
+                Dimanche {new Date(festivalDates.dimanche).toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}
+              </Button>
+            </div>
+          </div>
+          <div>
+            <label className={labelCls}>Heure de départ *</label>
+            <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} required />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -242,28 +266,6 @@ function TourForm({
               <label className={labelCls}>Capacité *</label>
               <Input type="number" min={1} value={capacity} onChange={(e) => setCapacity(Number(e.target.value))} required />
             </div>
-          </div>
-          <div>
-            <label className={labelCls}>Point de départ *</label>
-            {locations.length === 0 ? (
-              <p className="text-sm text-[#e8693a]">
-                Aucun lieu disponible. Demandez à l'administrateur d'ajouter des points de départ.
-              </p>
-            ) : (
-              <select
-                value={locationId}
-                onChange={(e) => setLocationId(e.target.value)}
-                required
-                className="w-full border border-input rounded-md h-10 px-3 bg-white text-sm"
-              >
-                <option value="">— Choisir un lieu —</option>
-                {locations.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.name}
-                  </option>
-                ))}
-              </select>
-            )}
           </div>
           <div>
             <label className={labelCls}>Labels (séparés par virgule)</label>
@@ -356,11 +358,12 @@ function TourDetails({
 
       <Card className="bg-white/90 backdrop-blur-sm border-2 border-amber-300 shadow-lg">
         <CardContent className="p-6">
-          <p className="text-gray-600 mb-4">
+          <p className="text-gray-600 mb-2">
             {new Date(tour.date).toLocaleDateString("fr-FR")} •{" "}
             {new Date(tour.date).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
             {" • "}Durée : {tour.durationMinutes} min • Capacité : {tour.capacity}
           </p>
+          {tour.description && <p className="text-gray-700 mb-4 whitespace-pre-wrap">{tour.description}</p>}
 
           {loading ? (
             <p className="text-gray-600">Chargement...</p>

@@ -32,6 +32,10 @@
       "schedule": "0 1 * * *"
     },
     {
+      "path": "/api/visit-emails?type=expire-pending-registrations",
+      "schedule": "30 1 * * *"
+    },
+    {
       "path": "/api/visit-emails?type=promote-waitlist",
       "schedule": "0 2 * * *"
     }

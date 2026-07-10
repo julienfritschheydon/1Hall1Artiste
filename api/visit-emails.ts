@@ -3,6 +3,7 @@
 // POST /api/visit-emails?type=send-1d-validation — Validation 1j avant (daily)
 // POST /api/visit-emails?type=batch-delete-post-tour — Suppression RGPD 24H après (daily)
 // POST /api/visit-emails?type=promote-waitlist — Auto-promotion file attente
+// POST /api/visit-emails?type=expire-pending-registrations — Annule inscriptions non confirmées après 24H (libère la place)
 
 import { VercelRequest, VercelResponse } from "@vercel/node";
 import {
@@ -298,6 +299,38 @@ async function batchDeletePostTour(): Promise<{ deletedRegs: number; deletedWait
   return { deletedRegs, deletedWaitlist };
 }
 
+// ==== JOB: Expire pending validations (spot held during confirmation window) ====
+// Registration "attente_validation" reserves a seat (rtdbCountRegisteredByTour) until
+// the 24h email-confirmation link expires. This job auto-cancels those past deadline
+// so the seat frees up (waitlist promotion picks it up on its own run).
+async function expirePendingRegistrations(): Promise<{ autocancelled: number }> {
+  const now = new Date();
+  let autocancelled = 0;
+
+  for (const tour of await rtdbToursListAll()) {
+    const regs = await rtdbRegistrationsListByTour(tour.id);
+    for (const reg of regs) {
+      if (
+        reg.status === "attente_validation" &&
+        reg.validationExpiresAt &&
+        new Date(reg.validationExpiresAt) < now
+      ) {
+        await rtdbRegistrationUpdate(reg.id, { status: "annulé", cancelledAt: now.toISOString() });
+        autocancelled++;
+      }
+    }
+  }
+
+  if (autocancelled > 0) {
+    await rtdbAuditLog("auto_cancel_pending_validation_expired", {
+      count: autocancelled,
+      timestamp: now.toISOString(),
+    });
+  }
+
+  return { autocancelled };
+}
+
 // ==== JOB 4: Promote from waitlist (Q4, Q5) ====
 // Fills ANY free slot — handles cancellations AND capacity increase (spec §9).
 async function promoteFromWaitlist(): Promise<{ promoted: number; rejected: number }> {
@@ -353,6 +386,16 @@ async function promoteFromWaitlist(): Promise<{ promoted: number; rejected: numb
       const deadline = new Date(Date.now() + 24 * 60 * 60 * 1000);
       const idempotencyKey = `${next.id}_waitlist_offer`;
 
+      // Réserver la place AVANT l'envoi email : un échec d'envoi ne doit pas laisser
+      // la place "libre" indéfiniment ni bloquer la personne en position 1 pour toujours.
+      await rtdbWaitlistUpdate(next.id, {
+        invitationToken: token.token,
+        invitationExpiresAt: token.expiresAt,
+        invitationSentAt: new Date().toISOString(),
+      });
+      promoted++;
+      freeSlots -= need;
+
       const success = await sendEmailWithRetry(
         JSON.parse(process.env.VISIT_EMAILJS_TEMPLATE_IDS || "{}").waitlist_offer,
         {
@@ -366,16 +409,13 @@ async function promoteFromWaitlist(): Promise<{ promoted: number; rejected: numb
         idempotencyKey
       );
 
-      if (success) {
-        await rtdbWaitlistUpdate(next.id, {
-          invitationToken: token.token,
-          invitationExpiresAt: token.expiresAt,
-          invitationSentAt: new Date().toISOString(),
-        });
-        promoted++;
-        freeSlots -= need;
-      } else {
+      if (!success) {
         console.error(`[visit-emails] Failed to send waitlist offer to ${next.email}`);
+        await rtdbAuditLog("waitlist_offer_email_failed", {
+          waitlistId: next.id,
+          tourId: tour.id,
+          email: next.email,
+        });
       }
     }
   }
@@ -407,6 +447,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       result = await batchDeletePostTour();
     } else if (type === "promote-waitlist") {
       result = await promoteFromWaitlist();
+    } else if (type === "expire-pending-registrations") {
+      result = await expirePendingRegistrations();
     } else {
       return res.status(400).json({ error: "unknown job type" });
     }

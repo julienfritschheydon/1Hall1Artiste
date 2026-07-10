@@ -40,6 +40,7 @@ export async function rtdbTourCreate(input: TourCreateInput): Promise<Tour> {
     id,
     guideId: input.guideId || "all-guides",
     title: input.title,
+    description: input.description,
     date: input.date,
     durationMinutes: input.durationMinutes,
     startLocationX: input.startLocationX,
@@ -154,14 +155,24 @@ export async function rtdbCountUserTours(email: string): Promise<number> {
 }
 
 // Compte les PLACES occupées (titulaire + accompagnants) par les inscriptions
-// qui occupent réellement un siège : confirmé OU présent (l'appel ne libère pas la place).
+// qui occupent réellement un siège : confirmé, présent, OU en attente de validation
+// non expirée (la place est réservée pendant le délai de confirmation email).
+// L'appel ne libère pas la place.
 export async function rtdbCountRegisteredByTour(tourId: string): Promise<number> {
   const regs = await rtdbGet<Record<string, boolean>>(`registrations_by_tour/${tourId}`);
   if (!regs) return 0;
   let places = 0;
+  const now = Date.now();
   for (const regId of Object.keys(regs)) {
     const reg = await rtdbRegistrationGet(regId);
-    if (reg && (reg.status === "confirmé" || reg.status === "présent") && !reg.deletedAt) {
+    if (!reg || reg.deletedAt) continue;
+    if (reg.status === "confirmé" || reg.status === "présent") {
+      places += placesOf(reg);
+    } else if (
+      reg.status === "attente_validation" &&
+      reg.validationExpiresAt &&
+      new Date(reg.validationExpiresAt).getTime() > now
+    ) {
       places += placesOf(reg);
     }
   }
@@ -265,6 +276,17 @@ export async function rtdbWaitlistCount(tourId: string): Promise<number> {
     if (wait && !wait.deletedAt && !wait.rejectedAt) count++;
   }
   return count;
+}
+
+// Places réservées par des offres waitlist en cours (envoyées, ni acceptées ni expirées).
+// Doit être soustrait de la capacité tant que l'offre court, sinon une place "en cours d'attribution"
+// apparaît comme libre et un nouvel inscrit peut doubler la personne qui attend.
+export async function rtdbCountPendingWaitlistOffers(tourId: string): Promise<number> {
+  const waits = await rtdbWaitlistListByTour(tourId);
+  const now = new Date();
+  return waits
+    .filter((w) => w.invitationSentAt && !w.rejectedAt && w.invitationExpiresAt && new Date(w.invitationExpiresAt) >= now)
+    .reduce((sum, w) => sum + placesOf(w), 0);
 }
 
 export async function rtdbWaitlistListByTour(tourId: string): Promise<Waitlist[]> {

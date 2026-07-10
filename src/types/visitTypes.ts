@@ -22,6 +22,7 @@ export interface Tour {
   id: string
   guideId: string // Always 'all-guides' (tous guides accèdent)
   title: string
+  description?: string
   date: string // ISO datetime
   durationMinutes: number
   startLocationX: number // Coordonnée X sur la carte custom
@@ -108,6 +109,7 @@ export type TourStatus = Tour['status']
 // Input types for creation
 export interface TourCreateInput {
   title: string
+  description?: string
   date: string
   durationMinutes: number
   startLocationX: number
