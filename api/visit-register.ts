@@ -516,12 +516,23 @@ async function handleGdprDelete(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
+    // Tours dont une place se libère réellement par cette suppression — à
+    // promouvoir ensuite (même règle que partout ailleurs : jamais laisser
+    // une place silencieusement libre pendant que la file attend).
+    const affectedTourIds = new Set<string>();
+    const now = new Date();
+
     // Scan ALL registrations by email field (robust: catches non-indexed/orphan docs too)
     const allRegs = await rtdbGet<Record<string, any>>("registrations");
     let deletedRegs = 0;
     if (allRegs) {
       for (const [regId, reg] of Object.entries(allRegs)) {
         if (reg && reg.email && reg.email.toLowerCase() === email.toLowerCase() && !reg.deletedAt) {
+          const heldSeat =
+            reg.status === "confirmé" ||
+            reg.status === "présent" ||
+            (reg.status === "attente_validation" && reg.validationExpiresAt && new Date(reg.validationExpiresAt) > now);
+          if (heldSeat) affectedTourIds.add(reg.tourId);
           await rtdbRegistrationSoftDelete(regId);
           deletedRegs++;
         }
@@ -534,10 +545,17 @@ async function handleGdprDelete(req: VercelRequest, res: VercelResponse) {
     if (allWaitlist) {
       for (const [wid, w] of Object.entries(allWaitlist)) {
         if (w && w.email && w.email.toLowerCase() === email.toLowerCase() && !w.deletedAt) {
+          const heldOffer =
+            w.invitationSentAt && !w.rejectedAt && w.invitationExpiresAt && new Date(w.invitationExpiresAt) >= now;
+          if (heldOffer) affectedTourIds.add(w.tourId);
           await rtdbWaitlistSoftDelete(wid);
           deletedWaitlist++;
         }
       }
+    }
+
+    for (const tourId of affectedTourIds) {
+      await promoteWaitlist(tourId);
     }
 
     await rtdbAuditLog("gdpr_request", {

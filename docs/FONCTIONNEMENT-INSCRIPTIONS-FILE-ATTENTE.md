@@ -152,3 +152,32 @@ expiré). B en file d'attente position #1, aucune offre envoyée. C tente de s'i
 5. **Le token de validation/invitation porte sa propre expiration** (signée, dans le payload) —
    il expire indépendamment du statut DB. Ne jamais se fier uniquement au statut DB pour rejeter
    un lien expiré ; `verifyRegistrationToken` doit toujours être appelé en premier.
+6. **La règle 2 (toujours appeler `promoteWaitlist`) s'applique à TOUT point d'entrée qui libère
+   une place, pas seulement l'annulation/expiration côté inscription** (bugs corrigés) :
+   - `DELETE /api/visit-waitlist` ([api/visit-waitlist.ts](../api/visit-waitlist.ts)) — annuler
+     sa propre file d'attente alors qu'on a déjà une offre active libère cette place ; il faut
+     promouvoir le suivant, pas seulement réordonner les positions.
+   - `POST /api/visit-register?action=gdpr` ([api/visit-register.ts](../api/visit-register.ts)) —
+     supprimer les données d'une personne qui occupait une place (confirmée, en attente de
+     validation non expirée, ou avec une offre active) doit promouvoir la file d'attente du/des
+     tour(s) concerné(s), pas juste soft-delete silencieusement.
+7. **[Nuance de conception, pas un bug] Une entrée en file d'attente SANS offre envoyée
+   (`invitationSentAt` absent) ne réserve aucune place.** `hasSpace` ne compte que
+   `registeredPlaces + pendingWaitlistPlaces` (offres actives) — un groupe en position #1 qui ne
+   rentrait pas au moment de son inscription peut donc être dépassé par un plus petit groupe qui
+   s'inscrit après lui et qui, lui, rentre dans la capacité brute restante. L'ordre de `position`
+   en base reste correct (le groupe garde son rang), mais l'allocation de capacité ne lui réserve
+   rien tant qu'il n'a pas reçu d'offre. Comportement actuel assumé (pas de gaspillage de place
+   pour un groupe qui ne peut de toute façon pas encore rentrer) — à trancher si un jour jugé
+   contre-intuitif pour les utilisateurs.
+
+---
+
+## 7. Couverture de tests
+
+[src/services/visitRegistrationFlow.test.ts](../src/services/visitRegistrationFlow.test.ts) —
+tests d'intégration contre une RTDB simulée en mémoire (mock de `api/_firebase.ts`), temps
+accéléré via fake timers. Couvre : groupes/accompagnants et équité FIFO (§6.7), contournement
+guide volontaire, les deux bugs corrigés au §6.6, anti-abus (doublon, max 3 visites confirmées
+Q7, reset après annulation), et un cycle complet multi-personnes vérifiant que la capacité
+n'est jamais dépassée hors override guide.

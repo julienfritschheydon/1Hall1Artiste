@@ -14,6 +14,7 @@ import {
   rtdbGuideCodeValidate,
 } from "./_visit-db.js";
 import { verifyRegistrationToken } from "./_token.js";
+import { promoteWaitlist } from "./visit-register.js";
 
 // POST /api/visit-waitlist/activate — accepter offre (Q4: sequential, 1 per sec)
 async function handleActivateWaitlist(req: VercelRequest, res: VercelResponse) {
@@ -94,11 +95,25 @@ async function handleDeleteWaitlist(req: VercelRequest, res: VercelResponse) {
       return res.status(410).json({ error: "already cancelled" });
     }
 
+    // Une offre active (invitationSentAt, ni refusée ni expirée) réservait une
+    // place — sa suppression la libère, il faut donc promouvoir le suivant
+    // (même bug déjà corrigé pour promoteWaitlist : ne jamais laisser une
+    // place silencieusement libre pendant que la file attend).
+    const hadActiveOffer =
+      Boolean(waitlist.invitationSentAt) &&
+      !waitlist.rejectedAt &&
+      Boolean(waitlist.invitationExpiresAt) &&
+      new Date(waitlist.invitationExpiresAt as string) >= new Date();
+
     // Soft delete
     await rtdbWaitlistSoftDelete(id);
 
     // Q4: Reorder positions after this one (position -= 1 for all after)
     await rtdbWaitlistReorderAfter(waitlist.tourId, waitlist.position);
+
+    if (hadActiveOffer) {
+      await promoteWaitlist(waitlist.tourId);
+    }
 
     console.log(`[waitlist] Cancelled: position_${waitlist.position} for tour_${waitlist.tourId}`);
 
