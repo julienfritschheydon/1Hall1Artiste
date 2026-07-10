@@ -136,6 +136,15 @@ async function handleGet(req: VercelRequest, res: VercelResponse) {
       })
     );
 
+    // Cache uniquement la réponse publique (edge cache non gardé par le
+    // header x-guide-code — jamais cacher/partager une réponse guide, qui
+    // inclut les visites passées).
+    if (isGuideUser) {
+      res.setHeader("Cache-Control", "private, no-store");
+    } else {
+      res.setHeader("Cache-Control", "s-maxage=60, stale-while-revalidate=3600");
+    }
+
     return res.status(200).json(enriched);
   } catch (e) {
     console.error("[visit-tours GET]", e);
