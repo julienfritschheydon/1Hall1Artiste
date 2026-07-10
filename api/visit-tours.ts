@@ -7,10 +7,23 @@ import { VercelRequest, VercelResponse } from "@vercel/node";
 import { rtdbTourCreate, rtdbTourGet, rtdbTourUpdate, rtdbToursListFuture, rtdbToursListAll, rtdbGuideCodeValidate, rtdbCountRegisteredByTour, rtdbCountPendingWaitlistOffers } from "./_visit-db.js";
 import { promoteWaitlist } from "./visit-register.js";
 import { Tour, TourCreateInput } from "../src/types/visitTypes.js";
+import { locations } from "../src/data/locations.js";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Coordonnées x/y sur la carte custom Île Feydeau (pixels). Bornes généreuses.
 const COORD_MAX = 5000;
+
+// Toutes les visites partent du même bâtiment fixe — pas de choix guide.
+const FIXED_START_LOCATION_ID = "allee-duguay-trouin-17";
+function fixedStartLocation() {
+  const loc = locations.find((l) => l.id === FIXED_START_LOCATION_ID);
+  return {
+    startLocationId: FIXED_START_LOCATION_ID,
+    startLocationName: loc?.name || FIXED_START_LOCATION_ID,
+    startLocationX: loc?.x ?? 0,
+    startLocationY: loc?.y ?? 0,
+  };
+}
 
 // Helper: validate guide code from header
 async function validateGuideCode(code: string | undefined): Promise<boolean> {
@@ -70,7 +83,7 @@ async function handlePost(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: "guide code required" });
   }
 
-  const { title, description, date, durationMinutes, startLocationX, startLocationY, startLocationName, startLocationId, capacity, labels } = req.body;
+  const { title, description, date, durationMinutes, capacity, labels } = req.body;
   const validation = validateTourInput(req.body);
 
   if (!validation.valid) {
@@ -83,10 +96,7 @@ async function handlePost(req: VercelRequest, res: VercelResponse) {
       description: typeof description === "string" ? description.trim() : undefined,
       date,
       durationMinutes,
-      startLocationX: Number.isFinite(startLocationX) ? startLocationX : 0,
-      startLocationY: Number.isFinite(startLocationY) ? startLocationY : 0,
-      startLocationName: typeof startLocationName === "string" ? startLocationName : undefined,
-      startLocationId: typeof startLocationId === "string" ? startLocationId : undefined,
+      ...fixedStartLocation(),
       capacity,
       labels: labels.map((l: string) => l.trim()),
       guideId: "all-guides",
