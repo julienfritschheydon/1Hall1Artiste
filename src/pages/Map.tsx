@@ -35,9 +35,7 @@ import { AudioGuideButton } from "@/components/AudioGuideButton";
 import { AudioGuidePlayer } from "@/components/AudioGuidePlayer";
 import { MapHeader } from "@/components/MapHeader";
 import { TourDetailsModal } from "@/components/TourDetailsModal";
-import { useTours } from "@/hooks/useTours";
 import { type Tour } from "@/types/visitTypes";
-import { toursAtLocation } from "@/utils/tourLocation";
 // Créer un logger pour le composant Map
 const logger = createLogger('Map');
 
@@ -57,11 +55,14 @@ const Map = ({ fullScreen = false }: MapProps) => {
   // Utiliser directement les emplacements du service de données
   const [mapLocations, setMapLocations] = useState(locations);
   const [selectedTour, setSelectedTour] = useState<Tour | null>(null);
-  const { tours: allTours } = useTours();
-  const locationsWithTours = useMemo(
-    () => mapLocations.filter((loc) => toursAtLocation(allTours, loc).length > 0).map((loc) => loc.id),
-    [mapLocations, allTours]
-  );
+  // Bâtiments hébergeant une visite : liste tenue à la main (ids réels de
+  // data/locations.ts, coordonnées déjà justes) — pas de matching contre
+  // visit_locations (RTDB), dataset séparé dont les coordonnées ne coïncident
+  // pas forcément avec la carte. Ajouter/retirer un id ici quand une visite
+  // existe réellement.
+  const locationsWithTours: string[] = [
+    // "maison-jules-verne",
+  ];
   const [savedEventIds, setSavedEventIds] = useState<string[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [activeLocation, setActiveLocation] = useState<string | null>(null);

@@ -441,15 +441,13 @@ export const MapComponent: React.FC<MapComponentProps> = ({
                     ? location.visited
                       ? 'bg-[#4CAF50]/90 ring-4 ring-green-400 ring-opacity-80'
                       : 'bg-[#ff7a45]/90 ring-4 ring-yellow-400 ring-opacity-80'
-                    : location.hasProgram === false
-                      ? 'bg-[#757575]/90' // Gris pour les lieux sans programmation
-                      : location.visited
-                        ? 'bg-[#4CAF50]/90'
-                        : 'bg-[#4a5d94]/90'
-                } ${
-                  locationsWithTours.includes(location.id) && activeLocation !== location.id && highlightedLocation !== location.id
-                    ? 'ring-2 ring-[#ff7a45] ring-offset-1'
-                    : ''
+                    : locationsWithTours.includes(location.id)
+                      ? 'bg-[#ff7a45]/90' // Orange plein : bâtiment avec visite guidée
+                      : location.hasProgram === false
+                        ? 'bg-[#757575]/90' // Gris pour les lieux sans programmation
+                        : location.visited
+                          ? 'bg-[#4CAF50]/90'
+                          : 'bg-[#4a5d94]/90'
                 }`}
               style={{
                 transform: 'translate(-50%, -50%)',
