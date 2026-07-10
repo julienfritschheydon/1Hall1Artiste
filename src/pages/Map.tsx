@@ -37,6 +37,7 @@ import { MapHeader } from "@/components/MapHeader";
 import { TourDetailsModal } from "@/components/TourDetailsModal";
 import { useTours } from "@/hooks/useTours";
 import { type Tour } from "@/types/visitTypes";
+import { toursAtLocation } from "@/utils/tourLocation";
 // Créer un logger pour le composant Map
 const logger = createLogger('Map');
 
@@ -58,7 +59,7 @@ const Map = ({ fullScreen = false }: MapProps) => {
   const [selectedTour, setSelectedTour] = useState<Tour | null>(null);
   const { tours: allTours } = useTours();
   const locationsWithTours = useMemo(
-    () => mapLocations.filter((loc) => allTours.some((t) => t.startLocationX === loc.x && t.startLocationY === loc.y)).map((loc) => loc.id),
+    () => mapLocations.filter((loc) => toursAtLocation(allTours, loc).length > 0).map((loc) => loc.id),
     [mapLocations, allTours]
   );
   const [savedEventIds, setSavedEventIds] = useState<string[]>([]);
