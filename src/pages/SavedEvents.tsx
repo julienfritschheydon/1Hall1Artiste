@@ -28,6 +28,7 @@ import { type Tour, type Registration, type Waitlist } from "@/types/visitTypes"
 import { recoverByEmail, attachEmail, detachEmail, getAttachedEmail } from "@/services/favoritesSync";
 import X from "lucide-react/dist/esm/icons/x";
 import Pencil from "lucide-react/dist/esm/icons/pencil";
+import { TourDetailsModal } from "@/components/TourDetailsModal";
 
 export default function SavedEvents() {
   const navigate = useNavigate();
@@ -52,6 +53,8 @@ export default function SavedEvents() {
   const [bookingLoading, setBookingLoading] = useState<boolean>(false);
   const [bookings, setBookings] = useState<{ tours: Record<string, Tour>, registrations: Registration[], waitlist: Waitlist[] } | null>(null);
   const [bookingError, setBookingError] = useState<string>("");
+  const [selectedTour, setSelectedTour] = useState<Tour | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [favoritesMessage, setFavoritesMessage] = useState<string>("");
   const [emailAttached, setEmailAttached] = useState<boolean>(() => Boolean(getAttachedEmail()));
   const [emailEditing, setEmailEditing] = useState<boolean>(() => !getAttachedEmail());
@@ -182,6 +185,54 @@ export default function SavedEvents() {
     removeSavedLocation(locationId);
     setSavedLocations(getSavedLocations());
     analytics.trackContentInteraction(EventAction.UNSAVE, "location", locationId, { source: "saved" });
+  };
+
+  const handleCancelRegistration = async (registrationId: string) => {
+    if (!window.confirm("Annuler cette inscription ?")) return;
+    setCancellingId(registrationId);
+    try {
+      const res = await fetch("/api/visit-register?action=cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ registrationId, email: bookingEmail.trim() }),
+      });
+      if (res.ok) {
+        setBookings((prev) => prev && ({
+          ...prev,
+          registrations: prev.registrations.map((r) => r.id === registrationId ? { ...r, status: "annulé" } : r),
+        }));
+        analytics.trackContentInteraction(EventAction.CLICK, "tour_registration_cancel", registrationId, { source: "saved" });
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || "Impossible d'annuler l'inscription.");
+      }
+    } catch {
+      alert("Connexion indisponible — réessayez plus tard.");
+    } finally {
+      setCancellingId(null);
+    }
+  };
+
+  const handleCancelWaitlist = async (waitlistId: string) => {
+    if (!window.confirm("Quitter la file d'attente ?")) return;
+    setCancellingId(waitlistId);
+    try {
+      const res = await fetch(`/api/visit-waitlist?id=${encodeURIComponent(waitlistId)}`, { method: "DELETE" });
+      if (res.ok) {
+        setBookings((prev) => prev && ({
+          ...prev,
+          waitlist: prev.waitlist.filter((w) => w.id !== waitlistId),
+        }));
+        analytics.trackContentInteraction(EventAction.CLICK, "tour_waitlist_cancel", waitlistId, { source: "saved" });
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || "Impossible de quitter la file d'attente.");
+      }
+    } catch {
+      alert("Connexion indisponible — réessayez plus tard.");
+    } finally {
+      setCancellingId(null);
+    }
   };
 
   const handleSetNotification = (eventId: string) => {
@@ -376,23 +427,32 @@ export default function SavedEvents() {
               {bookings.registrations.map((reg, index) => {
                 const tour = bookings.tours[reg.tourId];
                 return tour ? (
-                  <Card key={reg.id} className="border-2 border-amber-300" style={getEventBackgroundStyle(index)}>
+                  <Card
+                    key={reg.id}
+                    className="border-2 border-amber-300 cursor-pointer hover:shadow-lg transition-all"
+                    style={getEventBackgroundStyle(index)}
+                    onClick={() => setSelectedTour(tour)}
+                  >
                     <div style={getEventBackgroundPseudoElementStyle(index)} className="absolute inset-0 pointer-events-none" />
                     <CardContent className="relative z-10 py-3 flex items-start justify-between gap-3">
                       <div className="flex-1">
                         <div className="font-semibold text-[#1a2138]">{tour.title}</div>
                         <div className="text-gray-600 text-sm">{new Date(tour.date).toLocaleDateString('fr-FR')} à {new Date(tour.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
                         <div className="text-xs text-gray-600">Statut: <span className={reg.status === 'confirmé' ? 'text-green-600 font-semibold' : 'text-orange-600'}>{reg.status}</span></div>
-                        <ActionButton
-                          variant="outline"
-                          size="sm"
-                          className="mt-2 h-6 text-xs"
-                          onClick={() => {
-                            // TODO: Annuler
-                          }}
-                        >
-                          Annuler
-                        </ActionButton>
+                        {reg.status !== 'annulé' && (
+                          <ActionButton
+                            variant="outline"
+                            size="sm"
+                            className="mt-2 h-6 text-xs"
+                            disabled={cancellingId === reg.id}
+                            onClick={(e) => {
+                              e?.stopPropagation();
+                              handleCancelRegistration(reg.id);
+                            }}
+                          >
+                            {cancellingId === reg.id ? "..." : "Annuler"}
+                          </ActionButton>
+                        )}
                       </div>
                       <div className="flex-shrink-0 w-16 h-16 rounded-lg bg-amber-100 flex items-center justify-center">
                         <Calendar className="h-7 w-7 text-[#ff7a45]" />
@@ -404,7 +464,12 @@ export default function SavedEvents() {
               {bookings.waitlist.map((wl, index) => {
                 const tour = bookings.tours[wl.tourId];
                 return tour ? (
-                  <Card key={wl.id} className="border-2 border-amber-300" style={getEventBackgroundStyle(bookings.registrations.length + index)}>
+                  <Card
+                    key={wl.id}
+                    className="border-2 border-amber-300 cursor-pointer hover:shadow-lg transition-all"
+                    style={getEventBackgroundStyle(bookings.registrations.length + index)}
+                    onClick={() => setSelectedTour(tour)}
+                  >
                     <div style={getEventBackgroundPseudoElementStyle(bookings.registrations.length + index)} className="absolute inset-0 pointer-events-none" />
                     <CardContent className="relative z-10 py-3 flex items-start justify-between gap-3">
                       <div className="flex-1">
@@ -415,11 +480,13 @@ export default function SavedEvents() {
                           variant="outline"
                           size="sm"
                           className="mt-2 h-6 text-xs"
-                          onClick={() => {
-                            // TODO: Annuler
+                          disabled={cancellingId === wl.id}
+                          onClick={(e) => {
+                            e?.stopPropagation();
+                            handleCancelWaitlist(wl.id);
                           }}
                         >
-                          Annuler
+                          {cancellingId === wl.id ? "..." : "Annuler"}
                         </ActionButton>
                       </div>
                       <div className="flex-shrink-0 w-16 h-16 rounded-lg bg-amber-100 flex items-center justify-center">
@@ -790,6 +857,12 @@ export default function SavedEvents() {
             setSelectedEvent(null);
           }}
           source="saved"
+        />
+
+        <TourDetailsModal
+          tour={selectedTour}
+          isOpen={!!selectedTour}
+          onClose={() => setSelectedTour(null)}
         />
       </div>
     </div>
