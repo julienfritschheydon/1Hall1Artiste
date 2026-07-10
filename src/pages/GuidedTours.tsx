@@ -65,7 +65,6 @@ function TourCard({ tour, onClick }: { tour: Tour; onClick: () => void }) {
   const tourDate = new Date(tour.date);
   const dateStr = tourDate.toLocaleDateString("fr-FR", { weekday: "long", month: "long", day: "numeric" });
   const timeStr = tourDate.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-  const placesLeft = tour.placesLeft ?? tour.capacity;
 
   return (
     <Card
@@ -86,10 +85,7 @@ function TourCard({ tour, onClick }: { tour: Tour; onClick: () => void }) {
             ))}
           </div>
         )}
-        <div className="flex items-center justify-between mt-3">
-          <span className="text-sm">
-            Places : <b>{placesLeft}/{tour.capacity}</b>
-          </span>
+        <div className="flex items-center justify-end mt-3">
           <span className="text-sm font-bold" style={{ color: ORANGE }}>
             S'inscrire ›
           </span>

@@ -12,6 +12,7 @@ import {
   rtdbCountUserTours,
   rtdbCountRegisteredByTour,
   rtdbCountPendingWaitlistOffers,
+  rtdbRegistrationsListByTour,
   rtdbWaitlistAdd,
   rtdbWaitlistCount,
   rtdbWaitlistSoftDelete,
@@ -195,6 +196,18 @@ async function handleCreateRegistration(req: VercelRequest, res: VercelResponse)
     const alreadyReg = await rtdbRegistrationExists(tourId, email);
     if (alreadyReg) {
       return res.status(400).json({ error: "already registered for this tour" });
+    }
+
+    // Lazy expiry: annule les inscriptions "attente_validation" dont le délai de confirmation
+    // email est dépassé, et promeut immédiatement la file d'attente sur chaque place libérée —
+    // sinon la personne qui tente de s'inscrire maintenant pourrait doubler celle qui attend déjà.
+    const tourRegs = await rtdbRegistrationsListByTour(tourId);
+    const now = new Date();
+    for (const reg of tourRegs) {
+      if (reg.status === "attente_validation" && reg.validationExpiresAt && new Date(reg.validationExpiresAt) < now) {
+        await rtdbRegistrationUpdate(reg.id, { status: "annulé", cancelledAt: now.toISOString() });
+        await promoteWaitlist(tourId);
+      }
     }
 
     // Count places taken (confirmés + offres waitlist en cours). Whole group must fit, else waitlist.

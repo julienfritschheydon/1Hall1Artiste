@@ -11,7 +11,6 @@ export interface TourCardModernProps {
 }
 
 export const TourCardModern: React.FC<TourCardModernProps> = ({ tour, onTourClick, cardIndex }) => {
-  const placesLeft = tour.placesLeft ?? tour.capacity;
   const timeStr = new Date(tour.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 
   const getEventBackgroundPseudoElementStyle = (index?: number): React.CSSProperties => {
@@ -47,9 +46,6 @@ export const TourCardModern: React.FC<TourCardModernProps> = ({ tour, onTourClic
           <div className="flex-1 min-w-0">
             <h3 className="font-bold text-lg leading-tight text-[#1a2138]">{tour.title}</h3>
           </div>
-          <span className="text-xs font-semibold bg-orange-100 text-orange-800 px-2 py-1 rounded-full whitespace-nowrap ml-2 flex-shrink-0">
-            {placesLeft} places
-          </span>
         </div>
 
         <div className="flex-grow" />
