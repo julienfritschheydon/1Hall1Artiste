@@ -2,8 +2,7 @@
 // POST /api/visit-emails?type=send-7d-reminder — Rappel 7j avant (daily)
 // POST /api/visit-emails?type=send-1d-validation — Validation 1j avant (daily)
 // POST /api/visit-emails?type=batch-delete-post-tour — Suppression RGPD 24H après (daily)
-// POST /api/visit-emails?type=promote-waitlist — Auto-promotion file attente
-// POST /api/visit-emails?type=expire-pending-registrations — Annule inscriptions non confirmées après 24H (libère la place)
+// POST /api/visit-emails?type=promote-waitlist — Auto-promotion file attente (annule aussi les inscriptions non confirmées après 24H)
 
 import { VercelRequest, VercelResponse } from "@vercel/node";
 import {
@@ -333,7 +332,11 @@ async function expirePendingRegistrations(): Promise<{ autocancelled: number }> 
 
 // ==== JOB 4: Promote from waitlist (Q4, Q5) ====
 // Fills ANY free slot — handles cancellations AND capacity increase (spec §9).
-async function promoteFromWaitlist(): Promise<{ promoted: number; rejected: number }> {
+// Runs expirePendingRegistrations() first (Hobby plan caps cron at 1/day, so this
+// piggybacks on the existing daily slot instead of a dedicated cron entry).
+async function promoteFromWaitlist(): Promise<{ promoted: number; rejected: number; autocancelled: number }> {
+  const { autocancelled } = await expirePendingRegistrations();
+
   const now = new Date();
   let promoted = 0,
     rejected = 0;
@@ -420,7 +423,7 @@ async function promoteFromWaitlist(): Promise<{ promoted: number; rejected: numb
     }
   }
 
-  return { promoted, rejected };
+  return { promoted, rejected, autocancelled };
 }
 
 // Main handler
@@ -447,8 +450,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       result = await batchDeletePostTour();
     } else if (type === "promote-waitlist") {
       result = await promoteFromWaitlist();
-    } else if (type === "expire-pending-registrations") {
-      result = await expirePendingRegistrations();
     } else {
       return res.status(400).json({ error: "unknown job type" });
     }
