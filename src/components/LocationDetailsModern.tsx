@@ -218,21 +218,19 @@ export const LocationDetailsModern: React.FC<LocationDetailsModernProps> = ({
         <div className="relative z-10 p-6">
           {/* Header avec titre et boutons - Style épuré */}
           <div className="mb-6">
-            {/* Boutons en haut à droite avec indication bâtiment fermé */}
-            <div className="flex justify-between items-center gap-2 mb-2">
-              {/* Indication bâtiment fermé à gauche */}
-              {location.hasProgram === false && (
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 border border-gray-300 rounded-full">
-                  <AlertCircle className="h-4 w-4 text-gray-600 flex-shrink-0" />
-                  <p className="text-xs font-medium text-gray-700">
-                    Bâtiment fermé
-                  </p>
-                </div>
-              )}
-              
-              {/* Spacer pour pousser les boutons à droite si pas de message */}
-              {location.hasProgram !== false && <div className="flex-1" />}
-              
+            {/* Indication bâtiment fermé — sur sa propre ligne pour ne jamais pousser
+                les boutons hors de l'écran sur mobile (voir capture utilisateur) */}
+            {location.hasProgram === false && (
+              <div className="flex items-center gap-2 px-3 py-1.5 mb-2 bg-gray-100 border border-gray-300 rounded-full w-fit">
+                <AlertCircle className="h-4 w-4 text-gray-600 flex-shrink-0" />
+                <p className="text-xs font-medium text-gray-700">
+                  Bâtiment fermé
+                </p>
+              </div>
+            )}
+
+            {/* Boutons en haut à droite */}
+            <div className="flex justify-end items-center gap-2 mb-2">
               {/* Boutons à droite */}
               <div className="flex items-center gap-2">
               {/* Bouton de like */}
