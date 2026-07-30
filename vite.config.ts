@@ -1,13 +1,35 @@
 /// <reference types="vitest/config" />
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
-import { defineConfig } from "vite";
+import fs from "fs";
+import { defineConfig, type Plugin } from "vite";
+
+// Identifiant de build unique, embarqué dans le bundle ET écrit dans
+// dist/version.json — le front compare les deux à intervalles réguliers
+// pour détecter qu'une page ouverte tourne sur une ancienne version.
+const BUILD_ID = String(Date.now());
+
+// Écrit version.json après la génération du bundle (pas de plugin tiers nécessaire).
+function writeVersionFile(): Plugin {
+  return {
+    name: "write-version-file",
+    closeBundle() {
+      fs.writeFileSync(
+        path.resolve(__dirname, "dist/version.json"),
+        JSON.stringify({ buildId: BUILD_ID })
+      );
+    },
+  };
+}
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   // Utiliser le chemin du dépôt du collectif en production et une base vide en développement
   // Vercel: serve from root "/". GitHub Pages legacy used "/1Hall1Artiste/".
   base: "/",
+  define: {
+    __BUILD_ID__: JSON.stringify(BUILD_ID),
+  },
   // Assurer que les chemins d'assets sont correctement générés
   build: {
     outDir: 'dist',
@@ -44,6 +66,7 @@ export default defineConfig(({ mode }) => ({
 
   plugins: [
     react(),
+    writeVersionFile(),
   ].filter(Boolean),
   resolve: {
     alias: {

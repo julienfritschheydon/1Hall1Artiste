@@ -20,6 +20,7 @@ import { ErrorBoundary } from "react-error-boundary";
 // Composants
 import { AnimatedPageTransition, isSwipeableRoute } from "./components/AnimatedPageTransition";
 import OfflineIndicator from "./components/OfflineIndicator";
+import { UpdateAvailableBanner } from "./components/UpdateAvailableBanner";
 
 // Utilitaires
 import { registerServiceWorker } from "./utils/serviceWorkerRegistration";
@@ -395,6 +396,7 @@ const App: React.FC = () => {
       <LoadingProvider>
         <TooltipProvider>
           <Toaster />
+          <UpdateAvailableBanner />
             <HashRouter>
               <NavigationProvider>
                 <AppContent />
