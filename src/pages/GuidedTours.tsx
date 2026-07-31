@@ -5,6 +5,7 @@ import { VisitLayout } from "@/components/VisitLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { TourRegistrationForm } from "@/components/TourRegistrationForm";
 import { useTours } from "@/hooks/useTours";
+import { groupToursByDayAndTime } from "@/utils/groupTours";
 
 const ORANGE = "#ff7a45";
 
@@ -44,9 +45,27 @@ export default function GuidedTours() {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {tours.map((tour) => (
-                <TourCard key={tour.id} tour={tour} onClick={() => setSelectedTour(tour)} />
+            <div className="space-y-8">
+              {groupToursByDayAndTime(tours).map((day) => (
+                <div key={day.dayKey}>
+                  <h2 className="text-xl font-bold text-[#1a2138] font-serif mb-4 capitalize">
+                    {day.dayLabel}
+                  </h2>
+                  <div className="space-y-6">
+                    {day.slots.map((slot) => (
+                      <div key={slot.time}>
+                        <h3 className="text-sm font-bold uppercase tracking-wide text-[#ff7a45] mb-2">
+                          {slot.time}
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                          {slot.tours.map((tour) => (
+                            <TourCard key={tour.id} tour={tour} onClick={() => setSelectedTour(tour)} />
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           )}
@@ -62,10 +81,6 @@ export default function GuidedTours() {
 }
 
 function TourCard({ tour, onClick }: { tour: Tour; onClick: () => void }) {
-  const tourDate = new Date(tour.date);
-  const dateStr = tourDate.toLocaleDateString("fr-FR", { weekday: "long", month: "long", day: "numeric" });
-  const timeStr = tourDate.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-
   return (
     <Card
       onClick={onClick}
@@ -74,7 +89,6 @@ function TourCard({ tour, onClick }: { tour: Tour; onClick: () => void }) {
       <CardContent className="p-5">
         <h3 className="font-bold text-lg text-[#1a2138] mb-1">{tour.title}</h3>
         {tour.description && <p className="text-sm text-gray-600 mb-1 line-clamp-2">{tour.description}</p>}
-        <p className="text-sm text-gray-600 capitalize">{dateStr} à {timeStr}</p>
         <p className="text-sm text-gray-600">Durée : {tour.durationMinutes} min</p>
         {(tour.labels?.length ?? 0) > 0 && (
           <div className="flex flex-wrap gap-2 my-3">

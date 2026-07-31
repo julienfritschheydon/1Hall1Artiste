@@ -38,6 +38,7 @@ import { AudioGuide } from "@/components/AudioGuide";
 import { buildShareUrl } from "@/utils/url";
 import { useTours } from "@/hooks/useTours";
 import { toursAtLocation } from "@/utils/tourLocation";
+import { groupToursByDayAndTime } from "@/utils/groupTours";
 import { Tour } from "@/types/visitTypes";
 
 // Composant Like simple avec logique partagée
@@ -476,39 +477,52 @@ export const LocationDetailsModern: React.FC<LocationDetailsModernProps> = ({
               {visitsLoading ? (
                 <p className="text-sm text-gray-500">Chargement des visites…</p>
               ) : (
-              <div className="space-y-1">
-                  {visits.map((visit, index) => (
-                    <div
-                      key={visit.id}
-                      className="relative p-2 rounded-lg cursor-pointer hover:opacity-90 transition-all overflow-hidden"
-                      style={{ position: 'relative', backgroundColor: 'transparent' }}
-                      onClick={() => {
-                        onClose();
-                        if (onSelectTour) onSelectTour(visit);
-                      }}
-                    >
-                      {/* Fond parchemin comme la section Événements */}
-                      <div
-                        className="absolute inset-0 opacity-60 z-0"
-                        style={{
-                          backgroundImage: `url('${IMAGE_PATHS.BACKGROUNDS.PARCHMENT}')`,
-                          backgroundSize: 'cover',
-                          backgroundPosition: index % 2 === 0 ? 'top left' : 'top right',
-                          transform: index % 2 === 1 ? 'scaleX(-1)' : 'none',
-                        }}
-                      />
-                      <div className="flex justify-between items-start relative z-10">
-                        <div>
-                          <p className="font-bold text-[#1a2138] mb-0.5 text-sm leading-tight">{visit.title}</p>
-                          <div className="text-gray-500 text-xs">
-                            <p>{new Date(visit.date).toLocaleDateString('fr-FR')} à {new Date(visit.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</p>
+              <div className="space-y-4">
+                  {groupToursByDayAndTime(visits).map((day) => (
+                    <div key={day.dayKey}>
+                      <p className="text-xs font-bold text-[#1a2138] capitalize mb-1.5">{day.dayLabel}</p>
+                      <div className="space-y-3">
+                        {day.slots.map((slot) => (
+                          <div key={slot.time}>
+                            <p className="text-xs font-bold uppercase tracking-wide text-[#ff7a45] mb-1">
+                              {slot.time}
+                            </p>
+                            <div className="space-y-1">
+                              {slot.tours.map((visit, index) => (
+                                <div
+                                  key={visit.id}
+                                  className="relative p-2 rounded-lg cursor-pointer hover:opacity-90 transition-all overflow-hidden"
+                                  style={{ position: 'relative', backgroundColor: 'transparent' }}
+                                  onClick={() => {
+                                    onClose();
+                                    if (onSelectTour) onSelectTour(visit);
+                                  }}
+                                >
+                                  {/* Fond parchemin comme la section Événements */}
+                                  <div
+                                    className="absolute inset-0 opacity-60 z-0"
+                                    style={{
+                                      backgroundImage: `url('${IMAGE_PATHS.BACKGROUNDS.PARCHMENT}')`,
+                                      backgroundSize: 'cover',
+                                      backgroundPosition: index % 2 === 0 ? 'top left' : 'top right',
+                                      transform: index % 2 === 1 ? 'scaleX(-1)' : 'none',
+                                    }}
+                                  />
+                                  <div className="flex justify-between items-start relative z-10">
+                                    <div>
+                                      <p className="font-bold text-[#1a2138] mb-0.5 text-sm leading-tight">{visit.title}</p>
+                                      <div className="flex items-center gap-1 mt-0.5">
+                                        <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                                        <span className="text-xs text-gray-600 font-medium">Visite guidée</span>
+                                      </div>
+                                    </div>
+                                    <span className="text-xs font-semibold text-[#ff7a45] relative z-10 flex-shrink-0 ml-2">Réserver</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
                           </div>
-                          <div className="flex items-center gap-1 mt-0.5">
-                            <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-                            <span className="text-xs text-gray-600 font-medium">Visite guidée</span>
-                          </div>
-                        </div>
-                        <span className="text-xs font-semibold text-[#ff7a45] relative z-10 flex-shrink-0 ml-2">Réserver</span>
+                        ))}
                       </div>
                     </div>
                   ))}

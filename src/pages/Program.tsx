@@ -19,6 +19,7 @@ import { type Tour } from "@/types/visitTypes";
 import { useTours } from "@/hooks/useTours";
 import { TourDetailsModal } from "@/components/TourDetailsModal";
 import { TourCardModern } from "@/components/TourCardModern";
+import { groupToursByDayAndTime } from "@/utils/groupTours";
 
 const DAY_INDEX: Record<"samedi" | "dimanche", number> = { samedi: 6, dimanche: 0 };
 const toursByDay = (tours: Tour[], day: "samedi" | "dimanche") =>
@@ -230,28 +231,14 @@ const Program = () => {
                 {toursLoading ? (
                   <p className="text-gray-600 py-4 text-center text-sm">Chargement…</p>
                 ) : (
-                  <>
-                    {toursByDay(tours, "samedi").map((tour, index) => (
-                      <TourCardModern key={tour.id} tour={tour} cardIndex={index} onTourClick={() => setSelectedTour(tour)} />
-                    ))}
-                    {toursByDay(tours, "samedi").length === 0 && (
-                      <p className="text-gray-600 py-4 text-center text-sm">Aucune visite guidée disponible</p>
-                    )}
-                  </>
+                  <TourSlotsList tours={toursByDay(tours, "samedi")} onTourClick={setSelectedTour} />
                 )}
               </TabsContent>
               <TabsContent value="dimanche" className="space-y-4">
                 {toursLoading ? (
                   <p className="text-gray-600 py-4 text-center text-sm">Chargement…</p>
                 ) : (
-                  <>
-                    {toursByDay(tours, "dimanche").map((tour, index) => (
-                      <TourCardModern key={tour.id} tour={tour} cardIndex={index} onTourClick={() => setSelectedTour(tour)} />
-                    ))}
-                    {toursByDay(tours, "dimanche").length === 0 && (
-                      <p className="text-gray-600 py-4 text-center text-sm">Aucune visite guidée disponible</p>
-                    )}
-                  </>
+                  <TourSlotsList tours={toursByDay(tours, "dimanche")} onTourClick={setSelectedTour} />
                 )}
               </TabsContent>
             </>
@@ -323,6 +310,32 @@ const Program = () => {
     </div>
   );
 };
+
+// Regroupe les visites d'une journée par créneau horaire — évite d'afficher
+// une longue liste plate de cartes identiques quand plusieurs visites
+// partagent le même horaire.
+function TourSlotsList({ tours, onTourClick }: { tours: Tour[]; onTourClick: (tour: Tour) => void }) {
+  const groups = groupToursByDayAndTime(tours);
+  if (groups.length === 0) {
+    return <p className="text-gray-600 py-4 text-center text-sm">Aucune visite guidée disponible</p>;
+  }
+  return (
+    <>
+      {groups.flatMap((day) => day.slots).map((slot) => (
+        <div key={slot.time} className="mb-4">
+          <h3 className="text-sm font-bold uppercase tracking-wide text-[#ff7a45] mb-2">
+            {slot.time}
+          </h3>
+          <div className="space-y-4">
+            {slot.tours.map((tour, index) => (
+              <TourCardModern key={tour.id} tour={tour} cardIndex={index} onTourClick={() => onTourClick(tour)} />
+            ))}
+          </div>
+        </div>
+      ))}
+    </>
+  );
+}
 
 export default Program;
 
