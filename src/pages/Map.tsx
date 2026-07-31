@@ -518,29 +518,24 @@ const Map = ({ fullScreen = false }: MapProps) => {
         }}
       />
       
-      <div className="max-w-screen-lg mx-auto px-4 pt-4">
+      <div className="max-w-screen-lg mx-auto px-4 pt-2">
         {/* Header avec compteur style "carte au trésor" */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="w-1/4"></div>
-          <div className="flex-1">
-            <MapHeader
-              visitedCount={visitedCount}
-              totalCount={totalCount}
-              showLocationButton={true}
-              showAmbianceButton={true}
-              isLocationActive={showLocationFeatures}
-              isAmbianceActive={isAmbianceActive}
-              onLocationToggle={toggleLocation}
-              onAmbianceToggle={toggleAmbiance}
+        <MapHeader
+          visitedCount={visitedCount}
+          totalCount={totalCount}
+          showLocationButton={true}
+          showAmbianceButton={true}
+          isLocationActive={showLocationFeatures}
+          isAmbianceActive={isAmbianceActive}
+          onLocationToggle={toggleLocation}
+          onAmbianceToggle={toggleAmbiance}
+          rightSlot={
+            <ShareButton
+              title="Parcours Île Feydeau"
+              text="Découvrez mon parcours sur l'Île Feydeau à Nantes!"
             />
-          </div>
-          <div className="flex items-center space-x-2 w-1/4 justify-end">
-            <ShareButton 
-              title="Parcours Île Feydeau" 
-              text="Découvrez mon parcours sur l'Île Feydeau à Nantes!" 
-            />
-          </div>
-        </div>
+          }
+        />
         
 
         

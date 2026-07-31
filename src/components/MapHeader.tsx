@@ -12,6 +12,7 @@ interface MapHeaderProps {
   showAmbianceButton?: boolean;
   isLocationActive?: boolean;
   isAmbianceActive?: boolean;
+  rightSlot?: React.ReactNode;
 }
 
 export function MapHeader({
@@ -22,7 +23,8 @@ export function MapHeader({
   showLocationButton = true,
   showAmbianceButton = true,
   isLocationActive = false,
-  isAmbianceActive = false
+  isAmbianceActive = false,
+  rightSlot
 }: MapHeaderProps) {
   const toDiscoverCount = totalCount - visitedCount;
 
@@ -37,15 +39,43 @@ export function MapHeader({
     ].join(" ");
 
   return (
-    <div className="w-full mb-4 px-4">
+    <div className="w-full mb-1 px-4">
       {/* Titre de la page */}
-      <h1 className="text-2xl font-bold text-[#1a2138] text-center mb-4 font-serif">
+      <h1 className="text-2xl font-bold text-[#1a2138] text-center mb-1 font-serif">
         Carte
       </h1>
-      
-      {/* Compteur de progression - Style maquette */}
-      <div className="flex justify-center mb-4">
-        <div 
+
+      {/* Ligne : boutons empilés à gauche, compteur centré, partage à droite */}
+      <div className="flex items-center justify-between gap-2">
+        {/* Boutons d'action empilés à gauche */}
+        <div className="flex flex-col gap-2 shrink-0 w-10">
+          {showLocationButton && (
+            <button
+              onClick={onLocationToggle}
+              aria-pressed={isLocationActive}
+              aria-label={isLocationActive ? 'Désactiver la localisation' : 'Activer la localisation'}
+              title="Localisation"
+              className={iconBtnClass(isLocationActive)}
+            >
+              <MapPin className="h-5 w-5" />
+            </button>
+          )}
+
+          {showAmbianceButton && (
+            <button
+              onClick={onAmbianceToggle}
+              aria-pressed={isAmbianceActive}
+              aria-label={isAmbianceActive ? 'Désactiver le son d\'ambiance' : 'Activer le son d\'ambiance'}
+              title="Ambiance"
+              className={iconBtnClass(isAmbianceActive)}
+            >
+              {isAmbianceActive ? <Volume2 className="h-5 w-5" /> : <VolumeX className="h-5 w-5" />}
+            </button>
+          )}
+        </div>
+
+        {/* Compteur de progression - Style maquette */}
+        <div
           className="flex items-center overflow-hidden shadow-lg"
           style={{
             borderRadius: '25px',
@@ -82,33 +112,11 @@ export function MapHeader({
             <span className="whitespace-nowrap">À découvrir</span>
           </div>
         </div>
-      </div>
 
-      {/* Boutons d'action */}
-      <div className="flex justify-center gap-3">
-        {showLocationButton && (
-          <button
-            onClick={onLocationToggle}
-            aria-pressed={isLocationActive}
-            aria-label={isLocationActive ? 'Désactiver la localisation' : 'Activer la localisation'}
-            title="Localisation"
-            className={iconBtnClass(isLocationActive)}
-          >
-            <MapPin className="h-5 w-5" />
-          </button>
-        )}
-
-        {showAmbianceButton && (
-          <button
-            onClick={onAmbianceToggle}
-            aria-pressed={isAmbianceActive}
-            aria-label={isAmbianceActive ? 'Désactiver le son d\'ambiance' : 'Activer le son d\'ambiance'}
-            title="Ambiance"
-            className={iconBtnClass(isAmbianceActive)}
-          >
-            {isAmbianceActive ? <Volume2 className="h-5 w-5" /> : <VolumeX className="h-5 w-5" />}
-          </button>
-        )}
+        {/* Bouton de partage à droite */}
+        <div className="flex items-center justify-end shrink-0 w-10">
+          {rightSlot}
+        </div>
       </div>
     </div>
   );
