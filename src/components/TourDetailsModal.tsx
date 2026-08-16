@@ -27,7 +27,10 @@ export function TourDetailsModal({ tour, isOpen, onClose }: TourDetailsModalProp
   const timeStr = tourDate.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-60 z-[100] flex items-center justify-center p-4">
+    <div
+      className="fixed inset-0 bg-black bg-opacity-60 z-[100] flex items-center justify-center p-4"
+      onClick={onClose}
+    >
       <div
         className="max-w-lg w-full max-h-[85vh] overflow-y-auto rounded-2xl shadow-2xl relative bg-amber-50/95 backdrop-blur-sm"
         onClick={(e) => e.stopPropagation()}

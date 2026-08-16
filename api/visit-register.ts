@@ -16,15 +16,16 @@ import {
   rtdbRegistrationsListByTour,
   rtdbWaitlistAdd,
   rtdbWaitlistCount,
+  rtdbWaitlistExists,
   rtdbWaitlistListByTour,
-  rtdbWaitlistSoftDelete,
-  rtdbRegistrationSoftDelete,
+  rtdbWaitlistErase,
+  rtdbRegistrationErase,
   rtdbAuditLog,
   rtdbGuideCodeValidate,
   rtdbWaitlistUpdate,
 } from "./_visit-db.js";
 import { rtdbGet } from "./_firebase.js";
-import { buildVisitEmail } from "./_visit-email.js";
+import { buildVisitEmail, VisitEmailType } from "./_visit-email.js";
 import { createRegistrationToken, verifyRegistrationToken } from "./_token.js";
 import { placesOf } from "../src/types/visitTypes.js";
 
@@ -40,14 +41,17 @@ function sanitizeText(text: string): string {
 
 // Helper: send email via EmailJS with retry + idempotency (Q1, Q2)
 export async function sendRegistrationEmail(
-  emailType: "confirmation" | "waitlist_confirmation" | "validation_expired" | "cancellation",
+  emailType: VisitEmailType,
   data: Record<string, any>
 ): Promise<void> {
   const templateIdJson = process.env.VISIT_EMAILJS_TEMPLATE_IDS;
   if (!templateIdJson) throw new Error("VISIT_EMAILJS_TEMPLATE_IDS missing");
 
+  // Sujet + corps sont construits en code (buildVisitEmail) — le template EmailJS
+  // ne rend que {{subject}}/{{{message}}}, donc n'importe quel template du compte
+  // convient en secours pour les types sans entrée dédiée (ex. gdpr_confirm).
   const templateIds = JSON.parse(templateIdJson);
-  const templateId = templateIds[emailType];
+  const templateId = templateIds[emailType] || templateIds.confirmation;
   if (!templateId) throw new Error(`Template ${emailType} not configured`);
 
   const idempotencyKey = data.idempotencyKey || `${data.to}_${emailType}_${Date.now()}`;
@@ -190,14 +194,33 @@ async function handleCreateRegistration(req: VercelRequest, res: VercelResponse)
 
     // Check tour exists
     const tour = await rtdbTourGet(tourId);
-    if (!tour) {
+    if (!tour || tour.deletedAt) {
       return res.status(404).json({ error: "tour not found" });
     }
 
-    // Check already registered (Q6: dedup by email + tour)
+    // Guide manual on-site registration (spec §2): bypasses capacité, autorisé
+    // jusqu'à la fin de la visite (les retardataires s'inscrivent sur place).
+    const guideCode = req.headers["x-guide-code"] as string | undefined;
+    const isManual = req.body.manual === true && guideCode && (await rtdbGuideCodeValidate(guideCode));
+
+    // Visite déjà commencée/passée : le filtre « futur » du GET ne suffit pas
+    // (réponse cachée en edge + onglet resté ouvert) — refuser aussi au POST.
+    const tourStart = new Date(tour.date).getTime();
+    const tourEnd = tourStart + (tour.durationMinutes || 0) * 60 * 1000;
+    if (!isManual && tourStart <= Date.now()) {
+      return res.status(400).json({ error: "tour already started" });
+    }
+    if (isManual && tourEnd < Date.now()) {
+      return res.status(400).json({ error: "tour already ended" });
+    }
+
+    // Check already registered (Q6: dedup by email + tour) — inscriptions ET file d'attente
     const alreadyReg = await rtdbRegistrationExists(tourId, email);
     if (alreadyReg) {
       return res.status(400).json({ error: "already registered for this tour" });
+    }
+    if (await rtdbWaitlistExists(tourId, email)) {
+      return res.status(400).json({ error: "already in waitlist for this tour" });
     }
 
     // Lazy expiry: annule les inscriptions "attente_validation" dont le délai de confirmation
@@ -220,9 +243,10 @@ async function handleCreateRegistration(req: VercelRequest, res: VercelResponse)
     const waitlistedPlaces = await rtdbCountWaitlistedPlaces(tourId);
     const hasSpace = registeredPlaces + waitlistedPlaces + groupSize <= tour.capacity;
 
-    // Guide manual on-site registration (spec §2): create directly as confirmé, no email.
-    const guideCode = req.headers["x-guide-code"] as string | undefined;
-    const isManual = req.body.manual === true && guideCode && (await rtdbGuideCodeValidate(guideCode));
+    // Guide manual on-site registration: create directly as confirmé, no email.
+    // Le passe-droit capacité est voulu (surbooking volontaire du guide), mais
+    // il doit être signalé — sans warning le guide ne voit même pas que la
+    // visite était complète ni qu'il double la file d'attente.
     if (isManual) {
       const registration = await rtdbRegistrationCreate({
         tourId,
@@ -233,10 +257,17 @@ async function handleCreateRegistration(req: VercelRequest, res: VercelResponse)
         status: "confirmé",
       });
       await rtdbRegistrationUpdate(registration.id, { confirmedAt: new Date().toISOString() });
+      const overCapacity = !hasSpace;
       return res.status(201).json({
         status: "confirmé",
         registrationId: registration.id,
         message: "Inscription manuelle confirmée",
+        ...(overCapacity
+          ? {
+              warning:
+                "Attention : la visite était complète (ou une file d'attente existe). Cette inscription passe outre la capacité et la file.",
+            }
+          : {}),
       });
     }
 
@@ -337,9 +368,10 @@ async function handleConfirmRegistration(req: VercelRequest, res: VercelResponse
     if (verified.expired) {
       // Token expired: send expiration email
       try {
+        const expiredReg = await rtdbRegistrationGet(verified.registrationId);
         await sendRegistrationEmail("validation_expired", {
           to: verified.email,
-          firstName: verified.registrationId || "Participant",
+          firstName: expiredReg?.firstName || "Participant",
           registrationId: verified.registrationId,
           idempotencyKey: `${verified.registrationId}_validation_expired`,
         });
@@ -357,8 +389,13 @@ async function handleConfirmRegistration(req: VercelRequest, res: VercelResponse
       return res.status(404).json({ error: "registration not found" });
     }
 
-    // Idempotency: if already confirmed, return success
+    // Idempotency: if already confirmed, return success.
+    // Cas re-validation J-1 (Q15) : le clic doit effacer la deadline, sinon le
+    // cron auto-annule la personne alors qu'elle vient de confirmer sa présence.
     if (registration.status === "confirmé") {
+      if (registration.validationDeadline) {
+        await rtdbRegistrationUpdate(registrationId, { validationDeadline: undefined, revalidatedAt: new Date().toISOString() });
+      }
       return res.json({ ok: true, status: "confirmé", message: "Inscription déjà confirmée" });
     }
 
@@ -424,7 +461,11 @@ export async function promoteWaitlist(tourId: string): Promise<void> {
           firstName: next.firstName,
           tourTitle: tour.title,
           tourDate: tour.date,
-          acceptLink: `${SITE_URL}/#/reservations/confirm?token=${invitationToken.token}`,
+          // accept-waitlist, PAS confirm : le token encode un ID de file d'attente,
+          // seule la route accept-waitlist appelle l'endpoint d'activation.
+          // Avec /confirm le lien répondait « registration not found » et la
+          // personne promue perdait sa place à l'expiration de l'offre.
+          acceptLink: `${SITE_URL}/#/reservations/accept-waitlist?token=${invitationToken.token}`,
           deadline: new Date(new Date().getTime() + 24 * 60 * 60 * 1000),
           registrationId: next.id,
           idempotencyKey: `${next.id}_waitlist_offer`,
@@ -509,13 +550,51 @@ async function handleCancelRegistration(req: VercelRequest, res: VercelResponse)
   }
 }
 
-// POST /api/visit-register?action=gdpr — droit à l'oubli (spec §6 Q6, §7)
-// Body: { email }. Soft-delete toutes inscriptions + file d'attente de cet email.
-async function handleGdprDelete(req: VercelRequest, res: VercelResponse) {
+// POST /api/visit-register?action=gdpr — droit à l'oubli, étape 1 (spec §6 Q6, §7)
+// Body: { email }. N'importe qui peut poster n'importe quel email : sans
+// vérification, un tiers pouvait supprimer toutes les inscriptions d'autrui.
+// On envoie donc un lien de confirmation signé (HMAC, 24h) à l'adresse
+// concernée ; la suppression n'a lieu qu'à l'étape 2 (action=gdpr-confirm).
+async function handleGdprRequest(req: VercelRequest, res: VercelResponse) {
   const { email } = req.body;
   if (!email || typeof email !== "string" || !EMAIL_REGEX.test(email)) {
     return res.status(400).json({ error: "email: valid email required" });
   }
+
+  try {
+    const token = createRegistrationToken("gdpr", email);
+    await sendRegistrationEmail("gdpr_confirm", {
+      to: email,
+      firstName: "",
+      confirmLink: `${SITE_URL}/#/reservations/gdpr-confirm?token=${token.token}`,
+      idempotencyKey: `gdpr_${email}_${Date.now()}`,
+    });
+    // Réponse identique qu'il existe des données ou non (pas d'énumération d'emails).
+    return res.json({
+      ok: true,
+      message: "Un email de confirmation vient de vous être envoyé. Cliquez sur le lien qu'il contient pour finaliser la suppression.",
+    });
+  } catch (e) {
+    console.error("[visit-register gdpr request]", e);
+    return res.status(500).json({ error: "gdpr request failed" });
+  }
+}
+
+// POST /api/visit-register?action=gdpr-confirm — droit à l'oubli, étape 2
+// Body: { token }. Purge les données personnelles (pas un simple deletedAt).
+async function handleGdprConfirm(req: VercelRequest, res: VercelResponse) {
+  const { token } = req.body;
+  if (!token || typeof token !== "string") {
+    return res.status(400).json({ error: "token: string required" });
+  }
+  const verified = verifyRegistrationToken(token);
+  if (!verified.valid || verified.registrationId !== "gdpr") {
+    return res.status(400).json({ error: "invalid token" });
+  }
+  if (verified.expired) {
+    return res.status(400).json({ error: "token expired" });
+  }
+  const email = verified.email;
 
   try {
     // Tours dont une place se libère réellement par cette suppression — à
@@ -535,7 +614,7 @@ async function handleGdprDelete(req: VercelRequest, res: VercelResponse) {
             reg.status === "présent" ||
             (reg.status === "attente_validation" && reg.validationExpiresAt && new Date(reg.validationExpiresAt) > now);
           if (heldSeat) affectedTourIds.add(reg.tourId);
-          await rtdbRegistrationSoftDelete(regId);
+          await rtdbRegistrationErase(regId);
           deletedRegs++;
         }
       }
@@ -550,7 +629,7 @@ async function handleGdprDelete(req: VercelRequest, res: VercelResponse) {
           const heldOffer =
             w.invitationSentAt && !w.rejectedAt && w.invitationExpiresAt && new Date(w.invitationExpiresAt) >= now;
           if (heldOffer) affectedTourIds.add(w.tourId);
-          await rtdbWaitlistSoftDelete(wid);
+          await rtdbWaitlistErase(wid);
           deletedWaitlist++;
         }
       }
@@ -560,8 +639,8 @@ async function handleGdprDelete(req: VercelRequest, res: VercelResponse) {
       await promoteWaitlist(tourId);
     }
 
+    // Pas d'email dans le log d'audit — le but de l'opération est justement l'oubli.
     await rtdbAuditLog("gdpr_request", {
-      email,
       deletedRegistrations: deletedRegs,
       deletedWaitlist,
       timestamp: new Date().toISOString(),
@@ -645,9 +724,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } else if (action === "cancel") {
     return handleCancelRegistration(req, res);
   } else if (action === "gdpr") {
-    return handleGdprDelete(req, res);
+    return handleGdprRequest(req, res);
+  } else if (action === "gdpr-confirm") {
+    return handleGdprConfirm(req, res);
   } else if (action === "resend") {
     return handleResendValidation(req, res);
+  } else if (action) {
+    // Une action inconnue (typo) ne doit pas créer silencieusement une inscription.
+    return res.status(400).json({ error: `unknown action: ${action}` });
   } else {
     return handleCreateRegistration(req, res);
   }

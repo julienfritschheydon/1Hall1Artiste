@@ -6,14 +6,29 @@ interface GuideTourListProps {
   onSelectTour: (tourId: string) => void;
 }
 
+// « En cours » = entre le départ et la fin (départ + durée). L'ancien calcul
+// exigeait une égalité à la milliseconde : une visite en train de se dérouler —
+// le moment précis où le guide fait l'appel — s'affichait « Terminée ».
+export function tourStatus(tour: Tour, now: number): "upcoming" | "ongoing" | "completed" {
+  const start = new Date(tour.date).getTime();
+  const end = start + (tour.durationMinutes || 0) * 60 * 1000;
+  return now < start ? "upcoming" : now <= end ? "ongoing" : "completed";
+}
+
 export default function GuideToursList({ tours, onSelectTour }: GuideTourListProps) {
-  const sortedTours = [...tours].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const now = Date.now();
+  // Visites à venir/en cours d'abord (chronologique), les terminées à la fin.
+  const sortedTours = [...tours].sort((a, b) => {
+    const aDone = tourStatus(a, now) === "completed" ? 1 : 0;
+    const bDone = tourStatus(b, now) === "completed" ? 1 : 0;
+    if (aDone !== bDone) return aDone - bDone;
+    return new Date(a.date).getTime() - new Date(b.date).getTime();
+  });
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       {sortedTours.map((tour) => {
-        const status =
-          new Date(tour.date) > new Date() ? "upcoming" : new Date(tour.date) < new Date() ? "completed" : "ongoing";
+        const status = tourStatus(tour, now);
         const statusLabel =
           status === "upcoming" ? "À venir" : status === "completed" ? "Terminée" : "En cours";
         const statusColor =

@@ -12,7 +12,7 @@
     "build": "vite build && node -e \"const fs=require('fs'); const path=require('path'); console.log('📁 Checking sources...'); fs.mkdirSync('dist/images', {recursive:true}); if(fs.existsSync('public/images/background')){fs.cpSync('public/images/background', 'dist/images/background', {recursive:true}); console.log('✅ Background images copied');}else{console.log('❌ Background source not found');} if(fs.existsSync('public/images/historical')){fs.cpSync('public/images/historical', 'dist/images/historical', {recursive:true}); const count=fs.readdirSync('dist/images/historical').length; console.log('✅ Historical images copied:', count, 'files');}else{console.log('❌ Historical source not found');}\"",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.api.json",
     "preview": "vite preview",
     "predeploy": "npm run build",
     "deploy": "gh-pages -d dist -r https://github.com/CollectifIleFeydeau/1Hall1Artiste.git -b gh-pages",

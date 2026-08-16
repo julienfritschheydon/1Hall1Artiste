@@ -11,6 +11,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getFestivalDates } from "@/utils/festival";
+import { escapeCsvCell } from "@/utils/csv";
 
 const ORANGE = "#ff7a45";
 const orangeBtn = { backgroundColor: ORANGE };
@@ -37,7 +38,9 @@ export default function GuidePortal() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/visit-tours", { headers: { "x-guide-code": code } });
+      // ?guide=1 : URL distincte de la liste publique pour ne jamais recevoir
+      // l'entrée cachée en edge (le cache CDN ne varie pas sur le header).
+      const res = await fetch("/api/visit-tours?guide=1", { headers: { "x-guide-code": code } });
       if (!res.ok) {
         if (res.status === 401) {
           setAuthenticated(false);
@@ -92,6 +95,7 @@ export default function GuidePortal() {
         guideCode={guideCode!}
         onBack={() => setSelectedTourId(null)}
         onTourChanged={() => fetchTours(guideCode!)}
+        onAuthError={handleLogout}
       />
     );
   }
@@ -160,11 +164,14 @@ function TourForm({
   const [description, setDescription] = useState(tour?.description || "");
   const festivalDates = getFestivalDates();
   const initialLocal = tour ? toLocalInput(tour.date) : "";
-  const [day, setDay] = useState<"samedi" | "dimanche">(
-    initialLocal && initialLocal.slice(0, 10) === festivalDates.dimanche ? "dimanche" : "samedi"
-  );
+  // Conserver la date réelle de la visite : l'ancien code reconstruisait la date
+  // depuis le week-end du festival de l'année COURANTE — rouvrir puis enregistrer
+  // une visite hors de ce week-end la déplaçait silencieusement.
+  const [dateStr, setDateStr] = useState<string>(initialLocal ? initialLocal.slice(0, 10) : festivalDates.samedi);
+  const day: "samedi" | "dimanche" | null =
+    dateStr === festivalDates.dimanche ? "dimanche" : dateStr === festivalDates.samedi ? "samedi" : null;
   const [time, setTime] = useState(initialLocal ? initialLocal.slice(11, 16) : "10:00");
-  const date = `${festivalDates[day]}T${time}`;
+  const date = `${dateStr}T${time}`;
   const [durationMinutes, setDurationMinutes] = useState(tour?.durationMinutes || 90);
   const [capacity, setCapacity] = useState(tour?.capacity || 15);
   const [labels, setLabels] = useState((tour?.labels || []).join(", "));
@@ -238,7 +245,7 @@ function TourForm({
                 variant={day === "samedi" ? undefined : "outline"}
                 style={day === "samedi" ? orangeBtn : undefined}
                 className={day === "samedi" ? "text-white" : ""}
-                onClick={() => setDay("samedi")}
+                onClick={() => setDateStr(festivalDates.samedi)}
               >
                 Samedi {new Date(festivalDates.samedi).toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}
               </Button>
@@ -247,11 +254,17 @@ function TourForm({
                 variant={day === "dimanche" ? undefined : "outline"}
                 style={day === "dimanche" ? orangeBtn : undefined}
                 className={day === "dimanche" ? "text-white" : ""}
-                onClick={() => setDay("dimanche")}
+                onClick={() => setDateStr(festivalDates.dimanche)}
               >
                 Dimanche {new Date(festivalDates.dimanche).toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}
               </Button>
             </div>
+            {day === null && (
+              <p className="text-xs text-amber-700 mt-1">
+                Date actuelle : {new Date(`${dateStr}T12:00`).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })} (hors
+                week-end du festival — elle sera conservée telle quelle sauf si vous choisissez un jour ci-dessus).
+              </p>
+            )}
           </div>
           <div>
             <label className={labelCls}>Heure de départ *</label>
@@ -291,11 +304,13 @@ function TourDetails({
   guideCode,
   onBack,
   onTourChanged,
+  onAuthError,
 }: {
   tour: Tour;
   guideCode: string;
   onBack: () => void;
   onTourChanged: () => void;
+  onAuthError: () => void;
 }) {
   const [tab, setTab] = useState<"registrations" | "waitlist" | "attendance">("registrations");
   const [loading, setLoading] = useState(true);
@@ -307,11 +322,19 @@ function TourDetails({
 
   async function refresh() {
     setLoading(true);
+    // Réinitialiser l'erreur : sans ça, un échec réseau transitoire masquait
+    // définitivement le contenu même quand les refreshs suivants réussissaient.
+    setError(null);
     try {
       const [attRes, wlRes] = await Promise.all([
         fetch(`/api/visit-attendance?tourId=${tour.id}`, { headers: { "x-guide-code": guideCode } }),
         fetch(`/api/visit-waitlist?tourId=${tour.id}`, { headers: { "x-guide-code": guideCode } }),
       ]);
+      // Code expiré en cours de session → retour au login, pas une erreur opaque.
+      if (attRes.status === 401 || wlRes.status === 401) {
+        onAuthError();
+        return;
+      }
       if (!attRes.ok) throw new Error("Erreur au chargement");
       setData(await attRes.json());
       if (wlRes.ok) {
@@ -331,6 +354,9 @@ function TourDetails({
   }, [tour.id, guideCode]);
 
   const registrations = data?.registrations || [];
+  // Les entrées refusées (offre expirée/déclinée) ont rendu leur rang : les
+  // compter gonflait la file affichée au guide de personnes fantômes.
+  const activeWaitlist = waitlist.filter((w: any) => !w.rejectedAt);
 
   return (
     <VisitLayout
@@ -378,7 +404,7 @@ function TourDetails({
                   <Stat label="Absents" value={data.counts.absent} color="bg-red-100" />
                   <Stat
                     label="File d'attente"
-                    value={waitlist.reduce((s: number, w: any) => s + (w.places ?? 1), 0)}
+                    value={activeWaitlist.reduce((s: number, w: any) => s + (w.places ?? 1), 0)}
                     color="bg-amber-100"
                   />
                 </div>
@@ -390,7 +416,7 @@ function TourDetails({
                   Inscrits ({registrations.length})
                 </TabBtn>
                 <TabBtn active={tab === "waitlist"} onClick={() => setTab("waitlist")}>
-                  File d'attente ({waitlist.length})
+                  File d'attente ({activeWaitlist.length})
                 </TabBtn>
                 <TabBtn active={tab === "attendance"} onClick={() => setTab("attendance")}>
                   Appel
@@ -592,6 +618,10 @@ function ManualRegistration({
         setError(data.error || "Erreur");
         return;
       }
+      // Surbooking volontaire : le serveur signale quand la visite était complète.
+      if (data.warning) {
+        alert(data.warning);
+      }
       onSaved();
     } catch (e) {
       setError((e as Error).message);
@@ -679,7 +709,9 @@ function exportCSV(tour: Tour, registrations: any[]) {
       String(placesCount(r)), r.status,
     ]),
   ];
-  const csv = rows.map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+  const csv = rows
+    .map((row) => row.map((c) => `"${escapeCsvCell(c).replace(/"/g, '""')}"`).join(","))
+    .join("\n");
   const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

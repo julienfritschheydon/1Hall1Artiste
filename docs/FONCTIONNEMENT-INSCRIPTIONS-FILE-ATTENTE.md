@@ -63,8 +63,10 @@ utilisée ailleurs, uniquement par l'algorithme de **promotion** (`promoteWaitli
 
 ## 3. Places restantes affichées (`placesLeft`)
 
-`GET /api/visit-tours` ([api/visit-tours.ts:123](../api/visit-tours.ts:123)) calcule
-`placesLeft = capacity - registeredPlaces`. Comme `registeredPlaces` exclut déjà les
+`GET /api/visit-tours` ([api/visit-tours.ts](../api/visit-tours.ts)) calcule
+`placesLeft = capacity - registeredPlaces - waitlistedPlaces` — la **même formule que
+`hasSpace`** à l'inscription (§2), pour que l'UI n'affiche jamais une place « libre » qui
+enverrait en réalité l'inscription en file d'attente. Comme `registeredPlaces` exclut déjà les
 `attente_validation` expirées (§2), l'affichage est **toujours à jour en lecture**, même si le
 ménage DB (annulation formelle du statut) n'a pas encore tourné. Aucune action utilisateur ne
 peut donc voir un nombre de places faux à cause d'un délai de cron.
@@ -91,7 +93,8 @@ haute fréquentation).
 
 ### b) Filet de sécurité — cron quotidien `promote-waitlist`
 [api/visit-emails.ts](../api/visit-emails.ts), job `promoteFromWaitlist()`, exécuté chaque jour
-à 02:00 (`vercel.json`, plan Hobby = 1 cron/jour max). Appelle d'abord
+via le cron consolidé `?type=daily` à 04:00 UTC (`vercel.json` — invoqué en **GET** par Vercel,
+un seul cron pour respecter la limite du plan Hobby). Appelle d'abord
 `expirePendingRegistrations()` (même logique que §4a mais sur **tous les tours**), puis
 promeut la file d'attente pour toutes les places libres restantes. Couvre le cas où un tour a une
 place libérée par expiration mais que personne ne retente de s'inscrire dessus (donc le
@@ -118,7 +121,9 @@ expiré). B en file d'attente position #1, aucune offre envoyée. C tente de s'i
 5. C part en file d'attente, position après B (jamais devant)
 
 **Dénouement possible** :
-- B clique le lien dans les 24H → `confirm` endpoint le passe `confirmé` (place prise)
+- B clique le lien (`/#/reservations/accept-waitlist`) dans les 24H → endpoint `activate`
+  (api/visit-waitlist.ts) crée une `Registration` `confirmé` (place prise). Rejouer le lien est
+  idempotent : l'entrée soft-deleted renvoie l'inscription existante, jamais un doublon.
 - B ne répond pas → le cron `promote-waitlist` du lendemain détecte l'offre expirée
   (`rejectedAt` set), passe au suivant en file (C, s'il n'y a personne entre les deux)
 - Si A clique son (vieux) lien de validation après expiration : le token est auto-expirant
@@ -190,3 +195,35 @@ accéléré via fake timers. Couvre : groupes/accompagnants et équité FIFO (§
 guide volontaire, les deux bugs corrigés au §6.6, anti-abus (doublon, max 3 visites confirmées
 Q7, reset après annulation), et un cycle complet multi-personnes vérifiant que la capacité
 n'est jamais dépassée hors override guide.
+
+---
+
+## 8. Corrections de l'audit d'août 2026
+
+Changements de logique métier apportés par l'audit complet (voir
+[src/services/auditRegressions.test.ts](../src/services/auditRegressions.test.ts) qui verrouille
+chacun de ces comportements) :
+
+1. **Lien d'offre immédiate** : `promoteWaitlist` envoie `/#/reservations/accept-waitlist?token=…`
+   (l'ancien lien `/confirm` cherchait l'ID de file dans `registrations/` → « registration not found »).
+2. **Index de file** : `waitlist_by_tour/{tourId}/{waitlistId} = true` (keyé par ID immuable).
+   L'ancien index par position se faisait écraser après annulation/acceptation/rejet, faisant
+   disparaître silencieusement des entrées vivantes. Lecture rétro-compatible avec l'ancien format.
+3. **Activation idempotente** : rejouer un lien d'acceptation ne crée plus de doublon confirmé.
+4. **Réinscription** : une inscription `annulé` (ou `attente_validation` expirée) ne bloque plus
+   `rtdbRegistrationExists` — on peut se réinscrire, comme les emails le promettent.
+5. **Crons** : les invocations Vercel sont des GET (l'ancien handler ne prenait que POST → 405,
+   aucun job ne tournait). Un seul job consolidé `?type=daily` (limite de 2 crons du plan Hobby).
+6. **Re-validation J-1** : cliquer le lien efface `validationDeadline` (sinon l'auto-annulation
+   frappait aussi ceux qui avaient confirmé) ; le sweep ne touche que des visites pas encore commencées.
+7. **RGPD en deux étapes** : `action=gdpr` envoie un email avec token signé ; la suppression
+   n'a lieu qu'à `action=gdpr-confirm`. Les suppressions (RGPD et batch post-visite) purgent
+   les données personnelles (`rtdbRegistrationErase`/`rtdbWaitlistErase`), pas seulement `deletedAt`.
+8. **Dédoublonnage file** : un email déjà en file (non rejeté) ne peut pas s'y rajouter.
+9. **Visite commencée** : le POST d'inscription refuse une visite déjà démarrée (le guide en
+   manuel peut inscrire jusqu'à la fin de la visite).
+10. **`placesLeft`** (GET tours) : soustrait toute la file non rejetée — même règle que `hasSpace`.
+11. **Émargement** : un seul enregistrement d'attendance par inscription (upsert) ; le marquage
+    refuse les inscriptions `annulé`/supprimées ; le GET ne renvoie que les inscriptions occupant
+    une place, sans `validationToken`.
+12. **Heures d'email** : `formatDate` force `timeZone: "Europe/Paris"` (les fonctions tournent en UTC).
