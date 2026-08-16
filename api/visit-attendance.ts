@@ -4,14 +4,27 @@
 
 import { VercelRequest, VercelResponse } from "@vercel/node";
 import {
-  rtdbAttendanceCreate,
+  rtdbAttendanceUpsert,
   rtdbAttendanceListByTour,
   rtdbRegistrationGet,
   rtdbRegistrationUpdate,
   rtdbRegistrationsListByTour,
   rtdbGuideCodeValidate,
 } from "./_visit-db.js";
-import { placesOf } from "../src/types/visitTypes.js";
+import { placesOf, Registration } from "../src/types/visitTypes.js";
+
+// Une inscription annulée, supprimée (RGPD) ou en attente expirée n'occupe pas
+// de place : elle ne doit ni apparaître sur la feuille d'appel, ni être marquable
+// (le marquage écrasait « annulé » → « présent » alors que la place avait pu
+// être réattribuée à la file d'attente).
+function holdsSeat(reg: Registration, now: number): boolean {
+  if (reg.deletedAt) return false;
+  if (reg.status === "confirmé" || reg.status === "présent" || reg.status === "absent") return true;
+  if (reg.status === "attente_validation") {
+    return Boolean(reg.validationExpiresAt && new Date(reg.validationExpiresAt).getTime() > now);
+  }
+  return false;
+}
 
 // Helper: validate guide code
 async function validateGuideCode(code: string | undefined): Promise<boolean> {
@@ -56,7 +69,7 @@ async function handleMarkAttendance(req: VercelRequest, res: VercelResponse) {
   try {
     const reg = await rtdbRegistrationGet(registrationId);
 
-    if (!reg) {
+    if (!reg || reg.deletedAt) {
       return res.status(404).json({ error: "registration not found" });
     }
 
@@ -64,8 +77,12 @@ async function handleMarkAttendance(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: "registration does not belong to this tour" });
     }
 
-    // Create attendance record
-    const attendance = await rtdbAttendanceCreate({
+    if (!holdsSeat(reg, Date.now())) {
+      return res.status(409).json({ error: `cannot mark attendance: registration is "${reg.status}"` });
+    }
+
+    // Create/update attendance record (un seul par inscription)
+    const attendance = await rtdbAttendanceUpsert({
       registrationId,
       tourId,
       present: Boolean(present),
@@ -117,13 +134,18 @@ async function handleListAttendance(req: VercelRequest, res: VercelResponse) {
       attendanceMap.set(att.registrationId, att);
     }
 
-    // Enrich registrations with attendance data
+    // Enrich registrations with attendance data.
+    // Seules les inscriptions occupant une place sont renvoyées (annulés et
+    // attentes expirées exclus : ils polluaient feuille d'appel, CSV, impression
+    // et compteurs). Les tokens de validation ne sortent pas du serveur.
+    const now = Date.now();
     const enriched = registrations
-      .filter((r) => !r.deletedAt) // Exclude soft-deleted
+      .filter((r) => holdsSeat(r, now))
       .map((r) => {
         const att = attendanceMap.get(r.id);
+        const { validationToken, ...safe } = r as Registration & { validationToken?: string };
         return {
-          ...r,
+          ...safe,
           attendance: att || null,
           markedPresent: att?.present ?? null,
         };
@@ -138,7 +160,7 @@ async function handleListAttendance(req: VercelRequest, res: VercelResponse) {
     // Comptages en PERSONNES (place = titulaire + accompagnants), cohérent avec la capacité.
     const sumPlaces = (arr: typeof enriched) => arr.reduce((s, r) => s + placesOf(r), 0);
     const counts = {
-      total: registrations.length, // nb d'inscriptions (lignes)
+      total: enriched.length, // nb d'inscriptions occupant une place (lignes)
       totalPeople: sumPlaces(enriched.filter((r) => r.status === "confirmé" || r.status === "présent")),
       confirmed: sumPlaces(enriched.filter((r) => r.status === "confirmé")),
       present: sumPlaces(enriched.filter((r) => r.markedPresent === true)),

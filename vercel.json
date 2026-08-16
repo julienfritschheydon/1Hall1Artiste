@@ -34,20 +34,8 @@
   ],
   "crons": [
     {
-      "path": "/api/visit-emails?type=send-7d-reminder",
-      "schedule": "0 0 * * *"
-    },
-    {
-      "path": "/api/visit-emails?type=send-1d-validation",
-      "schedule": "0 0 * * *"
-    },
-    {
-      "path": "/api/visit-emails?type=batch-delete-post-tour",
-      "schedule": "0 1 * * *"
-    },
-    {
-      "path": "/api/visit-emails?type=promote-waitlist",
-      "schedule": "0 2 * * *"
+      "path": "/api/visit-emails?type=daily",
+      "schedule": "0 4 * * *"
     }
   ]
 }

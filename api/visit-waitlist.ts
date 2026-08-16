@@ -10,6 +10,7 @@ import {
   rtdbWaitlistListByTour,
   rtdbWaitlistReorderAfter,
   rtdbRegistrationCreate,
+  rtdbRegistrationsListByTour,
   rtdbTourGet,
   rtdbGuideCodeValidate,
 } from "./_visit-db.js";
@@ -45,6 +46,23 @@ async function handleActivateWaitlist(req: VercelRequest, res: VercelResponse) {
     // Q5: Check if already rejected (after 24H auto-reject)
     if (waitlist.rejectedAt) {
       return res.status(400).json({ error: "offer already rejected, you were passed over" });
+    }
+
+    // Entrée déjà consommée (soft-deleted) : sans ce test, recharger la page du
+    // lien d'acceptation créait une DEUXIÈME inscription confirmée (doublon sur
+    // la feuille d'appel + dépassement de capacité). Idempotence : si une
+    // inscription confirmée existe déjà pour cet email, renvoyer succès.
+    if (waitlist.deletedAt) {
+      const regs = await rtdbRegistrationsListByTour(waitlist.tourId);
+      const existing = regs.find(
+        (r) =>
+          r.email.toLowerCase() === waitlist.email.toLowerCase() &&
+          (r.status === "confirmé" || r.status === "présent")
+      );
+      if (existing) {
+        return res.json({ ok: true, registrationId: existing.id, message: "Inscription déjà confirmée" });
+      }
+      return res.status(410).json({ error: "offer no longer valid" });
     }
 
     // Create registration from waitlist (carry companions + legacy fields)
@@ -136,8 +154,14 @@ async function handleGetWaitlist(req: VercelRequest, res: VercelResponse) {
     const waits = await rtdbWaitlistListByTour(tourId);
 
     // Guide (valid x-guide-code) sees full details; public sees anonymized positions.
+    // Un code fourni mais invalide/expiré → 401 explicite : sinon le portail
+    // guide recevait la réponse publique anonymisée et affichait une file vide
+    // sans comprendre pourquoi.
     const guideCode = req.headers["x-guide-code"] as string | undefined;
     const isGuide = guideCode ? await rtdbGuideCodeValidate(guideCode) : false;
+    if (guideCode && !isGuide) {
+      return res.status(401).json({ error: "invalid guide code" });
+    }
 
     if (isGuide) {
       const detailed = waits.map((w, idx) => ({

@@ -44,7 +44,8 @@ export default function VisitGdpr() {
         <CardContent className="p-6">
           <p className="text-gray-600 mb-5 text-sm">
             Saisissez votre email pour supprimer toutes vos inscriptions aux visites guidées et vos entrées en file
-            d'attente. Cette action est irréversible.
+            d'attente. Un email de confirmation vous sera envoyé — la suppression n'a lieu qu'après votre clic sur le
+            lien qu'il contient. Cette action est irréversible.
           </p>
 
           {status === "success" ? (
@@ -64,7 +65,7 @@ export default function VisitGdpr() {
                 required
               />
               <Button type="submit" variant="destructive" disabled={status === "loading"} className="w-full">
-                {status === "loading" ? "Suppression..." : "Supprimer mes données"}
+                {status === "loading" ? "Envoi..." : "Recevoir l'email de confirmation"}
               </Button>
             </form>
           )}

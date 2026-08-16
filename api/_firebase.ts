@@ -11,7 +11,9 @@ function authQuery(): string {
 }
 
 export async function rtdbGet<T = unknown>(path: string): Promise<T | null> {
-  const res = await fetch(`${FIREBASE_DB_URL}/${path}.json${authQuery()}`, { cache: "no-cache" });
+  // Pas d'option `cache` : le fetch Node (undici) n'implémente pas le cache HTTP
+  // (option no-op) et les types Node ne la connaissent pas.
+  const res = await fetch(`${FIREBASE_DB_URL}/${path}.json${authQuery()}`);
   if (!res.ok) return null;
   return (await res.json()) as T;
 }

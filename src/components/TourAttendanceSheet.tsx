@@ -16,12 +16,15 @@ export default function TourAttendanceSheet({
   onMarked,
 }: TourAttendanceSheetProps) {
   const [checked, setChecked] = useState<Record<string, boolean | null>>({});
-  const [loading, setLoading] = useState<string | null>(null);
+  // Un verrou PAR LIGNE : avec un seul id partagé, pointer deux lignes coup sur
+  // coup réactivait les boutons des requêtes encore en vol (double POST possible).
+  const [pending, setPending] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
 
   async function handleToggle(regId: string, present: boolean | null) {
+    const previous = checked[regId];
     setChecked((prev) => ({ ...prev, [regId]: present }));
-    setLoading(regId);
+    setPending((prev) => new Set(prev).add(regId));
     setError(null);
 
     try {
@@ -46,9 +49,14 @@ export default function TourAttendanceSheet({
       if (onMarked) onMarked();
     } catch (e) {
       setError((e as Error).message);
-      setChecked((prev) => ({ ...prev, [regId]: null }));
+      // Revenir à l'état d'avant le clic (pas « non pointé » d'office)
+      setChecked((prev) => ({ ...prev, [regId]: previous ?? null }));
     } finally {
-      setLoading(null);
+      setPending((prev) => {
+        const next = new Set(prev);
+        next.delete(regId);
+        return next;
+      });
     }
   }
 
@@ -74,8 +82,14 @@ export default function TourAttendanceSheet({
           </thead>
           <tbody>
             {sorted.map((reg) => {
-              const isPresent = checked[reg.id] ?? (reg.status === "présent");
-              const isAbsent = checked[reg.id] === false;
+              // État initial depuis le serveur : markedPresent restaure AUSSI les
+              // absents au rechargement (le statut seul ne restaurait que les
+              // présents → le guide repointait des gens déjà traités).
+              const serverMark = (reg as any).markedPresent as boolean | null | undefined;
+              const local = checked[reg.id];
+              const isPresent = local ?? (serverMark === true || reg.status === "présent");
+              const isAbsent =
+                local === false || (local == null && (serverMark === false || reg.status === "absent"));
 
               return (
                 <tr
@@ -88,7 +102,7 @@ export default function TourAttendanceSheet({
                     <div className="flex gap-2">
                       <button
                         onClick={() => handleToggle(reg.id, true)}
-                        disabled={loading === reg.id}
+                        disabled={pending.has(reg.id)}
                         className={`px-3 py-1 rounded text-sm ${
                           isPresent
                             ? "bg-green-600 text-white"
@@ -99,7 +113,7 @@ export default function TourAttendanceSheet({
                       </button>
                       <button
                         onClick={() => handleToggle(reg.id, false)}
-                        disabled={loading === reg.id}
+                        disabled={pending.has(reg.id)}
                         className={`px-3 py-1 rounded text-sm ${
                           isAbsent
                             ? "bg-red-600 text-white"

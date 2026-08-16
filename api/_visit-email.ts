@@ -11,6 +11,7 @@ export type VisitEmailType =
   | "waitlist_offer"
   | "validation_expired"
   | "cancellation"
+  | "gdpr_confirm"
   | "error";
 
 function esc(s: any): string {
@@ -112,6 +113,18 @@ export function buildVisitEmail(
         ),
       };
 
+    case "gdpr_confirm":
+      return {
+        subject: "Confirmez la suppression de vos données — Visites guidées",
+        message: wrap(
+          `${hi}
+          <p>Vous avez demandé la suppression de toutes vos données (inscriptions et file d'attente) pour les visites guidées de l'Île Feydeau.</p>
+          <p>Pour confirmer (lien valable 24h) :</p>
+          ${btn(d.confirmLink, "Supprimer mes données")}
+          <p style="color:#888;font-size:13px">Si vous n'êtes pas à l'origine de cette demande, ignorez cet email — rien ne sera supprimé.</p>`
+        ),
+      };
+
     case "error":
       return {
         subject: `Erreur application Collectif Feydeau`,
@@ -124,12 +137,15 @@ function formatDate(iso: string): string {
   try {
     const dt = new Date(iso);
     if (isNaN(dt.getTime())) return iso;
+    // timeZone explicite : les fonctions Vercel tournent en UTC — sans elle,
+    // une visite à 14h (Paris) s'affichait « 12:00 » dans tous les emails.
     return dt.toLocaleString("fr-FR", {
       weekday: "long",
       day: "numeric",
       month: "long",
       hour: "2-digit",
       minute: "2-digit",
+      timeZone: "Europe/Paris",
     });
   } catch {
     return iso;

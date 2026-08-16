@@ -172,7 +172,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Fusionne les éditions artistes (Firebase) par-dessus les données Sheet.
     const overrides = await fetchArtistOverrides();
-    const artists = applyOverrides([...expo.artists, ...concert.artists], overrides);
+    const artists = applyOverrides([...expo.artists, ...concert.artists] as { id: string }[], overrides);
 
     // Propage la vignette (thumbnail prioritaire) vers les événements pour l'affichage des cartes.
     const artistById = new Map(artists.map((a: any) => [a.id, a]));

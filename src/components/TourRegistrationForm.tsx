@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Tour } from "@/types/visitTypes";
+import { useQueryClient } from "@tanstack/react-query";
+import { Tour, MAX_COMPANIONS } from "@/types/visitTypes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -8,6 +9,7 @@ const ORANGE = "#ff7a45";
 type CompanionInput = { firstName: string; lastName: string };
 
 export function TourRegistrationForm({ tour, placesLeft }: { tour: Tour; placesLeft: number }) {
+  const queryClient = useQueryClient();
   const [email, setEmail] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -17,8 +19,12 @@ export function TourRegistrationForm({ tour, placesLeft }: { tour: Tour; placesL
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ status: string; message: string } | null>(null);
 
-  // Max 4 accompagnants (5 places), borné aussi par les places restantes si > 0
-  const maxCompanions = Math.min(4, placesLeft > 0 ? placesLeft - 1 : 4);
+  // Toujours 4 accompagnants possibles : un groupe plus grand que les places
+  // restantes part en file d'attente ENSEMBLE (règle serveur). Borner par
+  // placesLeft empêchait un couple de rejoindre la file quand il restait 1 place.
+  const maxCompanions = MAX_COMPANIONS;
+  const groupSize = 1 + companions.length;
+  const willWaitlist = placesLeft === 0 || groupSize > placesLeft;
 
   function addCompanion() {
     if (companions.length < maxCompanions) {
@@ -53,16 +59,21 @@ export function TourRegistrationForm({ tour, placesLeft }: { tour: Tour; placesL
         }),
       });
 
-      const data = await res.json();
+      // Une page d'erreur HTML (504, proxy) ne doit pas afficher
+      // « Unexpected token '<' » à l'utilisateur.
+      const data = await res.json().catch(() => ({} as Record<string, string>));
 
       if (res.ok) {
         setResult({ status: data.status, message: data.message });
         setSubmitted(true);
+        // Les places restantes viennent de changer — rafraîchir le cache pour
+        // que la prochaine inscription (même appareil) parte d'un état à jour.
+        queryClient.invalidateQueries({ queryKey: ["tours"] });
       } else {
-        setError(data.error || "Erreur lors de l'inscription");
+        setError(data.error || "Erreur lors de l'inscription. Réessayez.");
       }
-    } catch (e) {
-      setError((e as Error).message);
+    } catch {
+      setError("Erreur réseau. Vérifiez votre connexion et réessayez.");
     } finally {
       setLoading(false);
     }
@@ -142,13 +153,20 @@ export function TourRegistrationForm({ tour, placesLeft }: { tour: Tour; placesL
         )}
       </div>
 
+      {willWaitlist && placesLeft > 0 && (
+        <p className="text-sm p-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg">
+          Votre groupe ({groupSize} personnes) dépasse les places restantes ({placesLeft}) : vous serez placés
+          ensemble en liste d'attente.
+        </p>
+      )}
+
       <Button
         type="submit"
         disabled={loading}
         className="w-full text-white"
         style={{ backgroundColor: ORANGE }}
       >
-        {loading ? "..." : placesLeft === 0 ? "Rejoindre la liste d'attente" : "S'inscrire"}
+        {loading ? "..." : willWaitlist ? "Rejoindre la liste d'attente" : "S'inscrire"}
       </Button>
 
       <p className="text-xs text-gray-600">

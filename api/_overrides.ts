@@ -29,9 +29,9 @@ function authQuery(): string {
 // Lecture côté serveur avec le secret → indépendant des règles RTDB (.read peut rester false).
 export async function fetchArtistOverrides(): Promise<Record<string, ArtistOverride>> {
   try {
-    const res = await fetch(`${FIREBASE_DB_URL}/artist-overrides.json${authQuery()}`, { cache: "no-cache" });
+    const res = await fetch(`${FIREBASE_DB_URL}/artist-overrides.json${authQuery()}`);
     if (!res.ok) return {};
-    const data = await res.json();
+    const data = (await res.json()) as Record<string, ArtistOverride> | null;
     return data && typeof data === "object" ? data : {};
   } catch {
     return {};

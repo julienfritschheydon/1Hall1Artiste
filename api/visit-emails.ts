@@ -11,9 +11,9 @@ import {
   rtdbToursCompleted,
   rtdbTourUpdate,
   rtdbRegistrationsListByTour,
-  rtdbRegistrationSoftDelete,
+  rtdbRegistrationErase,
   rtdbWaitlistListByTour,
-  rtdbWaitlistSoftDelete,
+  rtdbWaitlistErase,
   rtdbAuditLog,
   rtdbWaitlistUpdate,
   rtdbTourGet,
@@ -117,9 +117,11 @@ async function sendAdminAlert(subject: string, message: string): Promise<void> {
 
 // Validate cron auth
 function validateCronAuth(req: VercelRequest): boolean {
-  const auth = req.headers.authorization;
-  const expected = `Bearer ${process.env.CRON_SECRET}`;
-  return auth === expected;
+  const secret = process.env.CRON_SECRET;
+  // Refus explicite si non configuré — sinon l'en-tête littéral
+  // « Bearer undefined » aurait authentifié n'importe qui.
+  if (!secret) return false;
+  return req.headers.authorization === `Bearer ${secret}`;
 }
 
 // ==== JOB 1: Send 7d reminder ====
@@ -226,9 +228,13 @@ async function sendValidationEmails1d(): Promise<{ sent: number; autocancelled: 
     }
   }
 
-  // Q15: Auto-cancel registrations past validation deadline
-  const allRegs = await rtdbRegistrationsListByDateRange(new Date(0), now);
-  for (const reg of allRegs) {
+  // Q15: Auto-cancel registrations past validation deadline.
+  // Uniquement pour des visites PAS ENCORE commencées : l'ancien scan (epoch →
+  // maintenant) ne touchait que des visites passées, annulant après coup des
+  // gens venus à la visite. La deadline est effacée par l'endpoint confirm au
+  // clic (revalidation), donc on n'annule ici que ceux qui n'ont PAS cliqué.
+  const upcomingRegs = await rtdbRegistrationsListByDateRange(now, new Date(now.getTime() + 8 * 24 * 60 * 60 * 1000));
+  for (const reg of upcomingRegs) {
     if (
       reg.status === "confirmé" &&
       reg.validation1dSent &&
@@ -261,32 +267,31 @@ async function batchDeletePostTour(): Promise<{ deletedRegs: number; deletedWait
     if (tour.batchDeleteExecuted) {
       continue; // Skip if already executed (idempotency)
     }
+    let tourRegs = 0,
+      tourWaits = 0;
 
-    // Soft delete all registrations
+    // Purge RGPD réelle (PII effacées) — un simple deletedAt gardait emails et
+    // noms en base indéfiniment, à rebours de l'objet du job.
     const regs = await rtdbRegistrationsListByTour(tour.id);
     for (const reg of regs) {
-      if (!reg.deletedAt) {
-        // Only delete if not already soft-deleted
-        await rtdbRegistrationSoftDelete(reg.id);
-        deletedRegs++;
-      }
+      await rtdbRegistrationErase(reg.id);
+      deletedRegs++;
+      tourRegs++;
     }
 
-    // Soft delete all waitlist entries
     const waits = await rtdbWaitlistListByTour(tour.id);
     for (const wait of waits) {
-      if (!wait.deletedAt) {
-        await rtdbWaitlistSoftDelete(wait.id);
-        deletedWaitlist++;
-      }
+      await rtdbWaitlistErase(wait.id);
+      deletedWaitlist++;
+      tourWaits++;
     }
 
-    // Audit log
+    // Audit log (compteurs de CE tour, pas le cumul du batch)
     await rtdbAuditLog("batch_delete_post_tour", {
       tourId: tour.id,
       tourTitle: tour.title,
-      deletedRegistrations: deletedRegs,
-      deletedWaitlist: deletedWaitlist,
+      deletedRegistrations: tourRegs,
+      deletedWaitlist: tourWaits,
       reason: "RGPD 24h after tour completion",
       timestamp: new Date().toISOString(),
     });
@@ -426,9 +431,12 @@ async function promoteFromWaitlist(): Promise<{ promoted: number; rejected: numb
   return { promoted, rejected, autocancelled };
 }
 
-// Main handler
+// Main handler.
+// GET est accepté : les crons Vercel invoquent le path en GET — n'accepter que
+// POST faisait échouer les 4 jobs quotidiens en 405 depuis toujours (aucun
+// rappel, aucune purge, aucune promotion automatique).
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== "POST") {
+  if (req.method !== "POST" && req.method !== "GET") {
     return res.status(405).json({ error: "method not allowed" });
   }
 
@@ -442,7 +450,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     let result: any;
 
-    if (type === "send-7d-reminder") {
+    if (type === "daily") {
+      // Job consolidé (plan Hobby : 2 crons max — un seul suffit désormais).
+      // Ordre : rappels → validation J-1 → promotion (inclut expirations/rejets) → purge.
+      const reminder7d = await sendReminderEmails7d();
+      const validation1d = await sendValidationEmails1d();
+      const promotion = await promoteFromWaitlist();
+      const cleanup = await batchDeletePostTour();
+      result = { reminder7d, validation1d, promotion, cleanup };
+    } else if (type === "send-7d-reminder") {
       result = await sendReminderEmails7d();
     } else if (type === "send-1d-validation") {
       result = await sendValidationEmails1d();
