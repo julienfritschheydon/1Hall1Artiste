@@ -133,9 +133,9 @@ async function cancelRegistration(registrationId: string, email: string) {
   return { status: statusOf(res), body: jsonOf(res) };
 }
 
-async function deleteWaitlist(waitlistId: string) {
+async function deleteWaitlist(waitlistId: string, email: string) {
   const res = mockRes();
-  await waitlistHandler(mockReq({ method: "DELETE", query: { id: waitlistId } }), res);
+  await waitlistHandler(mockReq({ method: "DELETE", query: { id: waitlistId, email } }), res);
   return { status: statusOf(res), body: jsonOf(res) };
 }
 
@@ -210,7 +210,7 @@ describe("C2 — intégrité de l'index de file d'attente", () => {
 
     // w1 quitte la file (positions décalées), puis w4 arrive.
     const w1Wait = rawWaitlistFor(tourId).find((w) => w.email === "w1@t.fr");
-    await deleteWaitlist(w1Wait.id);
+    await deleteWaitlist(w1Wait.id, "w1@t.fr");
     await register(tourId, "w4@t.fr");
 
     // La liste INDEXÉE (celle utilisée par promotions, capacité, guide) doit
