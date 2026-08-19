@@ -11,6 +11,8 @@ export type VisitEmailType =
   | "waitlist_offer"
   | "validation_expired"
   | "cancellation"
+  | "waitlist_accepted"
+  | "waitlist_left"
   | "gdpr_confirm"
   | "error";
 
@@ -36,7 +38,9 @@ export function buildVisitEmail(
 ): { subject: string; message: string } {
   const title = esc(d.tourTitle || "votre visite");
   const date = d.tourDate ? esc(formatDate(d.tourDate)) : "";
-  const hi = `<p>Bonjour ${esc(d.firstName || "")},</p>`;
+  const hi = d.firstName
+    ? `<p>Bonjour ${esc(d.firstName)},</p>`
+    : `<p>Bonjour,</p>`;
 
   switch (type) {
     case "confirmation":
@@ -110,6 +114,22 @@ export function buildVisitEmail(
         subject: `Annulation — ${d.tourTitle || "votre visite"}`,
         message: wrap(
           `${hi}<p>Votre inscription à « ${title} »${date ? ` le ${date}` : ""} a bien été annulée.</p><p>À une prochaine fois !</p>`
+        ),
+      };
+
+    case "waitlist_accepted":
+      return {
+        subject: `Place confirmée — ${d.tourTitle || "votre visite"}`,
+        message: wrap(
+          `${hi}<p>Votre place pour « ${title} »${date ? ` le ${date}` : ""} est confirmée. À bientôt !</p>`
+        ),
+      };
+
+    case "waitlist_left":
+      return {
+        subject: `File d'attente quittée — ${d.tourTitle || "votre visite"}`,
+        message: wrap(
+          `${hi}<p>Vous avez été retiré(e) de la file d'attente pour « ${title} ».</p>`
         ),
       };
 
