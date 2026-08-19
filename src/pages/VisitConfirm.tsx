@@ -49,13 +49,17 @@ export default function VisitConfirm() {
   async function submitCancelWaitlist() {
     setStatus("loading");
     const id = query.get("id");
-    if (!id) {
+    const email = query.get("email");
+    if (!id || !email) {
       setStatus("error");
       setMessage("Lien invalide : identifiant manquant.");
       return;
     }
     try {
-      const res = await fetch(`/api/visit-waitlist?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      const res = await fetch(
+        `/api/visit-waitlist?id=${encodeURIComponent(id)}&email=${encodeURIComponent(email)}`,
+        { method: "DELETE" }
+      );
       const data = await res.json().catch(() => ({} as Record<string, string>));
       if (res.ok && data.ok) {
         setStatus("success");

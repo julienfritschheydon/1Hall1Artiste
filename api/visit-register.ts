@@ -329,7 +329,7 @@ async function handleCreateRegistration(req: VercelRequest, res: VercelResponse)
           firstName: sanitizedFirstName,
           tourTitle: tour.title,
           position,
-          queueLink: `${SITE_URL}/#/reservations/cancel-waitlist?id=${waitlist.id}`,
+          queueLink: `${SITE_URL}/#/reservations/cancel-waitlist?id=${waitlist.id}&email=${encodeURIComponent(email)}`,
           registrationId: waitlist.id,
           idempotencyKey: `${waitlist.id}_waitlist_confirmation`,
         });
