@@ -15,7 +15,7 @@ import {
   rtdbGuideCodeValidate,
 } from "./_visit-db.js";
 import { verifyRegistrationToken } from "./_token.js";
-import { promoteWaitlist } from "./visit-register.js";
+import { promoteWaitlist, sendRegistrationEmail } from "./visit-register.js";
 
 // POST /api/visit-waitlist/activate — accepter offre (Q4: sequential, 1 per sec)
 async function handleActivateWaitlist(req: VercelRequest, res: VercelResponse) {
@@ -83,6 +83,19 @@ async function handleActivateWaitlist(req: VercelRequest, res: VercelResponse) {
     // Log: Offer accepted
     console.log(`[waitlist] Offer accepted: waitlist_${waitlistId} → registration_${registration.id}`);
 
+    try {
+      const tour = await rtdbTourGet(waitlist.tourId);
+      await sendRegistrationEmail("waitlist_accepted", {
+        to: registration.email,
+        firstName: registration.firstName,
+        tourTitle: tour?.title || "",
+        tourDate: tour?.date || "",
+        idempotencyKey: `${registration.id}_waitlist_accepted`,
+      });
+    } catch (e) {
+      console.error("[visit-waitlist] accepted email failed:", e);
+    }
+
     return res.json({
       ok: true,
       registrationId: registration.id,
@@ -134,6 +147,19 @@ async function handleDeleteWaitlist(req: VercelRequest, res: VercelResponse) {
     }
 
     console.log(`[waitlist] Cancelled: position_${waitlist.position} for tour_${waitlist.tourId}`);
+
+    try {
+      const tour = await rtdbTourGet(waitlist.tourId);
+      await sendRegistrationEmail("waitlist_left", {
+        to: waitlist.email,
+        firstName: waitlist.firstName,
+        tourTitle: tour?.title || "",
+        tourDate: tour?.date || "",
+        idempotencyKey: `${id}_waitlist_left`,
+      });
+    } catch (e) {
+      console.error("[visit-waitlist] left email failed:", e);
+    }
 
     return res.json({ ok: true, message: "Cancelled" });
   } catch (e) {
