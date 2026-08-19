@@ -89,7 +89,8 @@
 ## 3.2 Liste des visites
 
 - [ ] Les visites **à venir** sont en premier (chronologique), les **terminées à la fin**
-- [ ] Pendant l'heure d'une visite : badge **« En cours »** (vert) *(corrigé — avant, une visite en train de se dérouler affichait « Terminée »)* — testable le jour J ou en créant une visite qui démarre dans 2 min
+- [ ] Pendant l'heure d'une visite : badge **« En cours »** (vert) *(corrigé — avant, une visite en train de se dérouler affichait « Terminée »)*
+  > 💡 **Astuce (pas besoin d'attendre)** : créer/modifier une visite test avec horaire déjà en cours — heure de début = maintenant −5 min, heure de fin = maintenant +55 min. Le badge doit être « En cours » immédiatement à l'ouverture de la page, sans délai à attendre.
 - [ ] Ouvrir la visite de test : compteurs **Confirmés / Présents / Absents / File d'attente** cohérents avec les étapes précédentes (les offres refusées/expirées ne gonflent pas le compteur de file)
 
 ## 3.3 Inscription manuelle sur place
@@ -131,19 +132,23 @@
 - [ ] Dashboard Vercel → projet `1hall1artiste` → **Logs** vers 04:00 UTC (06:00 Paris) : une invocation `GET /api/visit-emails?type=daily` en **200** avec un JSON `{ ok: true, type: "daily", reminder7d: …, validation1d: …, promotion: …, cleanup: … }`
 - [ ] Vérification à froid possible tout de suite : ouvrir `https://www.1hall1artiste.fr/api/visit-emails?type=daily` dans le navigateur → **401 `invalid authorization`** (normal sans le secret ; l'ancien code cassé répondait 405) ✅ *déjà vérifié le 16/08*
 
+> 💡 **Astuce (pas besoin d'attendre le lendemain)** : le endpoint est appelable manuellement à toute heure avec le secret d'auth (header/Bearer requis — cf. variable d'env type `CRON_SECRET`). Un appel authentifié à `GET /api/visit-emails?type=daily` déclenche la vraie logique (reminder7d/validation1d/promotion/cleanup) immédiatement, en 200 avec le JSON complet — pas besoin d'attendre 04:00 UTC ni le dashboard Vercel pour valider le comportement fonctionnel (seul le déclenchement **automatique planifié** reste à confirmer via les Logs Vercel, séparément).
+> Même mécanisme pour **la purge automatique 24h après la visite** (voir Nettoyage plus bas) : créer la visite test avec une date passée, puis appeler ce endpoint manuellement → le `cleanup` s'exécute tout de suite et purge la visite, sans attendre 24h.
+
 ---
 
 # Non-régression
 
 - [ ] Carte : le point de départ des visites s'affiche, la fiche bâtiment liste les visites
 - [ ] Programme : onglets, événements, modal événement OK
-- [ ] Ajout au calendrier d'un **événement du festival** : l'événement est créé **au bon week-end de septembre** *(corrigé — avant : « prochain samedi » après le jour du clic)* ; sur iOS, le partage/téléchargement `.ics` propose bien Calendrier *(le faux « succès » webcal est supprimé)*
+- [ ] Ajout au calendrier d'un **événement du festival** : l'événement est créé **au bon week-end de septembre** *(corrigé — avant : « prochain samedi » après le jour du clic)*
+- [ ] ⚠️ **Demander à Julien** : sur iOS, le partage/téléchargement `.ics` propose bien Calendrier *(le faux « succès » webcal est supprimé)* — nécessite device physique, pas testable par un agent navigateur. Préparer le lien exact de l'événement et lui faire confirmer.
 - [ ] Aucune erreur rouge dans la console navigateur sur les pages testées
 
 # Edge cases
 
 - [ ] Inscription avec un email invalide (`test@test`) → erreur de validation
-- [ ] Coupure réseau pendant une inscription (mode avion) → message **« Erreur réseau… »** lisible, pas de `Unexpected token '<'`
+- [ ] ⚠️ **Demander à Julien** : coupure réseau pendant une inscription (mode avion) → message **« Erreur réseau… »** lisible, pas de `Unexpected token '<'` — nécessite coupure réseau OS-level, pas testable par un agent navigateur. Préparer le formulaire pré-rempli et lui faire couper le réseau puis soumettre.
 - [ ] Onglet laissé ouvert sur une visite passée → l'inscription est refusée (`tour already started`) *(corrigé)*
 - [ ] Mobile : formulaire, modal, portail guide utilisables en 390px de large
 
