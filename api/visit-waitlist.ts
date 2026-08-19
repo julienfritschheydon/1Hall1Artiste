@@ -95,11 +95,18 @@ async function handleActivateWaitlist(req: VercelRequest, res: VercelResponse) {
 }
 
 // DELETE /api/visit-waitlist/{id} — annuler (reorder Q4)
+// Query: { id, email }. Email = clé d'auth faible (même pattern que
+// handleCancelRegistration) : sans elle, n'importe qui connaissant l'id
+// (visible dans le lien email, ou dans la réponse JSON d'inscription)
+// pouvait annuler la place de quelqu'un d'autre (IDOR).
 async function handleDeleteWaitlist(req: VercelRequest, res: VercelResponse) {
-  const { id } = req.query;
+  const { id, email } = req.query;
 
   if (!id || typeof id !== "string") {
     return res.status(400).json({ error: "waitlist id required" });
+  }
+  if (!email || typeof email !== "string") {
+    return res.status(400).json({ error: "email required" });
   }
 
   try {
@@ -107,6 +114,10 @@ async function handleDeleteWaitlist(req: VercelRequest, res: VercelResponse) {
 
     if (!waitlist) {
       return res.status(404).json({ error: "waitlist entry not found" });
+    }
+
+    if (waitlist.email.toLowerCase() !== email.toLowerCase()) {
+      return res.status(403).json({ error: "email does not match waitlist entry" });
     }
 
     if (waitlist.deletedAt) {

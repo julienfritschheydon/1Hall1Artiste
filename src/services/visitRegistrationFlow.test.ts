@@ -137,9 +137,9 @@ async function cancelRegistration(registrationId: string, email: string) {
   return { status: statusOf(res), body: jsonOf(res) };
 }
 
-async function deleteWaitlist(waitlistId: string) {
+async function deleteWaitlist(waitlistId: string, email: string) {
   const res = mockRes();
-  await waitlistHandler(mockReq({ method: "DELETE", query: { id: waitlistId } }), res);
+  await waitlistHandler(mockReq({ method: "DELETE", query: { id: waitlistId, email } }), res);
   return { status: statusOf(res), body: jsonOf(res) };
 }
 
@@ -240,7 +240,7 @@ describe("Groupe 3 — auto-annulation d'une offre active (bug corrigé)", () =>
     expect(bWait?.invitationSentAt).toBeTruthy();
 
     // B annule lui-même sa file d'attente au lieu de laisser expirer son offre.
-    const delRes = await deleteWaitlist(bWait.id);
+    const delRes = await deleteWaitlist(bWait.id, "b@t.fr");
     expect(delRes.status).toBe(200);
 
     // La place que B bloquait doit être immédiatement réoffertes à C (le suivant), pas rester libre en silence.
