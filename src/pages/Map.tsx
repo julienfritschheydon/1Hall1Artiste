@@ -36,6 +36,7 @@ import { AudioGuidePlayer } from "@/components/AudioGuidePlayer";
 import { MapHeader } from "@/components/MapHeader";
 import { TourDetailsModal } from "@/components/TourDetailsModal";
 import { type Tour } from "@/types/visitTypes";
+import { useTours } from "@/hooks/useTours";
 // Créer un logger pour le composant Map
 const logger = createLogger('Map');
 
@@ -64,6 +65,22 @@ const Map = ({ fullScreen = false }: MapProps) => {
   // Utiliser directement les emplacements du service de données
   const [mapLocations, setMapLocations] = useState(locations);
   const [selectedTour, setSelectedTour] = useState<Tour | null>(null);
+  const [tourSwipeIndex, setTourSwipeIndex] = useState<number>(0);
+  const { tours: allTours } = useTours();
+
+  // Toutes les visites triées chronologiquement pour la navigation - MÉMOÏSÉ
+  const allToursSorted = useMemo(
+    () => [...allTours].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
+    [allTours]
+  );
+
+  // Synchroniser l'index avec la visite sélectionnée
+  useEffect(() => {
+    if (selectedTour) {
+      const index = allToursSorted.findIndex((t) => t.id === selectedTour.id);
+      if (index !== -1) setTourSwipeIndex(index);
+    }
+  }, [selectedTour, allToursSorted]);
   // Bâtiments hébergeant une visite : liste tenue à la main (ids réels de
   // data/locations.ts, coordonnées déjà justes) — pas de matching contre
   // visit_locations (RTDB), dataset séparé dont les coordonnées ne coïncident
@@ -681,11 +698,26 @@ const Map = ({ fullScreen = false }: MapProps) => {
       
       {/* Boîte de dialogue de consentement de localisation retirée */}
       
-      {/* Détails d'une visite guidée — inscription intégrée, aucune navigation */}
+      {/* Détails d'une visite guidée — inscription intégrée + navigation flèches */}
       <TourDetailsModal
         tour={selectedTour}
         isOpen={!!selectedTour}
         onClose={() => setSelectedTour(null)}
+        navigableTours={allToursSorted}
+        currentIndex={tourSwipeIndex}
+        onIndexChange={(newIndex) => {
+          const newTour = allToursSorted[newIndex];
+          if (newTour) {
+            setSelectedTour(newTour);
+            setTourSwipeIndex(newIndex);
+            analytics.trackFeatureUse('swipe_navigation', {
+              direction: newIndex > tourSwipeIndex ? 'next' : 'previous',
+              from_tour: selectedTour?.id,
+              to_tour: newTour.id,
+              page: 'map'
+            });
+          }
+        }}
       />
 
       {/* Audio Guide Player Global */}
