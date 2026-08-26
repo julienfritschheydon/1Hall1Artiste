@@ -148,9 +148,15 @@ export function TourDetailsModal({
             </div>
           )}
 
-          <div className="mb-6 p-3 rounded-lg bg-[#fff6ef] border border-[#ffd9c4] font-bold text-[#e8693a]">
-            Places restantes : {placesLeft}/{tour.capacity}
-          </div>
+          {placesLeft <= 0 ? (
+            <div className="mb-6 p-3 rounded-lg bg-amber-100 border-2 border-amber-400 font-bold text-amber-900">
+              Visite complète ({tour.capacity}/{tour.capacity}) — rejoignez la liste d'attente ci-dessous
+            </div>
+          ) : (
+            <div className="mb-6 p-3 rounded-lg bg-[#fff6ef] border border-[#ffd9c4] font-bold text-[#e8693a]">
+              Places restantes : {placesLeft}/{tour.capacity}
+            </div>
+          )}
 
           <TourRegistrationForm tour={tour} placesLeft={placesLeft} />
         </div>

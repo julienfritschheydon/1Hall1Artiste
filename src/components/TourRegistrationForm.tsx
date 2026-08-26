@@ -153,18 +153,25 @@ export function TourRegistrationForm({ tour, placesLeft }: { tour: Tour; placesL
         )}
       </div>
 
-      {willWaitlist && placesLeft > 0 && (
-        <p className="text-sm p-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg">
-          Votre groupe ({groupSize} personnes) dépasse les places restantes ({placesLeft}) : vous serez placés
-          ensemble en liste d'attente.
+      {placesLeft <= 0 ? (
+        <p className="text-sm p-3 bg-amber-100 border-2 border-amber-400 text-amber-900 rounded-lg font-semibold">
+          Cette visite est complète. Inscrivez-vous en liste d'attente : vous serez prévenu(e) par email si une
+          place se libère.
         </p>
+      ) : (
+        willWaitlist && (
+          <p className="text-sm p-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg">
+            Votre groupe ({groupSize} personnes) dépasse les places restantes ({placesLeft}) : vous serez placés
+            ensemble en liste d'attente.
+          </p>
+        )
       )}
 
       <Button
         type="submit"
         disabled={loading}
         className="w-full text-white"
-        style={{ backgroundColor: ORANGE }}
+        style={{ backgroundColor: willWaitlist ? "#b45309" : ORANGE }}
       >
         {loading ? "..." : willWaitlist ? "Rejoindre la liste d'attente" : "S'inscrire"}
       </Button>

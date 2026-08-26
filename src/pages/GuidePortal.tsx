@@ -384,10 +384,20 @@ function TourDetails({
 
       <Card className="bg-white/90 backdrop-blur-sm border-2 border-amber-300 shadow-lg">
         <CardContent className="p-6">
-          <p className="text-gray-600 mb-2">
-            {new Date(tour.date).toLocaleDateString("fr-FR")} •{" "}
-            {new Date(tour.date).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
-            {" • "}Durée : {tour.durationMinutes} min • Places : {tour.placesLeft ?? tour.capacity}/{tour.capacity}
+          <p className="text-gray-600 mb-2 flex flex-wrap items-center gap-2">
+            <span>
+              {new Date(tour.date).toLocaleDateString("fr-FR")} •{" "}
+              {new Date(tour.date).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+              {" • "}Durée : {tour.durationMinutes} min • Places :{" "}
+              <span className={(tour.placesLeft ?? tour.capacity) <= 0 ? "font-bold text-red-600" : undefined}>
+                {tour.placesLeft ?? tour.capacity}/{tour.capacity}
+              </span>
+            </span>
+            {(tour.placesLeft ?? tour.capacity) <= 0 && (
+              <span className="text-xs px-2 py-1 rounded-full whitespace-nowrap bg-red-100 text-red-700 font-bold uppercase">
+                Complet
+              </span>
+            )}
           </p>
           {tour.description && <p className="text-gray-700 mb-4 whitespace-pre-wrap">{tour.description}</p>}
 
@@ -406,6 +416,7 @@ function TourDetails({
                     label="File d'attente"
                     value={activeWaitlist.reduce((s: number, w: any) => s + (w.places ?? 1), 0)}
                     color="bg-amber-100"
+                    highlight={activeWaitlist.length > 0}
                   />
                 </div>
               )}
@@ -459,9 +470,19 @@ function TourDetails({
   );
 }
 
-function Stat({ label, value, color }: { label: string; value: number; color: string }) {
+function Stat({
+  label,
+  value,
+  color,
+  highlight,
+}: {
+  label: string;
+  value: number;
+  color: string;
+  highlight?: boolean;
+}) {
   return (
-    <div className={`p-3 rounded-lg ${color}`}>
+    <div className={`p-3 rounded-lg ${color} ${highlight ? "ring-2 ring-amber-500" : ""}`}>
       <p className="text-xs text-gray-600">{label}</p>
       <p className="text-2xl font-bold tabular-nums text-[#1a2138]">{value}</p>
     </div>
