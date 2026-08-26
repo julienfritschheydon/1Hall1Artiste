@@ -387,7 +387,7 @@ function TourDetails({
           <p className="text-gray-600 mb-2">
             {new Date(tour.date).toLocaleDateString("fr-FR")} •{" "}
             {new Date(tour.date).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
-            {" • "}Durée : {tour.durationMinutes} min • Capacité : {tour.capacity}
+            {" • "}Durée : {tour.durationMinutes} min • Places : {tour.placesLeft ?? tour.capacity}/{tour.capacity}
           </p>
           {tour.description && <p className="text-gray-700 mb-4 whitespace-pre-wrap">{tour.description}</p>}
 

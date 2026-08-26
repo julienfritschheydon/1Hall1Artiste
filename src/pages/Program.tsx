@@ -36,6 +36,7 @@ const Program = () => {
   const [currentFilter, setCurrentFilter] = useState<string>("");
   const [savedEventIds, setSavedEventIds] = useState<string[]>([]);
   const [eventSwipeIndex, setEventSwipeIndex] = useState<number>(0);
+  const [tourSwipeIndex, setTourSwipeIndex] = useState<number>(0);
   const { tours, isLoading: toursLoading } = useTours();
 
   useEffect(() => {
@@ -153,6 +154,22 @@ const Program = () => {
       }
     }
   }, [selectedEvent, filteredEventsSorted]);
+
+  // Toutes les visites triées chronologiquement pour la navigation - MÉMOÏSÉ
+  const allToursSorted = useMemo(
+    () => [...tours].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
+    [tours]
+  );
+
+  // Synchroniser l'index avec la visite sélectionnée
+  useEffect(() => {
+    if (selectedTour) {
+      const index = allToursSorted.findIndex(t => t.id === selectedTour.id);
+      if (index !== -1) {
+        setTourSwipeIndex(index);
+      }
+    }
+  }, [selectedTour, allToursSorted]);
   
   return (
     <div className="min-h-screen pb-20 relative" style={{
@@ -304,6 +321,21 @@ const Program = () => {
         tour={selectedTour}
         isOpen={!!selectedTour}
         onClose={() => setSelectedTour(null)}
+        navigableTours={allToursSorted}
+        currentIndex={tourSwipeIndex}
+        onIndexChange={(newIndex) => {
+          const newTour = allToursSorted[newIndex];
+          if (newTour) {
+            setSelectedTour(newTour);
+            setTourSwipeIndex(newIndex);
+            analytics.trackFeatureUse('swipe_navigation', {
+              direction: newIndex > tourSwipeIndex ? 'next' : 'previous',
+              from_tour: selectedTour?.id,
+              to_tour: newTour.id,
+              page: 'program'
+            });
+          }
+        }}
       />
 
       <BottomNavigation />

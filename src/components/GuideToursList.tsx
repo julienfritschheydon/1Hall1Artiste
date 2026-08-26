@@ -52,7 +52,9 @@ export default function GuideToursList({ tours, onSelectTour }: GuideTourListPro
 
             <p className="text-sm text-gray-600 mb-2">Durée : {tour.durationMinutes} min</p>
 
-            <p className="text-sm font-semibold text-[#1a2138]">Capacité : {tour.capacity}</p>
+            <p className="text-sm font-semibold text-[#1a2138]">
+              Places : {tour.placesLeft ?? tour.capacity}/{tour.capacity}
+            </p>
 
             <div className="mt-3 text-xs font-semibold" style={{ color: "#ff7a45" }}>
               Voir les inscrits &amp; faire l'appel ›
