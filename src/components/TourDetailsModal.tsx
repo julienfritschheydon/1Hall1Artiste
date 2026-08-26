@@ -4,6 +4,9 @@ import { Tour } from "@/types/visitTypes";
 import { findLocationForTour } from "@/utils/tourLocation";
 import { TourRegistrationForm } from "@/components/TourRegistrationForm";
 import { buildShareUrl } from "@/utils/url";
+import { useSwipeNavigation } from "@/hooks/useSwipeNavigation";
+import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
+import { SwipeIndicator } from "@/components/ui/SwipeIndicator";
 import X from "lucide-react/dist/esm/icons/x";
 import Share2 from "lucide-react/dist/esm/icons/share-2";
 import MapPin from "lucide-react/dist/esm/icons/map-pin";
@@ -13,11 +16,36 @@ interface TourDetailsModalProps {
   tour: Tour | null;
   isOpen: boolean;
   onClose: () => void;
+  navigableTours?: Tour[];
+  currentIndex?: number;
+  onIndexChange?: (index: number) => void;
 }
 
-export function TourDetailsModal({ tour, isOpen, onClose }: TourDetailsModalProps) {
+export function TourDetailsModal({
+  tour,
+  isOpen,
+  onClose,
+  navigableTours = [],
+  currentIndex = 0,
+  onIndexChange,
+}: TourDetailsModalProps) {
   const navigate = useNavigate();
   const [isSharing, setIsSharing] = useState(false);
+
+  const swipe = useSwipeNavigation({
+    items: navigableTours,
+    currentIndex,
+    onIndexChange: onIndexChange || (() => {}),
+    threshold: 100,
+    enabled: navigableTours.length > 1,
+  });
+
+  useKeyboardNavigation({
+    onPrevious: swipe.goPrevious,
+    onNext: swipe.goNext,
+    onClose,
+    enabled: navigableTours.length > 1 && isOpen,
+  });
 
   if (!tour || !isOpen) return null;
 
@@ -34,8 +62,23 @@ export function TourDetailsModal({ tour, isOpen, onClose }: TourDetailsModalProp
       <div
         className="max-w-lg w-full max-h-[85vh] overflow-y-auto rounded-2xl shadow-2xl relative bg-amber-50/95 backdrop-blur-sm"
         onClick={(e) => e.stopPropagation()}
+        {...swipe.handlers}
       >
         <div className="relative z-10 p-6">
+          {navigableTours.length > 1 && (
+            <div className="flex justify-center mb-2">
+              <SwipeIndicator
+                currentIndex={swipe.currentIndex}
+                totalCount={swipe.totalCount}
+                canGoPrevious={swipe.canGoPrevious}
+                canGoNext={swipe.canGoNext}
+                onPrevious={swipe.goPrevious}
+                onNext={swipe.goNext}
+                showArrows={true}
+                showCounter={true}
+              />
+            </div>
+          )}
           {/* Boutons en haut à droite — même chrome que la fiche événement */}
           <div className="flex justify-end items-center gap-2 mb-4">
             <button

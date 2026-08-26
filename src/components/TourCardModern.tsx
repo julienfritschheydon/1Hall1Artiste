@@ -12,6 +12,7 @@ export interface TourCardModernProps {
 
 export const TourCardModern: React.FC<TourCardModernProps> = ({ tour, onTourClick, cardIndex }) => {
   const timeStr = new Date(tour.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  const placesLeft = tour.placesLeft ?? tour.capacity;
 
   const getEventBackgroundPseudoElementStyle = (index?: number): React.CSSProperties => {
     const intensity = index !== undefined ? index % 4 : 0;
@@ -54,6 +55,7 @@ export const TourCardModern: React.FC<TourCardModernProps> = ({ tour, onTourClic
           <div className="text-gray-500 text-sm space-y-1">
             <p>{timeStr}</p>
             {tour.startLocationName && <p>{tour.startLocationName}</p>}
+            <p>Places : {placesLeft}/{tour.capacity}</p>
           </div>
           <div className="flex items-center gap-2 mt-2">
             <div className="w-3 h-3 bg-gray-400 rounded-full"></div>
