@@ -1,6 +1,6 @@
 import { getImagePath } from '@/utils/imagePaths';
 import { IMAGE_PATHS } from '../constants/imagePaths';
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { BackButton } from "@/components/ui/BackButton";
 import { ActionButton } from "@/components/ui/ActionButton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -54,6 +54,7 @@ export default function SavedEvents() {
   const [bookings, setBookings] = useState<{ tours: Record<string, Tour>, registrations: Registration[], waitlist: Waitlist[] } | null>(null);
   const [bookingError, setBookingError] = useState<string>("");
   const [selectedTour, setSelectedTour] = useState<Tour | null>(null);
+  const [tourSwipeIndex, setTourSwipeIndex] = useState<number>(0);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [favoritesMessage, setFavoritesMessage] = useState<string>("");
   const [emailAttached, setEmailAttached] = useState<boolean>(() => Boolean(getAttachedEmail()));
@@ -292,6 +293,33 @@ export default function SavedEvents() {
     };
   };
 
+  // Mes visites (inscriptions + liste d'attente), dans l'ordre affiché à l'écran —
+  // pour la navigation flèches depuis une fiche ouverte. Dédupliquées par id
+  // (une visite peut apparaître dans les deux listes si un accompagnant attend).
+  const myTours = useMemo(() => {
+    if (!bookings) return [];
+    const ids = [
+      ...bookings.registrations.map((r) => r.tourId),
+      ...bookings.waitlist.map((w) => w.tourId),
+    ];
+    const seen = new Set<string>();
+    const result: Tour[] = [];
+    for (const id of ids) {
+      const tour = bookings.tours[id];
+      if (tour && !seen.has(id)) {
+        seen.add(id);
+        result.push(tour);
+      }
+    }
+    return result;
+  }, [bookings]);
+
+  useEffect(() => {
+    if (selectedTour) {
+      const index = myTours.findIndex((t) => t.id === selectedTour.id);
+      if (index !== -1) setTourSwipeIndex(index);
+    }
+  }, [selectedTour, myTours]);
 
   return (
     <div className="min-h-screen pb-20 px-4 pt-4 overflow-x-hidden" style={{
@@ -863,6 +891,21 @@ export default function SavedEvents() {
           tour={selectedTour}
           isOpen={!!selectedTour}
           onClose={() => setSelectedTour(null)}
+          navigableTours={myTours}
+          currentIndex={tourSwipeIndex}
+          onIndexChange={(newIndex) => {
+            const newTour = myTours[newIndex];
+            if (newTour) {
+              setSelectedTour(newTour);
+              setTourSwipeIndex(newIndex);
+              analytics.trackFeatureUse('swipe_navigation', {
+                direction: newIndex > tourSwipeIndex ? 'next' : 'previous',
+                from_tour: selectedTour?.id,
+                to_tour: newTour.id,
+                page: 'saved'
+              });
+            }
+          }}
         />
       </div>
     </div>
