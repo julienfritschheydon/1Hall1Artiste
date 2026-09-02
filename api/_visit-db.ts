@@ -471,6 +471,21 @@ export async function rtdbGuideCodeValidate(code: string): Promise<boolean> {
   return false;
 }
 
+export async function rtdbGuideCodeCreateCustom(customCode: string): Promise<GuideAccessCode> {
+  const id = generateId();
+  const now = new Date().toISOString();
+  const nextYear = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+  const gac: GuideAccessCode = {
+    id,
+    code: customCode,
+    createdAt: now,
+    renewalDate: nextYear,
+    active: true,
+  };
+  await rtdbPut(`guide_access_codes/${id}`, gac);
+  return gac;
+}
+
 export async function rtdbGuideCodeRevoke(code: string): Promise<void> {
   const codes = await rtdbGet<Record<string, GuideAccessCode>>("guide_access_codes");
   if (!codes) return;

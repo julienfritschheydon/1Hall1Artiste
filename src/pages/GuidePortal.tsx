@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import { Tour } from "../types/visitTypes";
 import GuideCodeLogin from "../components/GuideCodeLogin";
 import GuideToursList from "../components/GuideToursList";
+import GuideDashboard from "../components/GuideDashboard";
 import TourAttendanceSheet from "../components/TourAttendanceSheet";
 import { VisitLayout } from "@/components/VisitLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -24,6 +25,9 @@ export default function GuidePortal() {
   const [error, setError] = useState<string | null>(null);
   const [selectedTourId, setSelectedTourId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [showDashboard, setShowDashboard] = useState(true);
+  const [registrationCounts, setRegistrationCounts] = useState<Record<string, number>>({});
+  const [waitlistCounts, setWaitlistCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
     const stored = sessionStorage.getItem("guideCode");
@@ -38,8 +42,6 @@ export default function GuidePortal() {
     setLoading(true);
     setError(null);
     try {
-      // ?guide=1 : URL distincte de la liste publique pour ne jamais recevoir
-      // l'entrée cachée en edge (le cache CDN ne varie pas sur le header).
       const res = await fetch("/api/visit-tours?guide=1", { headers: { "x-guide-code": code } });
       if (!res.ok) {
         if (res.status === 401) {
@@ -49,8 +51,9 @@ export default function GuidePortal() {
         }
         throw new Error("Erreur au chargement des visites");
       }
-      const text = await res.text();
-      setTours(JSON.parse(text));
+      const toursData = await res.json();
+      setTours(toursData);
+      await fetchRegistrationStats(toursData, code);
     } catch (e) {
       console.error("Tour fetch error:", e);
       setError("Impossible de charger les visites. Vérifiez que l'API est disponible.");
@@ -58,6 +61,30 @@ export default function GuidePortal() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function fetchRegistrationStats(toursData: Tour[], code: string) {
+    const counts: Record<string, number> = {};
+    const waitlists: Record<string, number> = {};
+    for (const tour of toursData) {
+      try {
+        const attRes = await fetch(`/api/visit-attendance?tourId=${tour.id}`, { headers: { "x-guide-code": code } });
+        const wlRes = await fetch(`/api/visit-waitlist?tourId=${tour.id}`, { headers: { "x-guide-code": code } });
+        if (attRes.ok) {
+          const data = await attRes.json();
+          counts[tour.id] = data.registrations?.length || 0;
+        }
+        if (wlRes.ok) {
+          const data = await wlRes.json();
+          const active = (data.waitlist || []).filter((w: any) => !w.rejectedAt);
+          waitlists[tour.id] = active.length;
+        }
+      } catch (e) {
+        console.error("Error fetching stats for tour", tour.id, e);
+      }
+    }
+    setRegistrationCounts(counts);
+    setWaitlistCounts(waitlists);
   }
 
   function handleCodeSubmit(code: string) {
@@ -106,6 +133,16 @@ export default function GuidePortal() {
       backTo="/map"
       headerRight={
         <>
+          {showDashboard && tours.length > 0 && (
+            <Button size="sm" variant="outline" onClick={() => setShowDashboard(false)}>
+              Vue liste
+            </Button>
+          )}
+          {!showDashboard && (
+            <Button size="sm" variant="outline" onClick={() => setShowDashboard(true)}>
+              Vue synthétique
+            </Button>
+          )}
           <Button size="sm" className="text-white" style={orangeBtn} onClick={() => setCreating(true)}>
             + Créer une visite
           </Button>
@@ -140,6 +177,14 @@ export default function GuidePortal() {
             Aucune visite. Créez-en une avec le bouton « + Créer une visite ».
           </CardContent>
         </Card>
+      ) : showDashboard ? (
+        <GuideDashboard
+          tours={tours}
+          registrationCounts={registrationCounts}
+          waitlistCounts={waitlistCounts}
+          onSelectTour={setSelectedTourId}
+          onCreateTour={() => setCreating(true)}
+        />
       ) : (
         <GuideToursList tours={tours} onSelectTour={setSelectedTourId} />
       )}

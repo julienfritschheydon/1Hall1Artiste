@@ -67,7 +67,7 @@ Je suis étudiante en deuxième année d’études d’architecture d’intérie
 
 Bonjour, je m’appelle Pauline Burnol, je suis une amie de Corentine Dupin. Étudiante à l’école Camondo en architecture intérieure et design à Paris. Merci beaucoup, bonne journée.
 
-**Yeline JUNG** *(samedi et dimanche)*
+**Yeline Jung** *(samedi et dimanche)*
 
 Actuellement étudiante en architecture d’intérieur et design à Camondo. Je me suis toujours intéresser aux arts plastiques, et depuis mes études je réalise des maquettes.
 
