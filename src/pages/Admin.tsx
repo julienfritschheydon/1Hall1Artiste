@@ -20,6 +20,7 @@ import { LikesTestComponent } from "@/components/test/LikesTestComponent";
 import { LikesStatsComponent } from "@/components/admin/LikesStatsComponent";
 import { EventManagement } from "@/components/admin/EventManagement";
 import { GuideCodesAdmin } from "@/components/admin/GuideCodesAdmin";
+import { ArtistAdmin } from "@/components/admin/ArtistAdmin";
 
 // Créer un logger pour le composant Admin
 const logger = createLogger('Admin');
@@ -298,6 +299,7 @@ export default function Admin() {
             <TabsTrigger value="community" className="text-xs md:text-sm px-2 py-1 flex-shrink-0">Contributions</TabsTrigger>
             <TabsTrigger value="likes-stats" className="text-xs md:text-sm px-2 py-1 flex-shrink-0">👍 Likes</TabsTrigger>
             <TabsTrigger value="likes-test" className="text-xs md:text-sm px-2 py-1 flex-shrink-0">🧪 Test</TabsTrigger>
+            <TabsTrigger value="artists" className="text-xs md:text-sm px-2 py-1 flex-shrink-0">👨‍🎨 Artistes</TabsTrigger>
             <TabsTrigger value="import-export" className="text-xs md:text-sm px-2 py-1 flex-shrink-0">Import/Export</TabsTrigger>
             <TabsTrigger value="guide-codes" className="text-xs md:text-sm px-2 py-1 flex-shrink-0">🔐 Codes Guides</TabsTrigger>
             <TabsTrigger value="reset" className="text-xs md:text-sm px-2 py-1 flex-shrink-0">Reset</TabsTrigger>
@@ -476,6 +478,11 @@ export default function Admin() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Onglet Artistes */}
+          <TabsContent value="artists" className="space-y-4">
+            <ArtistAdmin />
           </TabsContent>
 
           {/* Onglet Codes Guides */}
