@@ -28,7 +28,7 @@ import { rtdbGet } from "./_firebase.js";
 import { buildVisitEmail, VisitEmailType } from "./_visit-email.js";
 import { createRegistrationToken, verifyRegistrationToken } from "./_token.js";
 import { placesOf } from "../src/types/visitTypes.js";
-import { googleCalendarUrl } from "./_ics.js";
+import { buildIcs, googleCalendarUrl } from "./_ics.js";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Public site URL for email links. HashRouter → links use /#/ prefix.
@@ -352,6 +352,44 @@ async function handleCreateRegistration(req: VercelRequest, res: VercelResponse)
   }
 }
 
+// GET /api/visit-register?action=ics&id=<registrationId> — télécharge le fichier .ics de la visite confirmée.
+async function handleIcsDownload(req: VercelRequest, res: VercelResponse) {
+  const id = req.query.id;
+  if (!id || typeof id !== "string") {
+    return res.status(400).json({ error: "id: string required" });
+  }
+
+  try {
+    const registration = await rtdbRegistrationGet(id);
+    if (!registration || registration.status !== "confirmé") {
+      return res.status(404).json({ error: "registration not found" });
+    }
+
+    const tour = await rtdbTourGet(registration.tourId);
+    if (!tour) {
+      return res.status(404).json({ error: "tour not found" });
+    }
+
+    const ics = buildIcs({
+      uid: registration.id,
+      title: tour.title,
+      description: tour.description,
+      location: tour.startLocationName
+        ? `${tour.startLocationName}, ${MEETING_ADDRESS}`
+        : MEETING_ADDRESS,
+      startIso: tour.date,
+      durationMinutes: tour.durationMinutes,
+    });
+
+    res.setHeader("Content-Type", "text/calendar; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="visite-feydeau.ics"`);
+    return res.status(200).send(ics);
+  } catch (e) {
+    console.error("[visit-register ics]", e);
+    return res.status(500).json({ error: "ics generation failed" });
+  }
+}
+
 // POST /api/visit-register/confirm — valider lien email
 async function handleConfirmRegistration(req: VercelRequest, res: VercelResponse) {
   const { token } = req.body;
@@ -426,7 +464,7 @@ async function handleConfirmRegistration(req: VercelRequest, res: VercelResponse
           tourDate: tour.date,
           durationMinutes: tour.durationMinutes,
           location,
-          icsUrl: `${SITE_URL.replace(/\/$/, "")}/api/visit-ics?id=${registrationId}`,
+          icsUrl: `${SITE_URL.replace(/\/$/, "")}/api/visit-register?action=ics&id=${registrationId}`,
           googleCalUrl: googleCalendarUrl({
             uid: registrationId,
             title: tour.title,
@@ -746,6 +784,13 @@ async function handleResendValidation(req: VercelRequest, res: VercelResponse) {
 
 // Main router
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // GET ?action=ics&id=<registrationId> — téléchargement fichier calendrier.
+  // Routé ici plutôt que dans un fichier séparé : Vercel Hobby plafonne à
+  // 12 fonctions serverless, déjà atteint par les endpoints /api existants.
+  if (req.method === "GET" && req.query.action === "ics") {
+    return handleIcsDownload(req, res);
+  }
+
   if (req.method !== "POST") {
     return res.status(405).json({ error: "method not allowed" });
   }

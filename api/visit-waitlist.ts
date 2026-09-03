@@ -100,7 +100,7 @@ async function handleActivateWaitlist(req: VercelRequest, res: VercelResponse) {
         tourTitle: tour?.title || "",
         tourDate: tour?.date || "",
         location,
-        icsUrl: `${SITE_URL.replace(/\/$/, "")}/api/visit-ics?id=${registration.id}`,
+        icsUrl: `${SITE_URL.replace(/\/$/, "")}/api/visit-register?action=ics&id=${registration.id}`,
         googleCalUrl: tour
           ? googleCalendarUrl({
               uid: registration.id,
