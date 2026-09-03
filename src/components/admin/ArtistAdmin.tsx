@@ -3,25 +3,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useEvents } from "@/hooks/useData";
+import { useData } from "@/hooks/useData";
 import { Artist } from "@/data/artists";
+import { ARTIST_EDITABLE_FIELDS } from "@/services/artistPortal";
 
 export function ArtistAdmin() {
-  const { events } = useEvents();
+  const { artists: allArtists } = useData();
   const [editingArtist, setEditingArtist] = useState<Artist | null>(null);
   const [filter, setFilter] = useState<"all" | "exposition" | "concert">("all");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  // Récupère liste unique d'artistes depuis les événements
-  const artists = Array.from(
-    new Map(
-      events
-        .filter((e) => filter === "all" || e.type === filter)
-        .map((e) => [e.artistId, { id: e.artistId, name: e.artistName, type: e.type } as Artist])
-    ).values()
-  );
+  const artists = allArtists.filter((a) => filter === "all" || a.type === filter);
 
   async function handleSave(artist: Artist) {
     setSaving(true);
@@ -29,13 +23,18 @@ export function ArtistAdmin() {
     setSuccess(null);
 
     try {
-      // Sauvegarde dans Firebase overrides
+      // Sauvegarde dans Firebase overrides (seuls les champs éditables du portail artiste sont persistés)
+      const fields: Record<string, string> = {};
+      for (const field of ARTIST_EDITABLE_FIELDS) {
+        fields[field] = artist[field] || "";
+      }
+
       const res = await fetch("/api/artist-update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           artistId: artist.id,
-          updates: artist,
+          fields,
         }),
       });
 
@@ -61,38 +60,25 @@ export function ArtistAdmin() {
           <CardTitle>Éditer {editingArtist.name}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          <p className="text-xs text-gray-500">
+            Nom, type, titre, email, téléphone et YouTube proviennent du programme (Google Sheet)
+            et ne sont pas modifiables ici.
+          </p>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Nom</Label>
-              <Input
-                value={editingArtist.name}
-                onChange={(e) => setEditingArtist({ ...editingArtist, name: e.target.value })}
-              />
+              <Input value={editingArtist.name} disabled />
             </div>
             <div>
               <Label>Type</Label>
-              <select
-                value={editingArtist.type}
-                onChange={(e) =>
-                  setEditingArtist({
-                    ...editingArtist,
-                    type: e.target.value as "exposition" | "concert",
-                  })
-                }
-                className="border rounded px-3 py-2 w-full"
-              >
-                <option value="exposition">Exposition</option>
-                <option value="concert">Concert</option>
-              </select>
+              <Input value={editingArtist.type} disabled />
             </div>
           </div>
 
           <div>
             <Label>Titre</Label>
-            <Input
-              value={editingArtist.title}
-              onChange={(e) => setEditingArtist({ ...editingArtist, title: e.target.value })}
-            />
+            <Input value={editingArtist.title} disabled />
           </div>
 
           <div>
@@ -134,28 +120,18 @@ export function ArtistAdmin() {
             </div>
             <div>
               <Label>YouTube</Label>
-              <Input
-                value={editingArtist.youtube || ""}
-                onChange={(e) => setEditingArtist({ ...editingArtist, youtube: e.target.value })}
-              />
+              <Input value={editingArtist.youtube || ""} disabled />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Email</Label>
-              <Input
-                value={editingArtist.email || ""}
-                onChange={(e) => setEditingArtist({ ...editingArtist, email: e.target.value })}
-                type="email"
-              />
+              <Input value={editingArtist.email || ""} disabled type="email" />
             </div>
             <div>
               <Label>Téléphone</Label>
-              <Input
-                value={editingArtist.phone || ""}
-                onChange={(e) => setEditingArtist({ ...editingArtist, phone: e.target.value })}
-              />
+              <Input value={editingArtist.phone || ""} disabled />
             </div>
           </div>
 
