@@ -1,19 +1,50 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useData } from "@/hooks/useData";
 import { Artist } from "@/data/artists";
-import { ARTIST_EDITABLE_FIELDS } from "@/services/artistPortal";
+import { ARTIST_EDITABLE_FIELDS, uploadThumbnail } from "@/services/artistPortal";
+import { compressImage, validateImageFile } from "@/utils/imageCompression";
 
 export function ArtistAdmin() {
   const { artists: allArtists } = useData();
   const [editingArtist, setEditingArtist] = useState<Artist | null>(null);
   const [filter, setFilter] = useState<"all" | "exposition" | "concert">("all");
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  async function onPickImage(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !editingArtist) return;
+    const v = validateImageFile(file);
+    if (!v.valid) {
+      setError(v.error || "Image invalide");
+      return;
+    }
+    setUploading(true);
+    setError(null);
+    try {
+      const { file: compressed } = await compressImage(file, {
+        maxWidth: 1200,
+        maxHeight: 1200,
+        quality: 0.8,
+        format: "jpeg",
+        maxSizeKB: 800,
+      });
+      const url = await uploadThumbnail(compressed);
+      setEditingArtist((a) => (a ? { ...a, thumbnail: url } : a));
+    } catch {
+      setError("L'image n'a pas pu être envoyée.");
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
 
   const artists = allArtists.filter((a) => filter === "all" || a.type === filter);
 
@@ -82,6 +113,31 @@ export function ArtistAdmin() {
           </div>
 
           <div>
+            <Label className="mb-2 block">Vignette</Label>
+            <div className="flex items-center gap-3">
+              <div className="w-20 h-20 rounded-lg bg-gray-100 overflow-hidden flex items-center justify-center shrink-0">
+                {editingArtist.thumbnail ? (
+                  <img src={editingArtist.thumbnail} alt="Vignette" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-2xl">🖼️</span>
+                )}
+              </div>
+              <div>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={onPickImage}
+                />
+                <Button type="button" variant="outline" disabled={uploading} onClick={() => fileRef.current?.click()}>
+                  {uploading ? "Envoi..." : "Choisir une photo"}
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div>
             <Label>Présentation</Label>
             <textarea
               value={editingArtist.presentation || ""}
@@ -141,7 +197,7 @@ export function ArtistAdmin() {
           )}
 
           <div className="flex gap-2">
-            <Button onClick={() => handleSave(editingArtist)} disabled={saving} className="bg-orange-500">
+            <Button onClick={() => handleSave(editingArtist)} disabled={saving || uploading} className="bg-orange-500">
               {saving ? "Sauvegarde..." : "Sauvegarder"}
             </Button>
             <Button variant="outline" onClick={() => setEditingArtist(null)}>
