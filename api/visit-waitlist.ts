@@ -16,6 +16,10 @@ import {
 } from "./_visit-db.js";
 import { verifyRegistrationToken } from "./_token.js";
 import { promoteWaitlist, sendRegistrationEmail } from "./visit-register.js";
+import { googleCalendarUrl } from "./_ics.js";
+
+const SITE_URL = process.env.PUBLIC_SITE_URL || "https://www.1hall1artiste.fr";
+const MEETING_ADDRESS = "17 allée Duguay Trouin, Île Feydeau, 44000 Nantes";
 
 // POST /api/visit-waitlist/activate — accepter offre (Q4: sequential, 1 per sec)
 async function handleActivateWaitlist(req: VercelRequest, res: VercelResponse) {
@@ -85,11 +89,28 @@ async function handleActivateWaitlist(req: VercelRequest, res: VercelResponse) {
 
     try {
       const tour = await rtdbTourGet(waitlist.tourId);
+      const location = tour
+        ? tour.startLocationName
+          ? `${tour.startLocationName}, ${MEETING_ADDRESS}`
+          : MEETING_ADDRESS
+        : undefined;
       await sendRegistrationEmail("waitlist_accepted", {
         to: registration.email,
         firstName: registration.firstName,
         tourTitle: tour?.title || "",
         tourDate: tour?.date || "",
+        location,
+        icsUrl: `${SITE_URL.replace(/\/$/, "")}/api/visit-ics?id=${registration.id}`,
+        googleCalUrl: tour
+          ? googleCalendarUrl({
+              uid: registration.id,
+              title: tour.title,
+              description: tour.description,
+              location: location!,
+              startIso: tour.date,
+              durationMinutes: tour.durationMinutes,
+            })
+          : undefined,
         idempotencyKey: `${registration.id}_waitlist_accepted`,
       });
     } catch (e) {

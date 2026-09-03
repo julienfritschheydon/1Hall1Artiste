@@ -28,10 +28,12 @@ import { rtdbGet } from "./_firebase.js";
 import { buildVisitEmail, VisitEmailType } from "./_visit-email.js";
 import { createRegistrationToken, verifyRegistrationToken } from "./_token.js";
 import { placesOf } from "../src/types/visitTypes.js";
+import { googleCalendarUrl } from "./_ics.js";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Public site URL for email links. HashRouter → links use /#/ prefix.
 const SITE_URL = process.env.PUBLIC_SITE_URL || "https://www.1hall1artiste.fr";
+const MEETING_ADDRESS = "17 allée Duguay Trouin, Île Feydeau, 44000 Nantes";
 
 // Q13: Sanitize — strip HTML tags from names
 function sanitizeText(text: string): string {
@@ -408,6 +410,39 @@ async function handleConfirmRegistration(req: VercelRequest, res: VercelResponse
       status: "confirmé",
       confirmedAt: new Date().toISOString(),
     });
+
+    // Send final email with full details (title, date, location, calendar links).
+    // Best-effort: a failure here must not block the confirmation itself.
+    try {
+      const tour = await rtdbTourGet(registration.tourId);
+      if (tour) {
+        const location = tour.startLocationName
+          ? `${tour.startLocationName}, ${MEETING_ADDRESS}`
+          : MEETING_ADDRESS;
+        await sendRegistrationEmail("registration_confirmed", {
+          to: registration.email,
+          firstName: registration.firstName,
+          tourTitle: tour.title,
+          tourDate: tour.date,
+          durationMinutes: tour.durationMinutes,
+          location,
+          icsUrl: `${SITE_URL.replace(/\/$/, "")}/api/visit-ics?id=${registrationId}`,
+          googleCalUrl: googleCalendarUrl({
+            uid: registrationId,
+            title: tour.title,
+            description: tour.description,
+            location,
+            startIso: tour.date,
+            durationMinutes: tour.durationMinutes,
+          }),
+          cancelLink: `${SITE_URL}/#/reservations/cancel?id=${registrationId}`,
+          registrationId,
+          idempotencyKey: `${registrationId}_registration_confirmed`,
+        });
+      }
+    } catch (e) {
+      console.error("[visit-register] Failed to send registration_confirmed email:", e);
+    }
 
     return res.json({ ok: true, status: "confirmé", message: "Inscription confirmée" });
   } catch (e) {
