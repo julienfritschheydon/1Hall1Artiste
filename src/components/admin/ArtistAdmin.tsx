@@ -29,7 +29,7 @@ export function ArtistAdmin() {
         fields[field] = artist[field] || "";
       }
 
-      const res = await fetch("/api/artist-admin-update", {
+      const res = await fetch("/api/artist-update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
