@@ -28,10 +28,12 @@ import { rtdbGet } from "./_firebase.js";
 import { buildVisitEmail, VisitEmailType } from "./_visit-email.js";
 import { createRegistrationToken, verifyRegistrationToken } from "./_token.js";
 import { placesOf } from "../src/types/visitTypes.js";
+import { buildIcs, googleCalendarUrl } from "./_ics.js";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Public site URL for email links. HashRouter → links use /#/ prefix.
 const SITE_URL = process.env.PUBLIC_SITE_URL || "https://www.1hall1artiste.fr";
+const MEETING_ADDRESS = "17 allée Duguay Trouin, Île Feydeau, 44000 Nantes";
 
 // Q13: Sanitize — strip HTML tags from names
 function sanitizeText(text: string): string {
@@ -350,6 +352,44 @@ async function handleCreateRegistration(req: VercelRequest, res: VercelResponse)
   }
 }
 
+// GET /api/visit-register?action=ics&id=<registrationId> — télécharge le fichier .ics de la visite confirmée.
+async function handleIcsDownload(req: VercelRequest, res: VercelResponse) {
+  const id = req.query.id;
+  if (!id || typeof id !== "string") {
+    return res.status(400).json({ error: "id: string required" });
+  }
+
+  try {
+    const registration = await rtdbRegistrationGet(id);
+    if (!registration || registration.status !== "confirmé") {
+      return res.status(404).json({ error: "registration not found" });
+    }
+
+    const tour = await rtdbTourGet(registration.tourId);
+    if (!tour) {
+      return res.status(404).json({ error: "tour not found" });
+    }
+
+    const ics = buildIcs({
+      uid: registration.id,
+      title: tour.title,
+      description: tour.description,
+      location: tour.startLocationName
+        ? `${tour.startLocationName}, ${MEETING_ADDRESS}`
+        : MEETING_ADDRESS,
+      startIso: tour.date,
+      durationMinutes: tour.durationMinutes,
+    });
+
+    res.setHeader("Content-Type", "text/calendar; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="visite-feydeau.ics"`);
+    return res.status(200).send(ics);
+  } catch (e) {
+    console.error("[visit-register ics]", e);
+    return res.status(500).json({ error: "ics generation failed" });
+  }
+}
+
 // POST /api/visit-register/confirm — valider lien email
 async function handleConfirmRegistration(req: VercelRequest, res: VercelResponse) {
   const { token } = req.body;
@@ -408,6 +448,39 @@ async function handleConfirmRegistration(req: VercelRequest, res: VercelResponse
       status: "confirmé",
       confirmedAt: new Date().toISOString(),
     });
+
+    // Send final email with full details (title, date, location, calendar links).
+    // Best-effort: a failure here must not block the confirmation itself.
+    try {
+      const tour = await rtdbTourGet(registration.tourId);
+      if (tour) {
+        const location = tour.startLocationName
+          ? `${tour.startLocationName}, ${MEETING_ADDRESS}`
+          : MEETING_ADDRESS;
+        await sendRegistrationEmail("registration_confirmed", {
+          to: registration.email,
+          firstName: registration.firstName,
+          tourTitle: tour.title,
+          tourDate: tour.date,
+          durationMinutes: tour.durationMinutes,
+          location,
+          icsUrl: `${SITE_URL.replace(/\/$/, "")}/api/visit-register?action=ics&id=${registrationId}`,
+          googleCalUrl: googleCalendarUrl({
+            uid: registrationId,
+            title: tour.title,
+            description: tour.description,
+            location,
+            startIso: tour.date,
+            durationMinutes: tour.durationMinutes,
+          }),
+          cancelLink: `${SITE_URL}/#/reservations/cancel?id=${registrationId}`,
+          registrationId,
+          idempotencyKey: `${registrationId}_registration_confirmed`,
+        });
+      }
+    } catch (e) {
+      console.error("[visit-register] Failed to send registration_confirmed email:", e);
+    }
 
     return res.json({ ok: true, status: "confirmé", message: "Inscription confirmée" });
   } catch (e) {
@@ -711,6 +784,13 @@ async function handleResendValidation(req: VercelRequest, res: VercelResponse) {
 
 // Main router
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // GET ?action=ics&id=<registrationId> — téléchargement fichier calendrier.
+  // Routé ici plutôt que dans un fichier séparé : Vercel Hobby plafonne à
+  // 12 fonctions serverless, déjà atteint par les endpoints /api existants.
+  if (req.method === "GET" && req.query.action === "ics") {
+    return handleIcsDownload(req, res);
+  }
+
   if (req.method !== "POST") {
     return res.status(405).json({ error: "method not allowed" });
   }

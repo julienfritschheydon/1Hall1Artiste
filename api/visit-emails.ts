@@ -358,6 +358,26 @@ async function promoteFromWaitlist(): Promise<{ promoted: number; rejected: numb
       ) {
         await rtdbWaitlistUpdate(wait.id, { rejectedAt: now.toISOString() });
         rejected++;
+
+        const success = await sendEmailWithRetry(
+          JSON.parse(process.env.VISIT_EMAILJS_TEMPLATE_IDS || "{}").waitlist_offer_expired,
+          {
+            to: wait.email,
+            firstName: wait.firstName,
+            tourTitle: tour.title,
+            type: "waitlist_offer_expired",
+          },
+          `${wait.id}_waitlist_offer_expired`
+        );
+
+        if (!success) {
+          console.error(`[visit-emails] Failed to send waitlist offer expired email to ${wait.email}`);
+          await rtdbAuditLog("waitlist_offer_expired_email_failed", {
+            waitlistId: wait.id,
+            tourId: tour.id,
+            email: wait.email,
+          });
+        }
       }
     }
   }
