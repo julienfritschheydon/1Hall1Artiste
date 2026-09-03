@@ -10,6 +10,7 @@ export type VisitEmailType =
   | "reminder_1d_validate"
   | "waitlist_confirmation"
   | "waitlist_offer"
+  | "waitlist_offer_expired"
   | "validation_expired"
   | "cancellation"
   | "waitlist_accepted"
@@ -121,6 +122,14 @@ export function buildVisitEmail(
           <p>Pour l'accepter${d.deadline ? ` avant le ${esc(formatDate(d.deadline))}` : ""} :</p>
           ${btn(d.acceptLink, "Accepter ma place")}
           <p style="color:#888;font-size:13px">Passé ce délai, la place sera proposée à la personne suivante.</p>`
+        ),
+      };
+
+    case "waitlist_offer_expired":
+      return {
+        subject: `Place non confirmée à temps — ${d.tourTitle || "votre visite"}`,
+        message: wrap(
+          `${hi}<p>La place proposée pour « ${title} » n'a pas été confirmée dans le délai imparti (24h) et a été proposée à la personne suivante en file d'attente.</p><p>Vous pouvez vous réinscrire en file d'attente si des places sont disponibles.</p>`
         ),
       };
 
