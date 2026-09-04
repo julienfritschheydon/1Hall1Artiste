@@ -1,7 +1,10 @@
 // Setup global pour Vitest.
 // jsdom n'expose pas toujours un localStorage fonctionnel (origine opaque) ;
 // on installe un polyfill mémoire simple, réinitialisé avant chaque test.
-import { beforeEach, vi } from "vitest";
+import { afterEach, beforeEach, vi } from "vitest";
+import { cleanup } from "@testing-library/react";
+// Matchers DOM (toBeInTheDocument, toBeDisabled…) pour les tests de composants.
+import "@testing-library/jest-dom/vitest";
 
 class MemoryStorage implements Storage {
   private store = new Map<string, string>();
@@ -28,6 +31,17 @@ class MemoryStorage implements Storage {
 const memory = new MemoryStorage();
 vi.stubGlobal("localStorage", memory);
 
+// sessionStorage suit la même logique : la session admin s'y appuie.
+const session = new MemoryStorage();
+vi.stubGlobal("sessionStorage", session);
+
 beforeEach(() => {
   memory.clear();
+  session.clear();
+});
+
+// Démonte les composants rendus entre deux tests : sans ça, les requêtes par texte
+// trouvent plusieurs occurrences et les tests se polluent entre eux.
+afterEach(() => {
+  cleanup();
 });
