@@ -57,7 +57,6 @@ async function sendEmailWithRetry(
         headers: {
           "Content-Type": "application/json",
           "Idempotency-Key": idempotencyKey,
-          "X-Private-Key": process.env.EMAILJS_PRIVATE_KEY || "",
         },
         body: JSON.stringify(emailjsData),
       });
@@ -97,12 +96,12 @@ async function sendAdminAlert(subject: string, message: string): Promise<void> {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Private-Key": process.env.EMAILJS_PRIVATE_KEY || "",
       },
       body: JSON.stringify({
         service_id: process.env.EMAILJS_SERVICE_ID,
-        template_id: process.env.EMAILJS_TEMPLATE_ID, // Use generic template
+        template_id: process.env.EMAILJS_TEMPLATE_ID,
         user_id: process.env.EMAILJS_PUBLIC_KEY,
+        accessToken: process.env.EMAILJS_PRIVATE_KEY,
         template_params: {
           to_email: process.env.VISIT_ALERT_EMAIL,
           subject,
