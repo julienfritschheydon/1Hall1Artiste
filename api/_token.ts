@@ -1,5 +1,8 @@
 // Token magique signé HMAC. Sans état, vérifié par signature. Support 2 secret keys.
-// Format: base64url("id|email|exp") + "." + base64url(HMAC_SHA256(payload, secret))
+// Format: base64url("id[,id2,...]|email|exp") + "." + base64url(HMAC_SHA256(payload, secret))
+// Un token artiste peut couvrir plusieurs fiches (même email inscrit plusieurs fois).
+// Les artistId sont des slugs [a-z0-9-] : la virgule est donc un séparateur sûr, et un
+// token legacy mono-fiche se relit tel quel comme une liste à un élément.
 // Utilisé par: artiste (30j) et registrations visit (24H)
 
 import { createHmac, timingSafeEqual } from "crypto";
@@ -31,16 +34,20 @@ function sign(payload: string, secretType: "artist" | "registration"): string {
   return b64url(createHmac("sha256", getSecret(secretType)).update(payload).digest());
 }
 
-// Artiste: 30j TTL (legacy)
-export function createToken(artistId: string, email: string): string {
+// Artiste: 30j TTL. Accepte une fiche unique ou la liste des fiches de l'email.
+export function createToken(artistIds: string | string[], email: string): string {
+  const ids = (Array.isArray(artistIds) ? artistIds : [artistIds]).filter(Boolean);
+  if (ids.length === 0) throw new Error("createToken: aucune fiche");
   const exp = Date.now() + ARTIST_TOKEN_TTL_MS;
-  const payload = `${artistId}|${email}|${exp}`;
+  const payload = `${ids.join(",")}|${email}|${exp}`;
   return `${b64url(payload)}.${sign(payload, "artist")}`;
 }
 
+// artistIds = toutes les fiches couvertes par le lien ; artistId = la première,
+// conservée pour les appelants qui n'en gèrent qu'une.
 export type TokenResult =
-  | { valid: true; expired: false; artistId: string; email: string }
-  | { valid: true; expired: true; artistId: string; email: string }
+  | { valid: true; expired: false; artistId: string; artistIds: string[]; email: string }
+  | { valid: true; expired: true; artistId: string; artistIds: string[]; email: string }
   | { valid: false };
 
 // Artiste: vérifier token avec secret artiste
@@ -55,14 +62,18 @@ export function verifyToken(token: string): TokenResult {
     const b = Buffer.from(expectedSig);
     if (a.length !== b.length || !timingSafeEqual(a, b)) return { valid: false };
 
-    const [artistId, email, expStr] = payload.split("|");
-    if (!artistId || !email || !expStr) return { valid: false };
+    const [idsPart, email, expStr] = payload.split("|");
+    if (!idsPart || !email || !expStr) return { valid: false };
+
+    const artistIds = idsPart.split(",").filter(Boolean);
+    if (artistIds.length === 0) return { valid: false };
+    const artistId = artistIds[0];
 
     const exp = Number(expStr);
     if (!Number.isFinite(exp)) return { valid: false };
 
-    if (Date.now() >= exp) return { valid: true, expired: true, artistId, email };
-    return { valid: true, expired: false, artistId, email };
+    if (Date.now() >= exp) return { valid: true, expired: true, artistId, artistIds, email };
+    return { valid: true, expired: false, artistId, artistIds, email };
   } catch {
     return { valid: false };
   }

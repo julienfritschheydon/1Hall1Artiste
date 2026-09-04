@@ -2,7 +2,7 @@
 // Réponse toujours générique pour ne pas divulguer la liste des emails.
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { buildEmailToArtistId } from "./_sheets.js";
+import { buildEmailToArtistIds } from "./_sheets.js";
 import { createToken } from "./_token.js";
 
 function appBaseUrl(req: VercelRequest): string {
@@ -58,11 +58,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: "Email invalide" });
     }
 
-    const map = await buildEmailToArtistId();
-    const artistId = map.get(email);
+    const map = await buildEmailToArtistIds();
+    const artistIds = map.get(email);
 
-    if (artistId) {
-      const link = `${appBaseUrl(req)}/#/artiste/edit?token=${encodeURIComponent(createToken(artistId, email))}`;
+    if (artistIds && artistIds.length > 0) {
+      // Un seul lien couvre toutes les fiches de l'email ; le portail affiche des onglets
+      // quand il y en a plusieurs.
+      const link = `${appBaseUrl(req)}/#/artiste/edit?token=${encodeURIComponent(createToken(artistIds, email))}`;
       try {
         await sendEmail(email, link);
       } catch (e) {

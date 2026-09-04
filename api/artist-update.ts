@@ -1,7 +1,13 @@
-// POST { token, fields } → portail artiste : vérifie le token et écrit l'override.
-//   L'artistId provient UNIQUEMENT du token : un artiste ne peut éditer que sa propre fiche.
+// POST { token, artistId?, fields } → portail artiste : vérifie le token et écrit l'override.
+//   L'artistId doit appartenir à la liste signée dans le token : un artiste ne peut éditer
+//   que ses propres fiches. Sans artistId dans le body, on retombe sur la première (compat
+//   avec les liens et clients antérieurs au support multi-fiches).
 // POST { artistId, fields } → admin : l'artistId est fourni directement par l'appelant.
 //   L'accès admin est protégé côté client par le code PIN (voir AdminLogin.tsx).
+//
+// L'ordre compte : dès qu'un token est présent, c'est le chemin portail qui s'applique et
+// l'artistId est vérifié contre le token. Tester le mode admin d'abord laisserait n'importe
+// quel porteur de lien éditer la fiche d'un autre en joignant simplement un artistId.
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { verifyToken } from "./_token.js";
@@ -15,19 +21,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   try {
-    const adminArtistId = String(req.body?.artistId || "").trim();
+    const bodyArtistId = String(req.body?.artistId || "").trim();
+    const token = String(req.body?.token || "");
     const fields = (req.body?.fields || {}) as Record<string, unknown>;
     const override = sanitizeOverrideFields(fields);
 
     let artistId: string;
-    if (adminArtistId) {
-      artistId = adminArtistId;
-    } else {
-      const token = String(req.body?.token || "");
+    if (token) {
+      // Portail artiste : la liste des fiches autorisées vient du token signé, jamais du body.
       const result = verifyToken(token);
       if (!result.valid) return res.status(401).json({ error: "Lien invalide" });
       if (result.expired) return res.status(401).json({ error: "Lien expiré" });
-      artistId = result.artistId;
+
+      artistId = bodyArtistId || result.artistId;
+      if (!result.artistIds.includes(artistId)) {
+        return res.status(403).json({ error: "Cette fiche n'est pas liée à votre lien" });
+      }
+    } else if (bodyArtistId) {
+      // Admin (code PIN côté client).
+      artistId = bodyArtistId;
+    } else {
+      return res.status(401).json({ error: "Lien invalide" });
     }
 
     await putArtistOverride(artistId, override);
