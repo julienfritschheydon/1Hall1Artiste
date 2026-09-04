@@ -22,7 +22,7 @@ import { toast } from "../../components/ui/use-toast";
 import { CommunityEntry, EntryType, SubmissionParams, ModerationResult } from "../../types/communityTypes";
 import { submitContribution } from "../../services/cloudinaryService";
 import { AnonymousSessionService } from "../../services/anonymousSessionService";
-import { getContributionContext, clearContributionContext, enrichSubmissionWithContext } from "../../services/contextualContributionService";
+import { getContributionContext, clearContributionContext, enrichSubmissionWithContext, type ContributionContext } from "../../services/contextualContributionService";
 import { events } from "../../data/events";
 import { locations } from "../../data/locations";
 import { analytics, EventAction } from "@/services/firebaseAnalytics";
@@ -37,7 +37,7 @@ export const ContributionForm: React.FC<ContributionFormProps> = ({ onSubmit }) 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [contributionContext, setContributionContext] = useState<{ type?: string; name?: string; [k: string]: unknown } | null>(null);
+  const [contributionContext, setContributionContext] = useState<ContributionContext | null>(null);
   const [selectedEventId, setSelectedEventId] = useState<string>("");
   const [selectedLocationId, setSelectedLocationId] = useState<string>("");
   const [isCompressing, setIsCompressing] = useState(false);

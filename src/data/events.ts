@@ -19,7 +19,11 @@ export type Event = {
   id: string;
   artistId: string;
   title: string; // Event's title
-  // description: string; // Event's description
+  // Renseignés par le formulaire d'administration (EventForm), vérifiés par
+  // validationService et écrits par l'export CSV. Absents des événements construits par
+  // /api/program : d'où l'optionalité, et les gardes côté export.
+  description?: string;
+  artistBio?: string;
   time: string;
   days: ("samedi" | "dimanche")[];
   locationId: string;

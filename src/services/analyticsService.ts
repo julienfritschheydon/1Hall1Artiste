@@ -276,7 +276,7 @@ function generateErrorFingerprint(error: Error, context?: Record<string, unknown
   
   // Ajouter des informations de contexte pertinentes à l'empreinte
   if (context) {
-    if (context.componentStack) {
+    if (typeof context.componentStack === 'string') {
       // Ajouter le premier composant de la pile de composants React
       const firstComponent = context.componentStack.split('\n')[1]?.trim() || '';
       fingerprintSource += `:${firstComponent}`;
@@ -287,7 +287,7 @@ function generateErrorFingerprint(error: Error, context?: Record<string, unknown
     }
     
     // Ajouter l'URL de la page (sans paramètres de requête)
-    if (context.url) {
+    if (typeof context.url === 'string') {
       const urlPath = new URL(context.url).pathname;
       fingerprintSource += `:${urlPath}`;
     }
@@ -318,7 +318,7 @@ function categorizeError(error: Error, context?: Record<string, unknown>): Error
   const errorStack = (error.stack || '').toLowerCase();
   
   // Si une catégorie est déjà fournie dans le contexte, l'utiliser
-  if (context?.category && Object.values(ErrorCategory).includes(context.category)) {
+  if (context?.category && Object.values(ErrorCategory).includes(context.category as ErrorCategory)) {
     return context.category as ErrorCategory;
   }
   
@@ -434,7 +434,8 @@ export function trackError(error: Error, context?: Record<string, unknown>): str
       timestamp: now,
       message: error.message,
       stack: error.stack,
-      componentStack: enrichedContext.componentStack,
+      componentStack:
+        typeof enrichedContext.componentStack === 'string' ? enrichedContext.componentStack : undefined,
       category,
       metadata: { ...appMetadata },
       context: enrichedContext,
@@ -503,7 +504,11 @@ export function trackError(error: Error, context?: Record<string, unknown>): str
     // Capturer l'erreur dans le système EmailJS pour l'envoi par email
     captureError(
       error,
-      enrichedContext.componentStack ? 'React Component' : context?.componentName || 'Analytics',
+      enrichedContext.componentStack
+        ? 'React Component'
+        : typeof context?.componentName === 'string'
+          ? context.componentName
+          : 'Analytics',
       {
         ...enrichedContext,
         category,
