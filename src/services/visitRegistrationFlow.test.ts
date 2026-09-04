@@ -9,6 +9,15 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 process.env.REGISTRATION_SECRET = "test-secret";
 process.env.GUIDE_ACCESS_SECRET = "test-guide-secret";
+// L'étape 1 du flux RGPD envoie un email de confirmation — sans templates
+// configurés, sendRegistrationEmail lève avant même le fetch mocké.
+process.env.VISIT_EMAILJS_TEMPLATE_IDS = JSON.stringify({
+  confirmation: "tpl_confirmation",
+  waitlist_confirmation: "tpl_waitlist_confirmation",
+  waitlist_offer: "tpl_waitlist_offer",
+  validation_expired: "tpl_validation_expired",
+  cancellation: "tpl_cancellation",
+});
 
 // ---- Fake RTDB en mémoire (sémantique Firebase : [] / {} vide ≡ null/absent) ----
 const store: Record<string, any> = {};
@@ -128,15 +137,24 @@ async function cancelRegistration(registrationId: string, email: string) {
   return { status: statusOf(res), body: jsonOf(res) };
 }
 
-async function deleteWaitlist(waitlistId: string) {
+async function deleteWaitlist(waitlistId: string, email: string) {
   const res = mockRes();
-  await waitlistHandler(mockReq({ method: "DELETE", query: { id: waitlistId } }), res);
+  await waitlistHandler(mockReq({ method: "DELETE", query: { id: waitlistId, email } }), res);
   return { status: statusOf(res), body: jsonOf(res) };
 }
 
+// RGPD en deux étapes : la demande (action=gdpr) n'envoie qu'un email de
+// confirmation ; la suppression exige le token signé (action=gdpr-confirm).
+// Le token est reconstruit ici comme le ferait le lien reçu par email.
 async function gdprDelete(email: string) {
+  const reqRes = mockRes();
+  await registerHandler(mockReq({ query: { action: "gdpr" }, body: { email } }), reqRes);
+  expect(statusOf(reqRes)).toBe(200);
+
+  const { createRegistrationToken } = await import("../../api/_token.js");
+  const token = createRegistrationToken("gdpr", email).token;
   const res = mockRes();
-  await registerHandler(mockReq({ query: { action: "gdpr" }, body: { email } }), res);
+  await registerHandler(mockReq({ query: { action: "gdpr-confirm" }, body: { token } }), res);
   return { status: statusOf(res), body: jsonOf(res) };
 }
 
@@ -222,7 +240,7 @@ describe("Groupe 3 — auto-annulation d'une offre active (bug corrigé)", () =>
     expect(bWait?.invitationSentAt).toBeTruthy();
 
     // B annule lui-même sa file d'attente au lieu de laisser expirer son offre.
-    const delRes = await deleteWaitlist(bWait.id);
+    const delRes = await deleteWaitlist(bWait.id, "b@t.fr");
     expect(delRes.status).toBe(200);
 
     // La place que B bloquait doit être immédiatement réoffertes à C (le suivant), pas rester libre en silence.

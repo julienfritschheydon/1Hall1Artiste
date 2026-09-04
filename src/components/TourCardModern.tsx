@@ -12,6 +12,8 @@ export interface TourCardModernProps {
 
 export const TourCardModern: React.FC<TourCardModernProps> = ({ tour, onTourClick, cardIndex }) => {
   const timeStr = new Date(tour.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  const placesLeft = tour.placesLeft ?? tour.capacity;
+  const isFull = placesLeft <= 0;
 
   const getEventBackgroundPseudoElementStyle = (index?: number): React.CSSProperties => {
     const intensity = index !== undefined ? index % 4 : 0;
@@ -42,10 +44,17 @@ export const TourCardModern: React.FC<TourCardModernProps> = ({ tour, onTourClic
       </div>
 
       <div className="relative z-10 flex-1 min-w-0 p-4 flex flex-col">
-        <div className="flex justify-between items-start">
+        <div className="flex justify-between items-start gap-2">
           <div className="flex-1 min-w-0">
-            <h3 className="font-bold text-lg leading-tight text-[#1a2138]">{tour.title}</h3>
+            <h3 className={`font-bold text-lg leading-tight ${isFull ? "text-gray-400 line-through" : "text-[#1a2138]"}`}>
+              {tour.title}
+            </h3>
           </div>
+          {isFull && (
+            <span className="flex-shrink-0 text-xs font-bold uppercase px-2 py-1 rounded-full bg-gray-200 text-gray-600">
+              Complet
+            </span>
+          )}
         </div>
 
         <div className="flex-grow" />
@@ -54,10 +63,15 @@ export const TourCardModern: React.FC<TourCardModernProps> = ({ tour, onTourClic
           <div className="text-gray-500 text-sm space-y-1">
             <p>{timeStr}</p>
             {tour.startLocationName && <p>{tour.startLocationName}</p>}
+            <p className={isFull ? "font-semibold text-red-600" : undefined}>
+              Places : {placesLeft}/{tour.capacity}
+            </p>
           </div>
           <div className="flex items-center gap-2 mt-2">
             <div className="w-3 h-3 bg-gray-400 rounded-full"></div>
-            <span className="text-sm text-gray-600 font-medium">Visite guidée</span>
+            <span className="text-sm text-gray-600 font-medium">
+              {isFull ? "Visite guidée — Liste d'attente" : "Visite guidée"}
+            </span>
           </div>
         </div>
       </div>

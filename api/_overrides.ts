@@ -17,6 +17,43 @@ export type ArtistOverride = Partial<Record<(typeof EDITABLE_FIELDS)[number], st
   updatedAt?: number;
 };
 
+const URL_FIELDS = new Set(["instagram", "facebook", "website", "thumbnail"]);
+const MAX_LEN: Record<string, number> = {
+  presentation: 2000,
+  instagram: 500,
+  facebook: 500,
+  website: 500,
+  thumbnail: 1000,
+};
+
+// Garde uniquement les URLs http(s) (bloque javascript:, data: → anti-XSS).
+function safeHttpUrl(v: string): string {
+  try {
+    const u = new URL(v);
+    return u.protocol === "http:" || u.protocol === "https:" ? v : "";
+  } catch {
+    return "";
+  }
+}
+
+// Filtre et nettoie les champs d'un override selon la whitelist EDITABLE_FIELDS.
+// Utilisé par le portail artiste (/api/artist-update) et l'admin (/api/artist-admin-update).
+export function sanitizeOverrideFields(fields: Record<string, unknown>): ArtistOverride {
+  const override: ArtistOverride = { updatedAt: Date.now() };
+  for (const field of EDITABLE_FIELDS) {
+    const raw = fields[field];
+    if (typeof raw !== "string") continue;
+    let v = raw.trim().slice(0, MAX_LEN[field] ?? 1000);
+    // Champs URL : on n'accepte que http(s). Une valeur non-vide invalide est rejetée (ignorée).
+    if (URL_FIELDS.has(field) && v !== "") {
+      v = safeHttpUrl(v);
+      if (v === "") continue;
+    }
+    override[field] = v;
+  }
+  return override;
+}
+
 // Secret legacy de la RTDB (Firebase console → Paramètres → Comptes de service → Secrets DB).
 // Présent uniquement côté serveur (env Vercel). Les requêtes ?auth=SECRET ont les droits admin
 // et contournent les règles : seules les fonctions /api peuvent écrire les overrides.
@@ -29,9 +66,9 @@ function authQuery(): string {
 // Lecture côté serveur avec le secret → indépendant des règles RTDB (.read peut rester false).
 export async function fetchArtistOverrides(): Promise<Record<string, ArtistOverride>> {
   try {
-    const res = await fetch(`${FIREBASE_DB_URL}/artist-overrides.json${authQuery()}`, { cache: "no-cache" });
+    const res = await fetch(`${FIREBASE_DB_URL}/artist-overrides.json${authQuery()}`);
     if (!res.ok) return {};
-    const data = await res.json();
+    const data = (await res.json()) as Record<string, ArtistOverride> | null;
     return data && typeof data === "object" ? data : {};
   } catch {
     return {};

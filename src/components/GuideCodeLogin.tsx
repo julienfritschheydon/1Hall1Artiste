@@ -20,8 +20,10 @@ export default function GuideCodeLogin({ onSubmit }: GuideCodeLoginProps) {
     setError(null);
 
     try {
-      // Validate code by fetching tours
-      const res = await fetch("/api/visit-tours", {
+      // Validate code by fetching tours. ?guide=1 : URL distincte de la liste
+      // publique cachée en edge — sinon un code invalide pouvait être « validé »
+      // par une réponse en cache (le serveur renvoie désormais 401 sur code faux).
+      const res = await fetch("/api/visit-tours?guide=1", {
         headers: { "x-guide-code": code },
       });
 

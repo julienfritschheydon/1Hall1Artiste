@@ -10,11 +10,16 @@ import {
   rtdbWaitlistListByTour,
   rtdbWaitlistReorderAfter,
   rtdbRegistrationCreate,
+  rtdbRegistrationsListByTour,
   rtdbTourGet,
   rtdbGuideCodeValidate,
 } from "./_visit-db.js";
 import { verifyRegistrationToken } from "./_token.js";
-import { promoteWaitlist } from "./visit-register.js";
+import { promoteWaitlist, sendRegistrationEmail } from "./visit-register.js";
+import { googleCalendarUrl } from "./_ics.js";
+
+const SITE_URL = process.env.PUBLIC_SITE_URL || "https://www.1hall1artiste.fr";
+const MEETING_ADDRESS = "17 allée Duguay Trouin, Île Feydeau, 44000 Nantes";
 
 // POST /api/visit-waitlist/activate — accepter offre (Q4: sequential, 1 per sec)
 async function handleActivateWaitlist(req: VercelRequest, res: VercelResponse) {
@@ -47,6 +52,23 @@ async function handleActivateWaitlist(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: "offer already rejected, you were passed over" });
     }
 
+    // Entrée déjà consommée (soft-deleted) : sans ce test, recharger la page du
+    // lien d'acceptation créait une DEUXIÈME inscription confirmée (doublon sur
+    // la feuille d'appel + dépassement de capacité). Idempotence : si une
+    // inscription confirmée existe déjà pour cet email, renvoyer succès.
+    if (waitlist.deletedAt) {
+      const regs = await rtdbRegistrationsListByTour(waitlist.tourId);
+      const existing = regs.find(
+        (r) =>
+          r.email.toLowerCase() === waitlist.email.toLowerCase() &&
+          (r.status === "confirmé" || r.status === "présent")
+      );
+      if (existing) {
+        return res.json({ ok: true, registrationId: existing.id, message: "Inscription déjà confirmée" });
+      }
+      return res.status(410).json({ error: "offer no longer valid" });
+    }
+
     // Create registration from waitlist (carry companions + legacy fields)
     const registration = await rtdbRegistrationCreate({
       tourId: waitlist.tourId,
@@ -65,6 +87,36 @@ async function handleActivateWaitlist(req: VercelRequest, res: VercelResponse) {
     // Log: Offer accepted
     console.log(`[waitlist] Offer accepted: waitlist_${waitlistId} → registration_${registration.id}`);
 
+    try {
+      const tour = await rtdbTourGet(waitlist.tourId);
+      const location = tour
+        ? tour.startLocationName
+          ? `${tour.startLocationName}, ${MEETING_ADDRESS}`
+          : MEETING_ADDRESS
+        : undefined;
+      await sendRegistrationEmail("waitlist_accepted", {
+        to: registration.email,
+        firstName: registration.firstName,
+        tourTitle: tour?.title || "",
+        tourDate: tour?.date || "",
+        location,
+        icsUrl: `${SITE_URL.replace(/\/$/, "")}/api/visit-register?action=ics&id=${registration.id}`,
+        googleCalUrl: tour
+          ? googleCalendarUrl({
+              uid: registration.id,
+              title: tour.title,
+              description: tour.description,
+              location: location!,
+              startIso: tour.date,
+              durationMinutes: tour.durationMinutes,
+            })
+          : undefined,
+        idempotencyKey: `${registration.id}_waitlist_accepted`,
+      });
+    } catch (e) {
+      console.error("[visit-waitlist] accepted email failed:", e);
+    }
+
     return res.json({
       ok: true,
       registrationId: registration.id,
@@ -77,11 +129,18 @@ async function handleActivateWaitlist(req: VercelRequest, res: VercelResponse) {
 }
 
 // DELETE /api/visit-waitlist/{id} — annuler (reorder Q4)
+// Query: { id, email }. Email = clé d'auth faible (même pattern que
+// handleCancelRegistration) : sans elle, n'importe qui connaissant l'id
+// (visible dans le lien email, ou dans la réponse JSON d'inscription)
+// pouvait annuler la place de quelqu'un d'autre (IDOR).
 async function handleDeleteWaitlist(req: VercelRequest, res: VercelResponse) {
-  const { id } = req.query;
+  const { id, email } = req.query;
 
   if (!id || typeof id !== "string") {
     return res.status(400).json({ error: "waitlist id required" });
+  }
+  if (!email || typeof email !== "string") {
+    return res.status(400).json({ error: "email required" });
   }
 
   try {
@@ -89,6 +148,10 @@ async function handleDeleteWaitlist(req: VercelRequest, res: VercelResponse) {
 
     if (!waitlist) {
       return res.status(404).json({ error: "waitlist entry not found" });
+    }
+
+    if (waitlist.email.toLowerCase() !== email.toLowerCase()) {
+      return res.status(403).json({ error: "email does not match waitlist entry" });
     }
 
     if (waitlist.deletedAt) {
@@ -117,6 +180,19 @@ async function handleDeleteWaitlist(req: VercelRequest, res: VercelResponse) {
 
     console.log(`[waitlist] Cancelled: position_${waitlist.position} for tour_${waitlist.tourId}`);
 
+    try {
+      const tour = await rtdbTourGet(waitlist.tourId);
+      await sendRegistrationEmail("waitlist_left", {
+        to: waitlist.email,
+        firstName: waitlist.firstName,
+        tourTitle: tour?.title || "",
+        tourDate: tour?.date || "",
+        idempotencyKey: `${id}_waitlist_left`,
+      });
+    } catch (e) {
+      console.error("[visit-waitlist] left email failed:", e);
+    }
+
     return res.json({ ok: true, message: "Cancelled" });
   } catch (e) {
     console.error("[visit-waitlist delete]", e);
@@ -136,8 +212,14 @@ async function handleGetWaitlist(req: VercelRequest, res: VercelResponse) {
     const waits = await rtdbWaitlistListByTour(tourId);
 
     // Guide (valid x-guide-code) sees full details; public sees anonymized positions.
+    // Un code fourni mais invalide/expiré → 401 explicite : sinon le portail
+    // guide recevait la réponse publique anonymisée et affichait une file vide
+    // sans comprendre pourquoi.
     const guideCode = req.headers["x-guide-code"] as string | undefined;
     const isGuide = guideCode ? await rtdbGuideCodeValidate(guideCode) : false;
+    if (guideCode && !isGuide) {
+      return res.status(401).json({ error: "invalid guide code" });
+    }
 
     if (isGuide) {
       const detailed = waits.map((w, idx) => ({

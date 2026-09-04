@@ -4,7 +4,7 @@
 // PUT /api/visit-tours/{id} — modifier visite (guide)
 
 import { VercelRequest, VercelResponse } from "@vercel/node";
-import { rtdbTourCreate, rtdbTourGet, rtdbTourUpdate, rtdbToursListFuture, rtdbToursListAll, rtdbGuideCodeValidate, rtdbCountRegisteredByTour, rtdbCountPendingWaitlistOffers } from "./_visit-db.js";
+import { rtdbTourCreate, rtdbTourGet, rtdbTourUpdate, rtdbToursListFuture, rtdbToursListAll, rtdbGuideCodeValidate, rtdbCountRegisteredByTour, rtdbCountWaitlistedPlaces } from "./_visit-db.js";
 import { promoteWaitlist } from "./visit-register.js";
 import { Tour, TourCreateInput } from "../src/types/visitTypes.js";
 import { locations } from "../src/data/locations.js";
@@ -116,6 +116,13 @@ async function handleGet(req: VercelRequest, res: VercelResponse) {
   const guideCode = req.headers["x-guide-code"] as string | undefined;
   const isGuideUser = await isGuide(req);
 
+  // Un code fourni mais invalide/expiré → 401 explicite. Sans ça : (a) l'écran
+  // de connexion guide acceptait n'importe quel code (le GET répondait 200 avec
+  // la liste publique), (b) un code expiré en cours de session passait inaperçu.
+  if (guideCode && !isGuideUser) {
+    return res.status(401).json({ error: "invalid guide code" });
+  }
+
   try {
     let tours: Tour[];
     if (isGuideUser) {
@@ -126,19 +133,23 @@ async function handleGet(req: VercelRequest, res: VercelResponse) {
       tours = await rtdbToursListFuture();
     }
 
-    // Enrichir avec places restantes (capacité - places confirmées - offres waitlist en cours)
+    // Places restantes = capacité - places occupées - TOUTE la file d'attente non
+    // rejetée (même règle que hasSpace côté inscription). En ne soustrayant que
+    // les offres en cours, l'UI affichait « 1 place restante » alors que la
+    // soumission partait en file d'attente.
     const enriched = await Promise.all(
       tours.map(async (t) => {
         const taken = await rtdbCountRegisteredByTour(t.id);
-        const pending = await rtdbCountPendingWaitlistOffers(t.id);
+        const waitlisted = await rtdbCountWaitlistedPlaces(t.id);
         // Firebase ne stocke pas les tableaux vides → labels peut être undefined
-        return { ...t, labels: t.labels || [], placesLeft: Math.max(0, t.capacity - taken - pending) };
+        return { ...t, labels: t.labels || [], placesLeft: Math.max(0, t.capacity - taken - waitlisted) };
       })
     );
 
-    // Cache uniquement la réponse publique (edge cache non gardé par le
-    // header x-guide-code — jamais cacher/partager une réponse guide, qui
-    // inclut les visites passées).
+    // Cache uniquement la réponse publique. Vary sépare les entrées edge par
+    // code guide ; le front guide utilise en plus ?guide=1 (URL distincte) pour
+    // ne jamais recevoir l'entrée publique cachée.
+    res.setHeader("Vary", "x-guide-code");
     if (isGuideUser) {
       res.setHeader("Cache-Control", "private, no-store");
     } else {
@@ -182,8 +193,25 @@ async function handlePut(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: "cannot modify within 24h of start" });
     }
 
-    // Validate partial updates
-    const updates = req.body;
+    // Whitelist des champs modifiables — le corps était fusionné tel quel dans
+    // le document (id, deletedAt, batchDeleteExecuted… écrasables).
+    const ALLOWED_FIELDS = ["title", "description", "date", "durationMinutes", "capacity", "labels", "status"] as const;
+    const updates: Record<string, any> = {};
+    for (const field of ALLOWED_FIELDS) {
+      if (req.body[field] !== undefined) updates[field] = req.body[field];
+    }
+    if (updates.title !== undefined && (typeof updates.title !== "string" || !updates.title.trim())) {
+      return res.status(400).json({ error: "title: non-empty string required" });
+    }
+    if (updates.durationMinutes !== undefined && (!Number.isFinite(updates.durationMinutes) || updates.durationMinutes < 1)) {
+      return res.status(400).json({ error: "durationMinutes: number >= 1 required" });
+    }
+    if (updates.labels !== undefined && (!Array.isArray(updates.labels) || updates.labels.some((l: unknown) => typeof l !== "string"))) {
+      return res.status(400).json({ error: "labels: array of strings required" });
+    }
+    if (updates.status !== undefined && !["upcoming", "ongoing", "completed"].includes(updates.status)) {
+      return res.status(400).json({ error: "status: invalid value" });
+    }
     if (updates.date !== undefined) {
       const newDate = new Date(updates.date);
       if (isNaN(newDate.getTime())) {
@@ -198,17 +226,6 @@ async function handlePut(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: "capacity: number >= 1 required" });
       }
     }
-    if (updates.startLocationX !== undefined) {
-      if (!Number.isFinite(updates.startLocationX) || updates.startLocationX < 0 || updates.startLocationX > COORD_MAX) {
-        return res.status(400).json({ error: "startLocationX: invalid" });
-      }
-    }
-    if (updates.startLocationY !== undefined) {
-      if (!Number.isFinite(updates.startLocationY) || updates.startLocationY < 0 || updates.startLocationY > COORD_MAX) {
-        return res.status(400).json({ error: "startLocationY: invalid" });
-      }
-    }
-
     await rtdbTourUpdate(id, updates);
 
     // Spec §9: capacity reduced below confirmed count → warn guide (no auto-removal).

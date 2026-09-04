@@ -161,6 +161,33 @@ describe("api/artist-update — choix de la fiche", () => {
     expect(putArtistOverride).not.toHaveBeenCalled();
   });
 
+  it("un token présent l'emporte sur le mode admin : pas de contournement par le body", async () => {
+    // Sans cette priorité, un porteur de lien valide pourrait éditer la fiche d'un autre
+    // en joignant simplement un artistId (le mode admin ne vérifie pas de token).
+    const res = mockRes();
+    await handler(mockReq({ token: token(), artistId: "quatuor-liger", fields: { presentation: "pirate" } }), res as never);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(putArtistOverride).not.toHaveBeenCalled();
+  });
+
+  it("mode admin (sans token) : écrit la fiche demandée", async () => {
+    putArtistOverride.mockResolvedValue(undefined);
+    const res = mockRes();
+    await handler(mockReq({ artistId: "quatuor-liger", fields: { presentation: "depuis l'admin" } }), res as never);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(putArtistOverride.mock.calls[0][0]).toBe("quatuor-liger");
+  });
+
+  it("ni token ni artistId → 401", async () => {
+    const res = mockRes();
+    await handler(mockReq({ fields: { presentation: "anonyme" } }), res as never);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(putArtistOverride).not.toHaveBeenCalled();
+  });
+
   it("sans artistId dans le body, retombe sur la première fiche du lien", async () => {
     putArtistOverride.mockResolvedValue(undefined);
     const res = mockRes();

@@ -1,5 +1,6 @@
 import { Event } from "@/data/events";
 import { createLogger } from "@/utils/logger";
+import { getFestivalDates } from "@/utils/festival";
 
 // Créer un logger pour le service de calendrier
 const logger = createLogger('calendarService');
@@ -57,23 +58,12 @@ export const isCalendarSupported = (): boolean => {
  * Formate un événement pour l'export vers le calendrier
  */
 const formatEventForCalendar = (event: Event): string => {
-  // Déterminer la date de l'événement en fonction du jour (samedi ou dimanche)
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  
-  // Trouver la date du prochain samedi ou dimanche en fonction des jours de l'événement
-  const eventDate = new Date();
-  if (event.days.includes('samedi')) {
-    // Trouver le prochain samedi (jour 6)
-    while (eventDate.getDay() !== 6) {
-      eventDate.setDate(eventDate.getDate() + 1);
-    }
-  } else if (event.days.includes('dimanche')) {
-    // Trouver le prochain dimanche (jour 0)
-    while (eventDate.getDay() !== 0) {
-      eventDate.setDate(eventDate.getDate() + 1);
-    }
-  }
+  // Date réelle du week-end du festival — l'ancien calcul « prochain samedi
+  // après aujourd'hui » créait l'événement le mauvais week-end (voire une date
+  // fictive après le festival).
+  const festivalDates = getFestivalDates();
+  const dayKey = event.days.includes('samedi') ? 'samedi' : 'dimanche';
+  const eventDate = new Date(`${festivalDates[dayKey]}T00:00:00`);
   
   // Extraire les heures de début et de fin
   const startTime = event.time.split(' - ')[0];
@@ -141,26 +131,12 @@ export const addToCalendar = async (event: Event): Promise<CalendarResult> => {
     // Créer le blob pour toutes les plateformes
     const blob = new Blob([icalEvent], { type: 'text/calendar;charset=utf-8' });
     
-    // Approche spécifique pour iOS
-    if (isIOS) {
-      try {
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url.replace('blob:', 'webcal:');
-        link.setAttribute('download', `${event.title.replace(/\s+/g, '_')}.ics`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        setTimeout(() => URL.revokeObjectURL(url), 100);
-        
-        logger.info("Événement ajouté au calendrier iOS", { eventId: event.id });
-        return { success: true };
-      } catch (iosError) {
-        logger.warn("Erreur lors de l'ajout au calendrier iOS", { iosError });
-        // Continuer avec la méthode alternative
-      }
-    }
-    
+    // iOS : PAS de lien « webcal: » — remplacer le scheme d'une blob URL
+    // (`webcal:https://…/uuid`) produit une URL irrésoluble : le clic ne faisait
+    // rien tout en rapportant un succès. On passe par le partage de fichier
+    // (navigator.share ci-dessous, qui propose Calendrier) ou le téléchargement
+    // .ics, que Safari sait ouvrir dans Calendrier.
+
     // Approche spécifique pour Android
     if (isAndroid) {
       try {

@@ -1,6 +1,7 @@
 // Doodates (Visites Guidées) - RTDB helpers + queries
 // Utilise api/_firebase.ts pour accès RTDB (secrets admin)
 
+import { randomInt } from "crypto";
 import { rtdbGet, rtdbPut, rtdbDelete } from "./_firebase.js";
 import {
   Tour,
@@ -132,13 +133,46 @@ export async function rtdbRegistrationSoftDelete(regId: string): Promise<void> {
   await rtdbPut(`registrations/${regId}`, updated);
 }
 
+// Effacement RGPD : le soft delete seul laisse email/noms en base indéfiniment.
+// On garde le squelette (tourId, statut, dates) pour les stats, on purge les
+// données personnelles et l'entrée d'index email (sinon la personne resterait
+// « déjà inscrite » sans plus aucune donnée pour le prouver).
+export async function rtdbRegistrationErase(regId: string): Promise<void> {
+  const reg = await rtdbRegistrationGet(regId);
+  if (!reg) return;
+  await rtdbDelete(`registrations_by_email/${emailKey(reg.email)}/${regId}`);
+  const erased: Registration = {
+    ...reg,
+    email: "rgpd@supprimé",
+    firstName: "Supprimé",
+    lastName: "RGPD",
+    companions: undefined,
+    companionFirstName: undefined,
+    companionLastName: undefined,
+    validationToken: undefined,
+    deletedAt: reg.deletedAt || new Date().toISOString(),
+  };
+  await rtdbPut(`registrations/${regId}`, erased);
+}
+
+// Une inscription ne bloque la réinscription que si elle occupe (ou peut encore
+// occuper) une place : annulée → réinscription permise (les emails le promettent),
+// attente_validation expirée → idem (elle sera annulée au prochain sweep).
 export async function rtdbRegistrationExists(tourId: string, email: string): Promise<boolean> {
   const regs = await rtdbGet<Record<string, boolean>>(`registrations_by_email/${emailKey(email)}`);
   if (!regs) return false;
-  // Check if any registration for this tour
+  const now = Date.now();
   for (const regId of Object.keys(regs)) {
     const reg = await rtdbRegistrationGet(regId);
-    if (reg && reg.tourId === tourId && !reg.deletedAt) return true;
+    if (!reg || reg.tourId !== tourId || reg.deletedAt) continue;
+    if (reg.status === "annulé") continue;
+    if (
+      reg.status === "attente_validation" &&
+      reg.validationExpiresAt &&
+      new Date(reg.validationExpiresAt).getTime() <= now
+    )
+      continue;
+    return true;
   }
   return false;
 }
@@ -248,8 +282,11 @@ export async function rtdbWaitlistAdd(input: WaitlistCreateInput): Promise<Waitl
     createdAt: now,
   };
   await rtdbPut(`waitlist/${id}`, waitlist);
-  // Index by tour
-  await rtdbPut(`waitlist_by_tour/${input.tourId}/${input.position}`, id);
+  // Index by tour, keyed by ID (immuable). Historiquement keyé par position :
+  // les réordonnancements/rejets laissaient des clés orphelines qu'un nouvel
+  // arrivant (position = count+1) écrasait, faisant disparaître silencieusement
+  // une entrée vivante de la file. rtdbWaitlistListByTour lit les deux formats.
+  await rtdbPut(`waitlist_by_tour/${input.tourId}/${id}`, true);
   return waitlist;
 }
 
@@ -267,15 +304,33 @@ export async function rtdbWaitlistSoftDelete(waitId: string): Promise<void> {
   await rtdbPut(`waitlist/${waitId}`, updated);
 }
 
+// Pendant RGPD de rtdbRegistrationErase pour la file d'attente.
+export async function rtdbWaitlistErase(waitId: string): Promise<void> {
+  const wait = await rtdbWaitlistGet(waitId);
+  if (!wait) return;
+  const erased: Waitlist = {
+    ...wait,
+    email: "rgpd@supprimé",
+    firstName: "Supprimé",
+    lastName: "RGPD",
+    companions: undefined,
+    companionFirstName: undefined,
+    companionLastName: undefined,
+    invitationToken: undefined,
+    deletedAt: wait.deletedAt || new Date().toISOString(),
+  };
+  await rtdbPut(`waitlist/${waitId}`, erased);
+}
+
 export async function rtdbWaitlistCount(tourId: string): Promise<number> {
-  const waitlists = await rtdbGet<Record<string, string>>(`waitlist_by_tour/${tourId}`);
-  if (!waitlists) return 0;
-  let count = 0;
-  for (const waitId of Object.values(waitlists)) {
-    const wait = await rtdbWaitlistGet(waitId);
-    if (wait && !wait.deletedAt && !wait.rejectedAt) count++;
-  }
-  return count;
+  const waits = await rtdbWaitlistListByTour(tourId);
+  return waits.filter((w) => !w.rejectedAt).length;
+}
+
+// Une entrée active (non supprimée, non rejetée) existe-t-elle déjà pour cet email ?
+export async function rtdbWaitlistExists(tourId: string, email: string): Promise<boolean> {
+  const waits = await rtdbWaitlistListByTour(tourId);
+  return waits.some((w) => !w.rejectedAt && w.email.toLowerCase() === email.toLowerCase());
 }
 
 // Places réservées par des offres waitlist en cours (envoyées, ni acceptées ni expirées).
@@ -299,20 +354,26 @@ export async function rtdbCountWaitlistedPlaces(tourId: string): Promise<number>
 }
 
 export async function rtdbWaitlistListByTour(tourId: string): Promise<Waitlist[]> {
-  const waitlists = await rtdbGet<Record<string, string>>(`waitlist_by_tour/${tourId}`);
-  if (!waitlists) return [];
+  const index = await rtdbGet<Record<string, string | boolean>>(`waitlist_by_tour/${tourId}`);
+  if (!index) return [];
+  // Nouveau format : clé = waitlistId, valeur = true.
+  // Legacy : clé = position, valeur = waitlistId. Les deux cohabitent en base.
+  const ids = new Set<string>();
+  for (const [key, value] of Object.entries(index)) {
+    ids.add(typeof value === "string" ? value : key);
+  }
   const result: Waitlist[] = [];
-  for (const waitId of Object.values(waitlists)) {
+  for (const waitId of ids) {
     const wait = await rtdbWaitlistGet(waitId);
     if (wait && !wait.deletedAt) result.push(wait);
   }
-  // Sort by position
-  return result.sort((a, b) => a.position - b.position);
+  // Sort by position (créés en même temps → départage par date d'arrivée)
+  return result.sort((a, b) => a.position - b.position || (a.createdAt || "").localeCompare(b.createdAt || ""));
 }
 
 export async function rtdbWaitlistGetNext(tourId: string): Promise<Waitlist | null> {
   const waits = await rtdbWaitlistListByTour(tourId);
-  return waits.length > 0 ? waits[0] : null;
+  return waits.find((w) => !w.rejectedAt) || null;
 }
 
 export async function rtdbWaitlistReorderAfter(tourId: string, position: number): Promise<void> {
@@ -334,13 +395,23 @@ export async function rtdbWaitlistListByEmail(email: string): Promise<Waitlist[]
 
 // ============ ATTENDANCE ============
 
-export async function rtdbAttendanceCreate(input: {
+// Upsert : un seul enregistrement de présence par inscription. Créer un doc à
+// chaque clic laissait des doublons dont l'ordre d'itération pouvait contredire
+// le statut de l'inscription (✓ puis ✗ rapides → compteurs incohérents).
+export async function rtdbAttendanceUpsert(input: {
   registrationId: string;
   tourId: string;
   present: boolean;
   markedAt: string;
   markedByGuide: string;
 }): Promise<Attendance> {
+  const existing = await rtdbAttendanceListByTour(input.tourId);
+  const prior = existing.find((a) => a.registrationId === input.registrationId);
+  if (prior) {
+    const updated: Attendance = { ...prior, present: input.present, markedAt: input.markedAt, markedByGuide: input.markedByGuide };
+    await rtdbPut(`attendance/${prior.id}`, updated);
+    return updated;
+  }
   const id = generateId();
   const att: Attendance = {
     id,
@@ -370,7 +441,10 @@ export async function rtdbAttendanceListByTour(tourId: string): Promise<Attendan
 
 export async function rtdbGuideCodeCreate(): Promise<GuideAccessCode> {
   const id = generateId();
-  const code = Math.random().toString(36).substr(2, 12).toUpperCase();
+  // CSPRNG — Math.random est prédictible (xorshift128+), inacceptable pour un code d'accès.
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let code = "";
+  for (let i = 0; i < 12; i++) code += alphabet[randomInt(alphabet.length)];
   const now = new Date().toISOString();
   const nextYear = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
   const gac: GuideAccessCode = {
@@ -395,6 +469,21 @@ export async function rtdbGuideCodeValidate(code: string): Promise<boolean> {
     return true;
   }
   return false;
+}
+
+export async function rtdbGuideCodeCreateCustom(customCode: string): Promise<GuideAccessCode> {
+  const id = generateId();
+  const now = new Date().toISOString();
+  const nextYear = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+  const gac: GuideAccessCode = {
+    id,
+    code: customCode,
+    createdAt: now,
+    renewalDate: nextYear,
+    active: true,
+  };
+  await rtdbPut(`guide_access_codes/${id}`, gac);
+  return gac;
 }
 
 export async function rtdbGuideCodeRevoke(code: string): Promise<void> {

@@ -374,11 +374,11 @@ export const preloadAllOfflineData = async (): Promise<void> => {
     // Précharger les lieux
     await preloadLocations();
     
-    // Précharger les images des lieux
-    await preloadLocationImages();
-    
-    // Précharger les images des historiques des lieux
-    await preloadHistoryImages();
+    // Images des lieux: lazy load à l'affichage (pas de preload pour éviter la surcharge)
+    // await preloadLocationImages();
+
+    // Images des historiques: lazy load à l'affichage
+    // await preloadHistoryImages();
     
     // Si le préchargement de la carte a échoué, réessayer
     if (!mapPreloaded) {

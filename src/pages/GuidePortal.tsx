@@ -5,12 +5,14 @@ import { useState, useEffect } from "react";
 import { Tour } from "../types/visitTypes";
 import GuideCodeLogin from "../components/GuideCodeLogin";
 import GuideToursList from "../components/GuideToursList";
+import GuideDashboard from "../components/GuideDashboard";
 import TourAttendanceSheet from "../components/TourAttendanceSheet";
 import { VisitLayout } from "@/components/VisitLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getFestivalDates } from "@/utils/festival";
+import { escapeCsvCell } from "@/utils/csv";
 
 const ORANGE = "#ff7a45";
 const orangeBtn = { backgroundColor: ORANGE };
@@ -23,6 +25,9 @@ export default function GuidePortal() {
   const [error, setError] = useState<string | null>(null);
   const [selectedTourId, setSelectedTourId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [showDashboard, setShowDashboard] = useState(true);
+  const [registrationCounts, setRegistrationCounts] = useState<Record<string, number>>({});
+  const [waitlistCounts, setWaitlistCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
     const stored = sessionStorage.getItem("guideCode");
@@ -37,7 +42,7 @@ export default function GuidePortal() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/visit-tours", { headers: { "x-guide-code": code } });
+      const res = await fetch("/api/visit-tours?guide=1", { headers: { "x-guide-code": code } });
       if (!res.ok) {
         if (res.status === 401) {
           setAuthenticated(false);
@@ -46,8 +51,9 @@ export default function GuidePortal() {
         }
         throw new Error("Erreur au chargement des visites");
       }
-      const text = await res.text();
-      setTours(JSON.parse(text));
+      const toursData = await res.json();
+      setTours(toursData);
+      await fetchRegistrationStats(toursData, code);
     } catch (e) {
       console.error("Tour fetch error:", e);
       setError("Impossible de charger les visites. Vérifiez que l'API est disponible.");
@@ -55,6 +61,49 @@ export default function GuidePortal() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function fetchRegistrationStats(toursData: Tour[], code: string) {
+    const counts: Record<string, number> = {};
+    const waitlists: Record<string, number> = {};
+    const headers = { "x-guide-code": code };
+
+    try {
+      const results = await Promise.all(
+        toursData.flatMap((tour) => [
+          fetch(`/api/visit-attendance?tourId=${tour.id}`, { headers }).then((res) => ({
+            type: "attendance" as const,
+            tourId: tour.id,
+            res,
+          })),
+          fetch(`/api/visit-waitlist?tourId=${tour.id}`, { headers }).then((res) => ({
+            type: "waitlist" as const,
+            tourId: tour.id,
+            res,
+          })),
+        ])
+      );
+
+      for (const result of results) {
+        try {
+          if (!result.res.ok) continue;
+          const data = await result.res.json();
+          if (result.type === "attendance") {
+            counts[result.tourId] = data.registrations?.length || 0;
+          } else {
+            const active = (data.waitlist || []).filter((w: any) => !w.rejectedAt);
+            waitlists[result.tourId] = active.length;
+          }
+        } catch (e) {
+          console.error("Error processing stats for tour", result.tourId, e);
+        }
+      }
+    } catch (e) {
+      console.error("Error fetching registration stats:", e);
+    }
+
+    setRegistrationCounts(counts);
+    setWaitlistCounts(waitlists);
   }
 
   function handleCodeSubmit(code: string) {
@@ -92,6 +141,7 @@ export default function GuidePortal() {
         guideCode={guideCode!}
         onBack={() => setSelectedTourId(null)}
         onTourChanged={() => fetchTours(guideCode!)}
+        onAuthError={handleLogout}
       />
     );
   }
@@ -102,6 +152,16 @@ export default function GuidePortal() {
       backTo="/map"
       headerRight={
         <>
+          {showDashboard && tours.length > 0 && (
+            <Button size="sm" variant="outline" onClick={() => setShowDashboard(false)}>
+              Vue liste
+            </Button>
+          )}
+          {!showDashboard && (
+            <Button size="sm" variant="outline" onClick={() => setShowDashboard(true)}>
+              Vue synthétique
+            </Button>
+          )}
           <Button size="sm" className="text-white" style={orangeBtn} onClick={() => setCreating(true)}>
             + Créer une visite
           </Button>
@@ -136,6 +196,14 @@ export default function GuidePortal() {
             Aucune visite. Créez-en une avec le bouton « + Créer une visite ».
           </CardContent>
         </Card>
+      ) : showDashboard ? (
+        <GuideDashboard
+          tours={tours}
+          registrationCounts={registrationCounts}
+          waitlistCounts={waitlistCounts}
+          onSelectTour={setSelectedTourId}
+          onCreateTour={() => setCreating(true)}
+        />
       ) : (
         <GuideToursList tours={tours} onSelectTour={setSelectedTourId} />
       )}
@@ -160,11 +228,14 @@ function TourForm({
   const [description, setDescription] = useState(tour?.description || "");
   const festivalDates = getFestivalDates();
   const initialLocal = tour ? toLocalInput(tour.date) : "";
-  const [day, setDay] = useState<"samedi" | "dimanche">(
-    initialLocal && initialLocal.slice(0, 10) === festivalDates.dimanche ? "dimanche" : "samedi"
-  );
+  // Conserver la date réelle de la visite : l'ancien code reconstruisait la date
+  // depuis le week-end du festival de l'année COURANTE — rouvrir puis enregistrer
+  // une visite hors de ce week-end la déplaçait silencieusement.
+  const [dateStr, setDateStr] = useState<string>(initialLocal ? initialLocal.slice(0, 10) : festivalDates.samedi);
+  const day: "samedi" | "dimanche" | null =
+    dateStr === festivalDates.dimanche ? "dimanche" : dateStr === festivalDates.samedi ? "samedi" : null;
   const [time, setTime] = useState(initialLocal ? initialLocal.slice(11, 16) : "10:00");
-  const date = `${festivalDates[day]}T${time}`;
+  const date = `${dateStr}T${time}`;
   const [durationMinutes, setDurationMinutes] = useState(tour?.durationMinutes || 90);
   const [capacity, setCapacity] = useState(tour?.capacity || 15);
   const [labels, setLabels] = useState((tour?.labels || []).join(", "));
@@ -238,7 +309,7 @@ function TourForm({
                 variant={day === "samedi" ? undefined : "outline"}
                 style={day === "samedi" ? orangeBtn : undefined}
                 className={day === "samedi" ? "text-white" : ""}
-                onClick={() => setDay("samedi")}
+                onClick={() => setDateStr(festivalDates.samedi)}
               >
                 Samedi {new Date(festivalDates.samedi).toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}
               </Button>
@@ -247,11 +318,17 @@ function TourForm({
                 variant={day === "dimanche" ? undefined : "outline"}
                 style={day === "dimanche" ? orangeBtn : undefined}
                 className={day === "dimanche" ? "text-white" : ""}
-                onClick={() => setDay("dimanche")}
+                onClick={() => setDateStr(festivalDates.dimanche)}
               >
                 Dimanche {new Date(festivalDates.dimanche).toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}
               </Button>
             </div>
+            {day === null && (
+              <p className="text-xs text-amber-700 mt-1">
+                Date actuelle : {new Date(`${dateStr}T12:00`).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })} (hors
+                week-end du festival — elle sera conservée telle quelle sauf si vous choisissez un jour ci-dessus).
+              </p>
+            )}
           </div>
           <div>
             <label className={labelCls}>Heure de départ *</label>
@@ -291,11 +368,13 @@ function TourDetails({
   guideCode,
   onBack,
   onTourChanged,
+  onAuthError,
 }: {
   tour: Tour;
   guideCode: string;
   onBack: () => void;
   onTourChanged: () => void;
+  onAuthError: () => void;
 }) {
   const [tab, setTab] = useState<"registrations" | "waitlist" | "attendance">("registrations");
   const [loading, setLoading] = useState(true);
@@ -307,11 +386,19 @@ function TourDetails({
 
   async function refresh() {
     setLoading(true);
+    // Réinitialiser l'erreur : sans ça, un échec réseau transitoire masquait
+    // définitivement le contenu même quand les refreshs suivants réussissaient.
+    setError(null);
     try {
       const [attRes, wlRes] = await Promise.all([
         fetch(`/api/visit-attendance?tourId=${tour.id}`, { headers: { "x-guide-code": guideCode } }),
         fetch(`/api/visit-waitlist?tourId=${tour.id}`, { headers: { "x-guide-code": guideCode } }),
       ]);
+      // Code expiré en cours de session → retour au login, pas une erreur opaque.
+      if (attRes.status === 401 || wlRes.status === 401) {
+        onAuthError();
+        return;
+      }
       if (!attRes.ok) throw new Error("Erreur au chargement");
       setData(await attRes.json());
       if (wlRes.ok) {
@@ -331,6 +418,9 @@ function TourDetails({
   }, [tour.id, guideCode]);
 
   const registrations = data?.registrations || [];
+  // Les entrées refusées (offre expirée/déclinée) ont rendu leur rang : les
+  // compter gonflait la file affichée au guide de personnes fantômes.
+  const activeWaitlist = waitlist.filter((w: any) => !w.rejectedAt);
 
   return (
     <VisitLayout
@@ -358,10 +448,20 @@ function TourDetails({
 
       <Card className="bg-white/90 backdrop-blur-sm border-2 border-amber-300 shadow-lg">
         <CardContent className="p-6">
-          <p className="text-gray-600 mb-2">
-            {new Date(tour.date).toLocaleDateString("fr-FR")} •{" "}
-            {new Date(tour.date).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
-            {" • "}Durée : {tour.durationMinutes} min • Capacité : {tour.capacity}
+          <p className="text-gray-600 mb-2 flex flex-wrap items-center gap-2">
+            <span>
+              {new Date(tour.date).toLocaleDateString("fr-FR")} •{" "}
+              {new Date(tour.date).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+              {" • "}Durée : {tour.durationMinutes} min • Places :{" "}
+              <span className={(tour.placesLeft ?? tour.capacity) <= 0 ? "font-bold text-red-600" : undefined}>
+                {tour.placesLeft ?? tour.capacity}/{tour.capacity}
+              </span>
+            </span>
+            {(tour.placesLeft ?? tour.capacity) <= 0 && (
+              <span className="text-xs px-2 py-1 rounded-full whitespace-nowrap bg-red-100 text-red-700 font-bold uppercase">
+                Complet
+              </span>
+            )}
           </p>
           {tour.description && <p className="text-gray-700 mb-4 whitespace-pre-wrap">{tour.description}</p>}
 
@@ -378,8 +478,9 @@ function TourDetails({
                   <Stat label="Absents" value={data.counts.absent} color="bg-red-100" />
                   <Stat
                     label="File d'attente"
-                    value={waitlist.reduce((s: number, w: any) => s + (w.places ?? 1), 0)}
+                    value={activeWaitlist.reduce((s: number, w: any) => s + (w.places ?? 1), 0)}
                     color="bg-amber-100"
+                    highlight={activeWaitlist.length > 0}
                   />
                 </div>
               )}
@@ -390,7 +491,7 @@ function TourDetails({
                   Inscrits ({registrations.length})
                 </TabBtn>
                 <TabBtn active={tab === "waitlist"} onClick={() => setTab("waitlist")}>
-                  File d'attente ({waitlist.length})
+                  File d'attente ({activeWaitlist.length})
                 </TabBtn>
                 <TabBtn active={tab === "attendance"} onClick={() => setTab("attendance")}>
                   Appel
@@ -433,9 +534,19 @@ function TourDetails({
   );
 }
 
-function Stat({ label, value, color }: { label: string; value: number; color: string }) {
+function Stat({
+  label,
+  value,
+  color,
+  highlight,
+}: {
+  label: string;
+  value: number;
+  color: string;
+  highlight?: boolean;
+}) {
   return (
-    <div className={`p-3 rounded-lg ${color}`}>
+    <div className={`p-3 rounded-lg ${color} ${highlight ? "ring-2 ring-amber-500" : ""}`}>
       <p className="text-xs text-gray-600">{label}</p>
       <p className="text-2xl font-bold tabular-nums text-[#1a2138]">{value}</p>
     </div>
@@ -592,6 +703,10 @@ function ManualRegistration({
         setError(data.error || "Erreur");
         return;
       }
+      // Surbooking volontaire : le serveur signale quand la visite était complète.
+      if (data.warning) {
+        alert(data.warning);
+      }
       onSaved();
     } catch (e) {
       setError((e as Error).message);
@@ -679,7 +794,9 @@ function exportCSV(tour: Tour, registrations: any[]) {
       String(placesCount(r)), r.status,
     ]),
   ];
-  const csv = rows.map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+  const csv = rows
+    .map((row) => row.map((c) => `"${escapeCsvCell(c).replace(/"/g, '""')}"`).join(","))
+    .join("\n");
   const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

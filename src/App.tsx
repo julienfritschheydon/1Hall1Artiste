@@ -125,6 +125,7 @@ const AnimatedRoutes: React.FC = () => {
     { path: '/reservations/confirm', component: VisitConfirm, swipeable: false },
     { path: '/reservations/accept-waitlist', component: VisitConfirm, swipeable: false },
     { path: '/reservations/cancel-waitlist', component: VisitConfirm, swipeable: false },
+    { path: '/reservations/gdpr-confirm', component: VisitConfirm, swipeable: false },
     { path: '/reservations/cancel', component: VisitConfirm, swipeable: false },
     { path: '/reservations/gdpr', component: VisitGdpr, swipeable: false },
     { path: '/guide', component: GuidePortal, swipeable: false },

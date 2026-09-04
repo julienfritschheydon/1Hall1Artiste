@@ -2,7 +2,8 @@
 // Routes gérées (HashRouter):
 //   /reservations/confirm?token=...          → valider inscription
 //   /reservations/accept-waitlist?token=...  → accepter offre file d'attente
-//   /reservations/cancel-waitlist?id=...     → annuler sa place en file d'attente
+//   /reservations/cancel-waitlist?id=...     → annuler sa place en file d'attente (avec confirmation)
+//   /reservations/gdpr-confirm?token=...     → confirmer la suppression RGPD (avec confirmation)
 import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { VisitLayout } from "@/components/VisitLayout";
@@ -12,7 +13,7 @@ import { Button } from "@/components/ui/button";
 
 const ORANGE = "#ff7a45";
 
-type Mode = "confirm" | "accept-waitlist" | "cancel-waitlist" | "cancel";
+type Mode = "confirm" | "accept-waitlist" | "cancel-waitlist" | "cancel" | "gdpr-confirm";
 type Status = "loading" | "success" | "error" | "form";
 
 function useQuery() {
@@ -33,12 +34,80 @@ export default function VisitConfirm() {
     ? "accept-waitlist"
     : path.endsWith("/cancel-waitlist")
     ? "cancel-waitlist"
+    : path.endsWith("/gdpr-confirm")
+    ? "gdpr-confirm"
     : path.endsWith("/cancel")
     ? "cancel"
     : "confirm";
 
   // cancel mode: show email-confirmation form first
   const [cancelEmail, setCancelEmail] = useState("");
+
+  // cancel-waitlist : action destructive — exiger un clic explicite. Le DELETE
+  // partait au simple chargement de la page : un clic accidentel ou un scanner
+  // de liens de messagerie retirait irréversiblement la personne de la file.
+  async function submitCancelWaitlist() {
+    setStatus("loading");
+    const id = query.get("id");
+    const email = query.get("email");
+    if (!id || !email) {
+      setStatus("error");
+      setMessage("Lien invalide : identifiant manquant.");
+      return;
+    }
+    try {
+      const res = await fetch(
+        `/api/visit-waitlist?id=${encodeURIComponent(id)}&email=${encodeURIComponent(email)}`,
+        { method: "DELETE" }
+      );
+      const data = await res.json().catch(() => ({} as Record<string, string>));
+      if (res.ok && data.ok) {
+        setStatus("success");
+        setMessage("Vous avez été retiré de la file d'attente.");
+      } else if (data.error === "already cancelled") {
+        setStatus("success");
+        setMessage("Vous étiez déjà retiré de la file d'attente.");
+      } else {
+        setStatus("error");
+        setMessage(data.error || "Annulation impossible.");
+      }
+    } catch {
+      setStatus("error");
+      setMessage("Erreur réseau. Réessayez plus tard.");
+    }
+  }
+
+  // gdpr-confirm : même principe — suppression définitive derrière un clic explicite.
+  async function submitGdprConfirm() {
+    setStatus("loading");
+    const token = query.get("token");
+    if (!token) {
+      setStatus("error");
+      setMessage("Lien invalide : token manquant.");
+      return;
+    }
+    try {
+      const res = await fetch("/api/visit-register?action=gdpr-confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      });
+      const data = await res.json().catch(() => ({} as Record<string, string>));
+      if (res.ok && data.ok) {
+        setStatus("success");
+        setMessage(data.message || "Vos données ont été supprimées.");
+      } else if (data.error === "token expired") {
+        setStatus("error");
+        setMessage("Lien expiré (24h dépassées). Refaites une demande de suppression.");
+      } else {
+        setStatus("error");
+        setMessage(data.error || "Suppression impossible.");
+      }
+    } catch {
+      setStatus("error");
+      setMessage("Erreur réseau. Réessayez plus tard.");
+    }
+  }
 
   async function submitCancel(e: React.FormEvent) {
     e.preventDefault();
@@ -74,8 +143,8 @@ export default function VisitConfirm() {
 
   useEffect(() => {
     async function run() {
-      // cancel mode waits for user email input
-      if (mode === "cancel") {
+      // Modes destructifs : attendre une action explicite de l'utilisateur.
+      if (mode === "cancel" || mode === "cancel-waitlist" || mode === "gdpr-confirm") {
         setStatus("form");
         return;
       }
@@ -126,28 +195,6 @@ export default function VisitConfirm() {
             setStatus("error");
             setMessage(data.error || "Activation impossible.");
           }
-        } else {
-          // cancel-waitlist
-          const id = query.get("id");
-          if (!id) {
-            setStatus("error");
-            setMessage("Lien invalide : identifiant manquant.");
-            return;
-          }
-          const res = await fetch(`/api/visit-waitlist?id=${encodeURIComponent(id)}`, {
-            method: "DELETE",
-          });
-          const data = await res.json();
-          if (res.ok && data.ok) {
-            setStatus("success");
-            setMessage("Vous avez été retiré de la file d'attente.");
-          } else if (data.error === "already cancelled") {
-            setStatus("success");
-            setMessage("Vous étiez déjà retiré de la file d'attente.");
-          } else {
-            setStatus("error");
-            setMessage(data.error || "Annulation impossible.");
-          }
         }
       } catch (e) {
         setStatus("error");
@@ -165,6 +212,8 @@ export default function VisitConfirm() {
       ? "Acceptation de votre place"
       : mode === "cancel"
       ? "Annulation de votre inscription"
+      : mode === "gdpr-confirm"
+      ? "Suppression de mes données"
       : "Annulation file d'attente";
 
   return (
@@ -181,7 +230,7 @@ export default function VisitConfirm() {
             </div>
           )}
 
-          {status === "form" && (
+          {status === "form" && mode === "cancel" && (
             <form onSubmit={submitCancel} className="space-y-3 text-left">
               {message && (
                 <div className="p-2 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">{message}</div>
@@ -198,6 +247,30 @@ export default function VisitConfirm() {
                 Annuler mon inscription
               </Button>
             </form>
+          )}
+
+          {status === "form" && mode === "cancel-waitlist" && (
+            <div className="space-y-3">
+              <p className="text-gray-600 text-sm">
+                Vous êtes sur le point de quitter la file d'attente. Cette action est irréversible : vous perdrez
+                votre position.
+              </p>
+              <Button variant="destructive" className="w-full" onClick={submitCancelWaitlist}>
+                Quitter la file d'attente
+              </Button>
+            </div>
+          )}
+
+          {status === "form" && mode === "gdpr-confirm" && (
+            <div className="space-y-3">
+              <p className="text-gray-600 text-sm">
+                Vous êtes sur le point de supprimer définitivement toutes vos inscriptions aux visites guidées et
+                vos entrées en file d'attente. Cette action est irréversible.
+              </p>
+              <Button variant="destructive" className="w-full" onClick={submitGdprConfirm}>
+                Supprimer définitivement mes données
+              </Button>
+            </div>
           )}
 
           {status === "success" && (

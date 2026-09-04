@@ -11,9 +11,9 @@ import {
   rtdbToursCompleted,
   rtdbTourUpdate,
   rtdbRegistrationsListByTour,
-  rtdbRegistrationSoftDelete,
+  rtdbRegistrationErase,
   rtdbWaitlistListByTour,
-  rtdbWaitlistSoftDelete,
+  rtdbWaitlistErase,
   rtdbAuditLog,
   rtdbWaitlistUpdate,
   rtdbTourGet,
@@ -27,6 +27,9 @@ import { createRegistrationToken } from "./_token.js";
 
 const SITE_URL = process.env.PUBLIC_SITE_URL || "https://www.1hall1artiste.fr";
 const MAX_RETRIES = 3;
+const QUOTA_WARNING_THRESHOLD = 50;
+
+let quotaWarningAlertSent = false;
 
 // Q1, Q2: Send email with idempotency key + retry
 async function sendEmailWithRetry(
@@ -57,10 +60,25 @@ async function sendEmailWithRetry(
         headers: {
           "Content-Type": "application/json",
           "Idempotency-Key": idempotencyKey,
-          "X-Private-Key": process.env.EMAILJS_PRIVATE_KEY || "",
         },
         body: JSON.stringify(emailjsData),
       });
+
+      // Track quota from response headers
+      const remaining = res.headers.get("X-RateLimit-Remaining");
+      if (remaining) {
+        const quotaInt = parseInt(remaining);
+        console.log(`[emailjs-quota] ${quotaInt} requests remaining`);
+
+        // Alert admin if quota low (once per cron run)
+        if (quotaInt < QUOTA_WARNING_THRESHOLD && !quotaWarningAlertSent) {
+          quotaWarningAlertSent = true;
+          await sendAdminAlert(
+            "EmailJS Quota Warning",
+            `Only ${quotaInt} requests remaining. May be insufficient for next batch.`
+          );
+        }
+      }
 
       if (res.ok) {
         return true; // Success
@@ -97,12 +115,12 @@ async function sendAdminAlert(subject: string, message: string): Promise<void> {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Private-Key": process.env.EMAILJS_PRIVATE_KEY || "",
       },
       body: JSON.stringify({
         service_id: process.env.EMAILJS_SERVICE_ID,
-        template_id: process.env.EMAILJS_TEMPLATE_ID, // Use generic template
+        template_id: process.env.EMAILJS_TEMPLATE_ID,
         user_id: process.env.EMAILJS_PUBLIC_KEY,
+        accessToken: process.env.EMAILJS_PRIVATE_KEY,
         template_params: {
           to_email: process.env.VISIT_ALERT_EMAIL,
           subject,
@@ -117,13 +135,16 @@ async function sendAdminAlert(subject: string, message: string): Promise<void> {
 
 // Validate cron auth
 function validateCronAuth(req: VercelRequest): boolean {
-  const auth = req.headers.authorization;
-  const expected = `Bearer ${process.env.CRON_SECRET}`;
-  return auth === expected;
+  const secret = process.env.CRON_SECRET;
+  // Refus explicite si non configuré — sinon l'en-tête littéral
+  // « Bearer undefined » aurait authentifié n'importe qui.
+  if (!secret) return false;
+  return req.headers.authorization === `Bearer ${secret}`;
 }
 
 // ==== JOB 1: Send 7d reminder ====
 async function sendReminderEmails7d(): Promise<{ sent: number; failed: number }> {
+  quotaWarningAlertSent = false; // Reset for this run
   const now = new Date();
   const sevenDaysLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
@@ -176,6 +197,7 @@ async function sendReminderEmails7d(): Promise<{ sent: number; failed: number }>
 
 // ==== JOB 2: Send 1d validation (Q15: auto-cancel if not confirmed) ====
 async function sendValidationEmails1d(): Promise<{ sent: number; autocancelled: number }> {
+  quotaWarningAlertSent = false; // Reset for this run
   const now = new Date();
   const oneDayLater = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
@@ -226,9 +248,13 @@ async function sendValidationEmails1d(): Promise<{ sent: number; autocancelled: 
     }
   }
 
-  // Q15: Auto-cancel registrations past validation deadline
-  const allRegs = await rtdbRegistrationsListByDateRange(new Date(0), now);
-  for (const reg of allRegs) {
+  // Q15: Auto-cancel registrations past validation deadline.
+  // Uniquement pour des visites PAS ENCORE commencées : l'ancien scan (epoch →
+  // maintenant) ne touchait que des visites passées, annulant après coup des
+  // gens venus à la visite. La deadline est effacée par l'endpoint confirm au
+  // clic (revalidation), donc on n'annule ici que ceux qui n'ont PAS cliqué.
+  const upcomingRegs = await rtdbRegistrationsListByDateRange(now, new Date(now.getTime() + 8 * 24 * 60 * 60 * 1000));
+  for (const reg of upcomingRegs) {
     if (
       reg.status === "confirmé" &&
       reg.validation1dSent &&
@@ -261,32 +287,31 @@ async function batchDeletePostTour(): Promise<{ deletedRegs: number; deletedWait
     if (tour.batchDeleteExecuted) {
       continue; // Skip if already executed (idempotency)
     }
+    let tourRegs = 0,
+      tourWaits = 0;
 
-    // Soft delete all registrations
+    // Purge RGPD réelle (PII effacées) — un simple deletedAt gardait emails et
+    // noms en base indéfiniment, à rebours de l'objet du job.
     const regs = await rtdbRegistrationsListByTour(tour.id);
     for (const reg of regs) {
-      if (!reg.deletedAt) {
-        // Only delete if not already soft-deleted
-        await rtdbRegistrationSoftDelete(reg.id);
-        deletedRegs++;
-      }
+      await rtdbRegistrationErase(reg.id);
+      deletedRegs++;
+      tourRegs++;
     }
 
-    // Soft delete all waitlist entries
     const waits = await rtdbWaitlistListByTour(tour.id);
     for (const wait of waits) {
-      if (!wait.deletedAt) {
-        await rtdbWaitlistSoftDelete(wait.id);
-        deletedWaitlist++;
-      }
+      await rtdbWaitlistErase(wait.id);
+      deletedWaitlist++;
+      tourWaits++;
     }
 
-    // Audit log
+    // Audit log (compteurs de CE tour, pas le cumul du batch)
     await rtdbAuditLog("batch_delete_post_tour", {
       tourId: tour.id,
       tourTitle: tour.title,
-      deletedRegistrations: deletedRegs,
-      deletedWaitlist: deletedWaitlist,
+      deletedRegistrations: tourRegs,
+      deletedWaitlist: tourWaits,
       reason: "RGPD 24h after tour completion",
       timestamp: new Date().toISOString(),
     });
@@ -335,6 +360,7 @@ async function expirePendingRegistrations(): Promise<{ autocancelled: number }> 
 // Runs expirePendingRegistrations() first (Hobby plan caps cron at 1/day, so this
 // piggybacks on the existing daily slot instead of a dedicated cron entry).
 async function promoteFromWaitlist(): Promise<{ promoted: number; rejected: number; autocancelled: number }> {
+  quotaWarningAlertSent = false; // Reset for this run
   const { autocancelled } = await expirePendingRegistrations();
 
   const now = new Date();
@@ -353,6 +379,26 @@ async function promoteFromWaitlist(): Promise<{ promoted: number; rejected: numb
       ) {
         await rtdbWaitlistUpdate(wait.id, { rejectedAt: now.toISOString() });
         rejected++;
+
+        const success = await sendEmailWithRetry(
+          JSON.parse(process.env.VISIT_EMAILJS_TEMPLATE_IDS || "{}").waitlist_offer_expired,
+          {
+            to: wait.email,
+            firstName: wait.firstName,
+            tourTitle: tour.title,
+            type: "waitlist_offer_expired",
+          },
+          `${wait.id}_waitlist_offer_expired`
+        );
+
+        if (!success) {
+          console.error(`[visit-emails] Failed to send waitlist offer expired email to ${wait.email}`);
+          await rtdbAuditLog("waitlist_offer_expired_email_failed", {
+            waitlistId: wait.id,
+            tourId: tour.id,
+            email: wait.email,
+          });
+        }
       }
     }
   }
@@ -426,9 +472,12 @@ async function promoteFromWaitlist(): Promise<{ promoted: number; rejected: numb
   return { promoted, rejected, autocancelled };
 }
 
-// Main handler
+// Main handler.
+// GET est accepté : les crons Vercel invoquent le path en GET — n'accepter que
+// POST faisait échouer les 4 jobs quotidiens en 405 depuis toujours (aucun
+// rappel, aucune purge, aucune promotion automatique).
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== "POST") {
+  if (req.method !== "POST" && req.method !== "GET") {
     return res.status(405).json({ error: "method not allowed" });
   }
 
@@ -442,7 +491,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     let result: any;
 
-    if (type === "send-7d-reminder") {
+    if (type === "daily") {
+      // Job consolidé (plan Hobby : 2 crons max — un seul suffit désormais).
+      // Ordre : rappels → validation J-1 → promotion (inclut expirations/rejets) → purge.
+      const reminder7d = await sendReminderEmails7d();
+      const validation1d = await sendValidationEmails1d();
+      const promotion = await promoteFromWaitlist();
+      const cleanup = await batchDeletePostTour();
+      result = { reminder7d, validation1d, promotion, cleanup };
+    } else if (type === "send-7d-reminder") {
       result = await sendReminderEmails7d();
     } else if (type === "send-1d-validation") {
       result = await sendValidationEmails1d();
