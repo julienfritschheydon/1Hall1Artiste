@@ -2,6 +2,7 @@
 // plusieurs lignes du programme (chorale avec deux chœurs, exposant dans deux halls).
 // Placé sous src/ car l'include vitest est limité à src/**/*.test.ts.
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { randomBytes } from "node:crypto";
 
 const { putArtistOverride } = vi.hoisted(() => ({ putArtistOverride: vi.fn() }));
 
@@ -14,7 +15,8 @@ import { buildEmailToArtistIds } from "../../api/_sheets";
 import { createToken, verifyToken } from "../../api/_token";
 import handler from "../../api/artist-update";
 
-process.env.ARTIST_SECRET = "secret-de-test";
+// Tiré au hasard : pas de valeur ressemblant à un secret dans le dépôt.
+process.env.ARTIST_SECRET = randomBytes(24).toString("hex");
 
 // ── Fixtures CSV ─────────────────────────────────────────────────────────────
 
@@ -171,13 +173,14 @@ describe("api/artist-update — choix de la fiche", () => {
     expect(putArtistOverride).not.toHaveBeenCalled();
   });
 
-  it("mode admin (sans token) : écrit la fiche demandée", async () => {
-    putArtistOverride.mockResolvedValue(undefined);
+  it("mode admin sans token admin → 401 (le chemin admin est authentifié serveur)", async () => {
+    // Le chemin admin acceptait autrefois n'importe quel { artistId, fields }. Il exige
+    // désormais un token signé — couverture détaillée dans adminAuthApi.test.ts.
     const res = mockRes();
     await handler(mockReq({ artistId: "quatuor-liger", fields: { presentation: "depuis l'admin" } }), res as never);
 
-    expect(res.status).toHaveBeenCalledWith(200);
-    expect(putArtistOverride.mock.calls[0][0]).toBe("quatuor-liger");
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(putArtistOverride).not.toHaveBeenCalled();
   });
 
   it("ni token ni artistId → 401", async () => {

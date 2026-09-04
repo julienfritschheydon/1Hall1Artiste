@@ -1,9 +1,26 @@
+// Point d'entrée « accès au portail artiste ». Regroupe trois actions dans UNE fonction
+// serverless : le plan Vercel Hobby en plafonne le nombre à 12 et le projet est à la
+// limite. Même motif que /api/visit-emails?type=… qui multiplexe déjà ses actions.
+//
+// POST { action: "admin-login", password } → échange le mot de passe admin contre un token signé.
 // POST { email } → si l'email est inscrit dans le programme, envoie un lien magique d'édition.
-// Réponse toujours générique pour ne pas divulguer la liste des emails.
+//   Réponse toujours générique pour ne pas divulguer la liste des emails.
+// POST { adminToken, artistId } → admin : renvoie DIRECTEMENT le lien de la fiche, sans
+//   passer par l'email. Sert à dépanner un artiste qui n'a rien reçu, et à tester le
+//   portail sans écrire dans la boîte de quelqu'un. Le lien émis est exactement celui que
+//   l'artiste recevrait : il couvre toutes les fiches de son adresse.
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { buildEmailToArtistIds } from "./_sheets.js";
 import { createToken } from "./_token.js";
+import {
+  adminPasswordConfigured,
+  checkAdminPassword,
+  clientIp,
+  isAdminRequest,
+  loginRateLimited,
+} from "./_admin.js";
+import { createAdminToken } from "./_token.js";
 
 function appBaseUrl(req: VercelRequest): string {
   if (process.env.APP_BASE_URL) return process.env.APP_BASE_URL.replace(/\/+$/, "");
@@ -52,7 +69,58 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const generic = { ok: true, message: "Si cet email est inscrit au programme, un lien vient d'être envoyé." };
 
+  // Le 200 générique du catch final protège la confidentialité de la liste d'emails du
+  // flux public. Pour un appel admin, il transformerait une vraie panne (secret absent en
+  // env, par exemple) en faux succès : on distingue donc les deux dès l'entrée.
+  const isAdminCall =
+    req.body?.action === "admin-login" || String(req.body?.artistId || "").trim() !== "";
+
   try {
+    // ── Connexion admin ──────────────────────────────────────────────────────
+    // Placée avant tout le reste : ce chemin ne doit toucher ni le Sheet ni EmailJS.
+    if (req.body?.action === "admin-login") {
+      if (loginRateLimited(clientIp(req))) {
+        return res.status(429).json({ error: "Trop de tentatives, réessayez dans une minute" });
+      }
+      // Config incomplète : on refuse au lieu de laisser passer.
+      if (!adminPasswordConfigured()) {
+        console.error("[artist-link] ADMIN_PASSWORD non configuré");
+        return res.status(500).json({ error: "Authentification admin non configurée" });
+      }
+      const password = String(req.body?.password || "");
+      if (!password || !checkAdminPassword(password)) {
+        return res.status(401).json({ error: "Mot de passe incorrect" });
+      }
+      return res.status(200).json({ token: createAdminToken() });
+    }
+
+    // ── Mode admin : lien rendu à l'écran, aucun email envoyé ────────────────
+    const wantedArtistId = String(req.body?.artistId || "").trim();
+    if (wantedArtistId) {
+      if (!isAdminRequest(req)) {
+        return res.status(401).json({ error: "Authentification admin requise" });
+      }
+
+      const map = await buildEmailToArtistIds();
+      // On retrouve l'adresse propriétaire de la fiche pour émettre le lien tel que
+      // l'artiste le recevrait (toutes ses fiches, pas seulement celle sélectionnée).
+      let ownerEmail = "";
+      let ownerIds: string[] = [];
+      for (const [mail, ids] of map) {
+        if (ids.includes(wantedArtistId)) {
+          ownerEmail = mail;
+          ownerIds = ids;
+          break;
+        }
+      }
+      if (!ownerEmail) {
+        return res.status(404).json({ error: "Fiche inconnue ou sans adresse email au programme" });
+      }
+
+      const link = `${appBaseUrl(req)}/#/artiste/edit?token=${encodeURIComponent(createToken(ownerIds, ownerEmail))}`;
+      return res.status(200).json({ ok: true, link, email: ownerEmail, artistIds: ownerIds });
+    }
+
     const email = String(req.body?.email || "").trim().toLowerCase();
     if (!email || !email.includes("@")) {
       return res.status(400).json({ error: "Email invalide" });
@@ -78,6 +146,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json(generic);
   } catch (err) {
     console.error("[artist-link] erreur:", err);
-    return res.status(200).json(generic); // rester générique même en erreur
+    if (isAdminCall) {
+      // getSecret lève un message qui nomme la variable absente (« X manquant »). Le
+      // renvoyer évite d'envoyer l'admin chercher au mauvais endroit : la génération de
+      // lien signe un token ARTISTE, elle échoue donc sur ARTIST_SECRET et non sur les
+      // variables d'authentification admin.
+      const detail = err instanceof Error && /manquant/.test(err.message) ? ` (${err.message})` : "";
+      return res.status(500).json({
+        error: `Opération admin impossible — vérifiez la configuration serveur${detail}`,
+      });
+    }
+    return res.status(200).json(generic); // flux public : rester générique même en erreur
   }
 }

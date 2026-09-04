@@ -119,6 +119,10 @@ DOODATES_ALERT_EMAIL=julien.fritsch@gmail.com
 DOODATES_EMAILJS_TEMPLATE_IDS={"confirmation":"template_doodates_confirmation","reminder_7d":"template_doodates_reminder_7d","reminder_1d_validate":"template_doodates_reminder_1d_validate","waitlist_confirmation":"template_doodates_waitlist_confirmation","waitlist_offer":"template_doodates_waitlist_offer","validation_expired":"template_doodates_validation_expired"}
 CRON_SECRET=<long-random-string-change-in-prod>
 
+# Admin (authentification serveur — voir docs/ADMIN-AUTH.md)
+ADMIN_PASSWORD=<mot-de-passe-admin-change-in-prod>
+ADMIN_SECRET=<long-random-string-change-in-prod>
+
 # Existing
 ARTIST_SECRET=<change-in-prod>
 FIREBASE_DB_SECRET=<from-firebase>

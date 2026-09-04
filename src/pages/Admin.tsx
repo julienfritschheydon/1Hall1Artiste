@@ -13,6 +13,7 @@ import { useData, useEvents, useLocations } from "@/hooks/useData";
 import { ImportExportPanel } from "@/components/ImportExportPanel";
 import { EventForm } from "@/components/EventForm";
 import { AdminLogin } from "@/components/AdminLogin";
+import { isAdminAuthenticated } from "@/services/adminAuth";
 import { toast } from "@/components/ui/use-toast";
 import { Toaster } from "@/components/ui/toaster";
 import { CommunityManagement } from "@/components/CommunityManagement";
@@ -42,8 +43,7 @@ export default function Admin() {
   
   // Vérifier si l'utilisateur est déjà authentifié (session storage)
   useEffect(() => {
-    const adminAuthenticated = sessionStorage.getItem('adminAuthenticated');
-    if (adminAuthenticated === 'true') {
+    if (isAdminAuthenticated()) {
       setIsAuthenticated(true);
     }
   }, []);
@@ -242,9 +242,10 @@ export default function Admin() {
     }
   };
 
+  // Le token est déposé dans sessionStorage par adminLogin() ; il ne reste qu'à
+  // basculer l'écran.
   const handleLogin = () => {
     setIsAuthenticated(true);
-    sessionStorage.setItem('adminAuthenticated', 'true');
   };
   
   const clearLocalStorage = () => {
