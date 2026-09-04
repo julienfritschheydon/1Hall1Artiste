@@ -4,13 +4,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { createLogger } from "@/utils/logger";
+import { adminLogin } from "@/services/adminAuth";
 import Lock from 'lucide-react/dist/esm/icons/lock';
 
 // Créer un logger pour le composant AdminLogin
 const logger = createLogger('AdminLogin');
 
-// Code PIN pour l'accès administrateur
-const ADMIN_PIN = '5321';
+// Le mot de passe n'est plus comparé ici : il l'était dans le bundle, donc lisible par
+// tout visiteur. La vérification se fait côté serveur (action « admin-login » de
+// /api/artist-link, variable ADMIN_PASSWORD) et renvoie un token signé.
 
 interface AdminLoginProps {
   onLogin: () => void;
@@ -18,25 +20,26 @@ interface AdminLoginProps {
 
 export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin }) => {
   const [password, setPassword] = useState('');
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [attempts, setAttempts] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (password === ADMIN_PIN) {
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      await adminLogin(password);
       logger.info('Connexion administrateur réussie');
-      
-      // Stocker l'état d'authentification dans sessionStorage (valide jusqu'à la fermeture du navigateur)
-      sessionStorage.setItem('adminAuthenticated', 'true');
-      
-      // Appeler le callback de connexion
       onLogin();
-    } else {
+    } catch (err) {
       logger.warn('Tentative de connexion administrateur échouée');
-      setError(true);
+      setError((err as Error).message || 'Mot de passe incorrect');
       setAttempts(attempts + 1);
       setPassword('');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -60,32 +63,28 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin }) => {
           <form onSubmit={handleSubmit}>
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="password">Code PIN</Label>
+                <Label htmlFor="password">Mot de passe</Label>
                 <Input
                   id="password"
-                  type="number"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  maxLength={4}
+                  type="password"
+                  autoComplete="current-password"
+                  maxLength={128}
                   value={password}
                   onChange={(e) => {
-                    // Limiter à 4 chiffres
-                    if (e.target.value.length <= 4) {
-                      setPassword(e.target.value);
-                      if (error) setError(false);
-                    }
+                    setPassword(e.target.value);
+                    if (error) setError(null);
                   }}
-                  className={`text-center text-2xl tracking-widest ${error ? "border-red-500" : ""}`}
-                  placeholder="____"
+                  className={error ? "border-red-500" : ""}
+                  placeholder="Votre mot de passe"
                 />
                 {error && (
-                  <p className="text-sm text-red-500 text-center">
-                    Code PIN incorrect. {attempts > 1 ? `${attempts} tentatives échouées.` : ''}
+                  <p className="text-sm text-red-500">
+                    {error} {attempts > 1 ? `${attempts} tentatives échouées.` : ''}
                   </p>
                 )}
               </div>
-              <Button type="submit" className="w-full bg-[#4a5d94]">
-                Se connecter
+              <Button type="submit" className="w-full bg-[#4a5d94]" disabled={submitting || !password}>
+                {submitting ? 'Vérification…' : 'Se connecter'}
               </Button>
             </div>
           </form>

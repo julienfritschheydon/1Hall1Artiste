@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useData } from "@/hooks/useData";
 import { Artist } from "@/data/artists";
 import { ARTIST_EDITABLE_FIELDS, uploadThumbnail } from "@/services/artistPortal";
+import { fetchArtistEditLink, getAdminToken } from "@/services/adminAuth";
 import { compressImage, validateImageFile } from "@/utils/imageCompression";
 
 export function ArtistAdmin() {
@@ -16,6 +17,10 @@ export function ArtistAdmin() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  // Lien d'édition demandé pour une fiche (généré à la demande, jamais listé en masse).
+  const [linkFor, setLinkFor] = useState<{ artist: Artist; link: string; email: string; count: number } | null>(null);
+  const [linkLoading, setLinkLoading] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function onPickImage(e: React.ChangeEvent<HTMLInputElement>) {
@@ -48,6 +53,30 @@ export function ArtistAdmin() {
 
   const artists = allArtists.filter((a) => filter === "all" || a.type === filter);
 
+  // Récupère le lien magique de la fiche — exactement celui que l'artiste recevrait.
+  async function handleGetLink(artist: Artist) {
+    setLinkLoading(artist.id);
+    setError(null);
+    setCopied(false);
+    try {
+      const { link, email, artistIds } = await fetchArtistEditLink(artist.id);
+      setLinkFor({ artist, link, email, count: artistIds.length });
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setLinkLoading(null);
+    }
+  }
+
+  async function copyLink(link: string) {
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+    } catch {
+      setError("Copie impossible, sélectionnez le lien à la main.");
+    }
+  }
+
   async function handleSave(artist: Artist) {
     setSaving(true);
     setError(null);
@@ -64,6 +93,7 @@ export function ArtistAdmin() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          adminToken: getAdminToken(),
           artistId: artist.id,
           fields,
         }),
@@ -220,6 +250,46 @@ export function ArtistAdmin() {
         </select>
       </div>
 
+      {error && !editingArtist && (
+        <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded text-sm">{error}</div>
+      )}
+
+      {linkFor && (
+        <Card className="border-orange-200 bg-orange-50">
+          <CardHeader>
+            <CardTitle className="text-base">Lien d'édition — {linkFor.artist.name}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-xs text-gray-600">
+              Lien identique à celui que l'artiste recevrait par email, valable 30 jours et
+              rattaché à {linkFor.email}.
+              {linkFor.count > 1 && ` Cette adresse couvre ${linkFor.count} fiches : le portail affichera des onglets.`}
+            </p>
+
+            <textarea
+              readOnly
+              value={linkFor.link}
+              onFocus={(e) => e.currentTarget.select()}
+              rows={3}
+              className="w-full text-xs font-mono p-2 border rounded bg-white break-all"
+            />
+
+            <div className="flex gap-2">
+              <Button size="sm" onClick={() => copyLink(linkFor.link)} className="bg-orange-500">
+                {copied ? "Copié ✓" : "Copier le lien"}
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => { setLinkFor(null); setCopied(false); }}>
+                Fermer
+              </Button>
+            </div>
+
+            <p className="text-xs text-gray-500">
+              Ce lien permet de modifier la fiche au nom de l'artiste — ne le diffusez qu'à lui.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>Artistes ({artists.length})</CardTitle>
@@ -252,9 +322,19 @@ export function ArtistAdmin() {
                     </td>
                     <td className="p-2 text-xs">{artist.email || "-"}</td>
                     <td className="p-2">
-                      <Button size="sm" variant="outline" onClick={() => setEditingArtist(artist)}>
-                        Éditer
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline" onClick={() => setEditingArtist(artist)}>
+                          Éditer
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={linkLoading === artist.id}
+                          onClick={() => handleGetLink(artist)}
+                        >
+                          {linkLoading === artist.id ? "…" : "Lien d'édition"}
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
