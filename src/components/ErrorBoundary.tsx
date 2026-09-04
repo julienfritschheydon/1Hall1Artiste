@@ -17,8 +17,6 @@ interface State {
  * et affiche un composant de secours en cas d'erreur
  */
 class ErrorBoundary extends React.Component<Props, State> {
-  state: State;
-  props: Props;
   
   constructor(props: Props) {
     super(props);
