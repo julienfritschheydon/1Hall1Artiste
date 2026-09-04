@@ -4,7 +4,7 @@ import { SubmissionParams } from "@/types/communityTypes";
 import { getImagePath } from "@/utils/imagePaths";
 
 // Interface pour stocker les informations de contribution contextuelle
-interface ContributionContext {
+export interface ContributionContext {
   type: "event" | "location";
   id: string;
   name: string;

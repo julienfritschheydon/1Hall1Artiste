@@ -68,13 +68,6 @@ export default function AnalyticsDebugger() {
     }
   };
   
-  const handleSendOnboardingComplete = () => {
-    analytics.trackOnboarding(EventAction.ONBOARDING_COMPLETE, {
-      total_slides_viewed: 5,
-      completion_time: new Date().toISOString()
-    });
-    logEvent('Événement onboarding_complete envoyé');
-  };
   
   const handleSendMapInteraction = () => {
     analytics.trackMapInteraction(EventAction.MAP_LOAD, {
@@ -214,12 +207,6 @@ export default function AnalyticsDebugger() {
           Simuler page_view
         </button>
         
-        <button 
-          onClick={handleSendOnboardingComplete}
-          className="bg-purple-500 hover:bg-purple-600 text-white py-2 px-4 rounded"
-        >
-          Simuler onboarding_complete
-        </button>
         
         <button 
           onClick={handleSendMapInteraction}

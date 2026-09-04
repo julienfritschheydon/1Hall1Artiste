@@ -4,8 +4,10 @@ import X from "lucide-react/dist/esm/icons/x"
 
 import { cn } from "@/lib/utils"
 
-// Types pour React.forwardRef
-type ElementRef<C extends React.ElementType> = React.ComponentPropsWithRef<C>["ref"];
+// Alias vers les types de React. La version précédente définissait
+// ElementRef<C> = ComponentPropsWithRef<C>["ref"], soit le type de la PROP ref
+// (Ref<HTMLDivElement>) et non celui de l'élément — d'où des refs non assignables.
+type ElementRef<C extends React.ElementType> = React.ElementRef<C>;
 type ComponentPropsWithoutRef<C extends React.ElementType> = React.ComponentPropsWithoutRef<C>;
 type HTMLAttributes<T> = React.HTMLAttributes<T>;
 

@@ -28,7 +28,7 @@ interface TreasureButtonProps {
   fullWidth?: boolean;
   icon?: React.ReactNode;
   children: React.ReactNode;
-  onClick?: () => void;
+  onClick?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   disabled?: boolean;
   className?: string;
   type?: 'button' | 'submit' | 'reset';
