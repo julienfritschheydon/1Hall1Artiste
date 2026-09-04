@@ -43,7 +43,6 @@ export const QRCode: React.FC<QRCodeProps> = ({
           size={size}
           level={level}
           includeMargin
-          quietZone={10}
         />
       </div>
       {includeDownload && (

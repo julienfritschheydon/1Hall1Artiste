@@ -41,14 +41,7 @@ export const runAnalyticsTestSuite = async () => {
   } catch (error) {
     console.error('❌ Test 2: Échec de l\'envoi d\'interaction', error);
   }
-  
-  // Test 3: Événement d'onboarding
-  try {
-    analytics.trackOnboarding(EventAction.ONBOARDING_COMPLETE, { method: 'test' });
-    console.log('✅ Test 3: Événement d\'onboarding envoyé');
-  } catch (error) {
-    console.error('❌ Test 3: Échec de l\'envoi d\'événement d\'onboarding', error);
-  }
+
   
   // Test 4: Événement de carte
   try {
@@ -115,9 +108,6 @@ export const runSpecificTest = (testName: string) => {
       break;
     case 'click':
       analytics.trackInteraction(EventAction.CLICK, 'specific-test-button', { button_id: 'specific-123' });
-      break;
-    case 'onboarding':
-      analytics.trackOnboarding(EventAction.ONBOARDING_COMPLETE, { method: 'specific-test' });
       break;
     case 'map':
       analytics.trackMapInteraction(EventAction.MAP_LOAD, { map_type: 'specific-test' });

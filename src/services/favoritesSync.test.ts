@@ -150,7 +150,7 @@ describe("favoritesSync", () => {
   });
 
   it("pagehide avec push en attente → sendBeacon Blob application/json", async () => {
-    const beacon = vi.fn(() => true);
+    const beacon = vi.fn((_url: string, _data?: BodyInit | null) => true);
     Object.defineProperty(navigator, "sendBeacon", { value: beacon, configurable: true });
     fetchMock.mockResolvedValue(okJson({ events: [], locations: [] }));
 
@@ -166,8 +166,7 @@ describe("favoritesSync", () => {
     const blob = beacon.mock.calls[0][1] as Blob;
     expect(blob.type).toBe("application/json");
 
-    // @ts-expect-error cleanup
-    delete navigator.sendBeacon;
+    delete (navigator as { sendBeacon?: unknown }).sendBeacon;
   });
 
   it("pagehide sans sendBeacon (jsdom par défaut) → pas d'exception", async () => {
