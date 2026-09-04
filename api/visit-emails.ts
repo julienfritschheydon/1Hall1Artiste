@@ -27,6 +27,9 @@ import { createRegistrationToken } from "./_token.js";
 
 const SITE_URL = process.env.PUBLIC_SITE_URL || "https://www.1hall1artiste.fr";
 const MAX_RETRIES = 3;
+const QUOTA_WARNING_THRESHOLD = 50;
+
+let quotaWarningAlertSent = false;
 
 // Q1, Q2: Send email with idempotency key + retry
 async function sendEmailWithRetry(
@@ -57,10 +60,25 @@ async function sendEmailWithRetry(
         headers: {
           "Content-Type": "application/json",
           "Idempotency-Key": idempotencyKey,
-          "X-Private-Key": process.env.EMAILJS_PRIVATE_KEY || "",
         },
         body: JSON.stringify(emailjsData),
       });
+
+      // Track quota from response headers
+      const remaining = res.headers.get("X-RateLimit-Remaining");
+      if (remaining) {
+        const quotaInt = parseInt(remaining);
+        console.log(`[emailjs-quota] ${quotaInt} requests remaining`);
+
+        // Alert admin if quota low (once per cron run)
+        if (quotaInt < QUOTA_WARNING_THRESHOLD && !quotaWarningAlertSent) {
+          quotaWarningAlertSent = true;
+          await sendAdminAlert(
+            "EmailJS Quota Warning",
+            `Only ${quotaInt} requests remaining. May be insufficient for next batch.`
+          );
+        }
+      }
 
       if (res.ok) {
         return true; // Success
@@ -97,12 +115,12 @@ async function sendAdminAlert(subject: string, message: string): Promise<void> {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Private-Key": process.env.EMAILJS_PRIVATE_KEY || "",
       },
       body: JSON.stringify({
         service_id: process.env.EMAILJS_SERVICE_ID,
-        template_id: process.env.EMAILJS_TEMPLATE_ID, // Use generic template
+        template_id: process.env.EMAILJS_TEMPLATE_ID,
         user_id: process.env.EMAILJS_PUBLIC_KEY,
+        accessToken: process.env.EMAILJS_PRIVATE_KEY,
         template_params: {
           to_email: process.env.VISIT_ALERT_EMAIL,
           subject,
@@ -126,6 +144,7 @@ function validateCronAuth(req: VercelRequest): boolean {
 
 // ==== JOB 1: Send 7d reminder ====
 async function sendReminderEmails7d(): Promise<{ sent: number; failed: number }> {
+  quotaWarningAlertSent = false; // Reset for this run
   const now = new Date();
   const sevenDaysLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
@@ -178,6 +197,7 @@ async function sendReminderEmails7d(): Promise<{ sent: number; failed: number }>
 
 // ==== JOB 2: Send 1d validation (Q15: auto-cancel if not confirmed) ====
 async function sendValidationEmails1d(): Promise<{ sent: number; autocancelled: number }> {
+  quotaWarningAlertSent = false; // Reset for this run
   const now = new Date();
   const oneDayLater = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
@@ -340,6 +360,7 @@ async function expirePendingRegistrations(): Promise<{ autocancelled: number }> 
 // Runs expirePendingRegistrations() first (Hobby plan caps cron at 1/day, so this
 // piggybacks on the existing daily slot instead of a dedicated cron entry).
 async function promoteFromWaitlist(): Promise<{ promoted: number; rejected: number; autocancelled: number }> {
+  quotaWarningAlertSent = false; // Reset for this run
   const { autocancelled } = await expirePendingRegistrations();
 
   const now = new Date();
