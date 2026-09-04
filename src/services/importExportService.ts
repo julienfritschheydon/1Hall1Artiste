@@ -169,7 +169,7 @@ export const exportEventsToCSV = (): string => {
         `"${event.title.replace(/"/g, '""')}"`,
         `"${event.artistName.replace(/"/g, '""')}"`,
         event.type,
-        `"${event.artistBio.replace(/"/g, '""')}"`,
+        `"${(event.artistBio ?? '').replace(/"/g, '""')}"`,
         `"${event.time.replace(/"/g, '""')}"`,
         `"${event.days.join(',')}"`,
         `"${event.locationName.replace(/"/g, '""')}"`
