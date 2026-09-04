@@ -164,7 +164,9 @@ describe("connexion admin (action admin-login)", () => {
 
       expect(res.status).toHaveBeenCalledWith(500);
       expect(payload(res)).not.toHaveProperty("token");
-      expect(payload(res)).toHaveProperty("error");
+      // Le message doit nommer la variable absente : un message générique avait envoyé
+      // chercher ADMIN_SECRET alors que c'était ARTIST_SECRET qui manquait.
+      expect((payload(res) as { error: string }).error).toMatch(/ADMIN_SECRET manquant/);
     } finally {
       process.env.ADMIN_SECRET = saved;
     }
@@ -225,6 +227,26 @@ describe("api/artist-link — mode admin", () => {
     );
 
     expect(res.status).toHaveBeenCalledWith(401);
+  });
+
+  it("ARTIST_SECRET absent → 500 nommant la variable (panne rencontrée en preview)", async () => {
+    // Le lien artiste est signé avec ARTIST_SECRET, pas avec les variables d'admin :
+    // configurer l'authentification admin ne suffit pas à faire marcher cette route.
+    stubFetch();
+    const saved = process.env.ARTIST_SECRET;
+    delete process.env.ARTIST_SECRET;
+    try {
+      const res = mockRes();
+      await artistLinkHandler(
+        mockReq({ adminToken: createAdminToken(), artistId: "chorale-label-diva-choeur-mixte" }),
+        res as never
+      );
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect((payload(res) as { error: string }).error).toMatch(/ARTIST_SECRET manquant/);
+    } finally {
+      process.env.ARTIST_SECRET = saved;
+    }
   });
 
   it("fiche inconnue → 404", async () => {

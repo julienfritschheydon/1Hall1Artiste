@@ -147,9 +147,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (err) {
     console.error("[artist-link] erreur:", err);
     if (isAdminCall) {
-      return res
-        .status(500)
-        .json({ error: "Opération admin impossible — vérifiez ADMIN_PASSWORD et ADMIN_SECRET côté serveur" });
+      // getSecret lève un message qui nomme la variable absente (« X manquant »). Le
+      // renvoyer évite d'envoyer l'admin chercher au mauvais endroit : la génération de
+      // lien signe un token ARTISTE, elle échoue donc sur ARTIST_SECRET et non sur les
+      // variables d'authentification admin.
+      const detail = err instanceof Error && /manquant/.test(err.message) ? ` (${err.message})` : "";
+      return res.status(500).json({
+        error: `Opération admin impossible — vérifiez la configuration serveur${detail}`,
+      });
     }
     return res.status(200).json(generic); // flux public : rester générique même en erreur
   }

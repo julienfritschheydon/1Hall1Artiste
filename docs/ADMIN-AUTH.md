@@ -28,12 +28,19 @@ Désormais :
 | --- | --- |
 | `ADMIN_PASSWORD` | Le mot de passe saisi dans l'écran d'administration. |
 | `ADMIN_SECRET` | Clé de signature HMAC des tokens admin. Chaîne longue et aléatoire, sans rapport avec `ADMIN_PASSWORD`. |
+| `ARTIST_SECRET` | Préexistante. Signe les tokens **artiste** — donc nécessaire à la génération de lien, même quand l'authentification admin est correctement configurée. |
 
-Les deux sont à définir dans Vercel (Project → Settings → Environment Variables), pour
+Les trois sont à définir dans Vercel (Project → Settings → Environment Variables), pour
 Production **et** Preview. Si `ADMIN_PASSWORD` est absent, la connexion répond 500 : une
 configuration incomplète ferme la porte, elle ne l'ouvre jamais.
 
 Changer `ADMIN_SECRET` invalide immédiatement toutes les sessions admin en cours.
+
+Piège rencontré en preview : l'authentification admin peut fonctionner pendant que la
+génération de lien échoue, parce qu'elles ne dépendent pas des mêmes variables. Se
+connecter n'atteste que d'`ADMIN_PASSWORD` et `ADMIN_SECRET` ; le bouton « Lien d'édition »
+exige en plus `ARTIST_SECRET`, qui n'est pas toujours définie sur Preview alors qu'elle
+l'est en Production. Donner la même valeur des deux côtés garde les liens valides partout.
 
 ## Sur la robustesse
 
