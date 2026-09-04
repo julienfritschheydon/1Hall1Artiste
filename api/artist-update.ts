@@ -1,5 +1,7 @@
-// POST { token, fields } → vérifie le token et écrit l'override de l'artiste dans Firebase.
-// L'artistId provient UNIQUEMENT du token : un artiste ne peut éditer que sa propre fiche.
+// POST { token, artistId?, fields } → vérifie le token et écrit l'override dans Firebase.
+// L'artistId doit appartenir à la liste signée dans le token : un artiste ne peut éditer
+// que ses propres fiches. Sans artistId dans le body, on retombe sur la première (compat
+// avec les liens et clients antérieurs au support multi-fiches).
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { verifyToken } from "./_token.js";
@@ -38,6 +40,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!result.valid) return res.status(401).json({ error: "Lien invalide" });
     if (result.expired) return res.status(401).json({ error: "Lien expiré" });
 
+    const requested = typeof req.body?.artistId === "string" ? req.body.artistId.trim() : "";
+    const artistId = requested || result.artistId;
+    if (!result.artistIds.includes(artistId)) {
+      return res.status(403).json({ error: "Cette fiche n'est pas liée à votre lien" });
+    }
+
     const fields = (req.body?.fields || {}) as Record<string, unknown>;
     const override: ArtistOverride = { updatedAt: Date.now() };
     for (const field of EDITABLE_FIELDS) {
@@ -52,9 +60,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       override[field] = v;
     }
 
-    await putArtistOverride(result.artistId, override);
+    await putArtistOverride(artistId, override);
 
-    return res.status(200).json({ ok: true, artistId: result.artistId });
+    return res.status(200).json({ ok: true, artistId });
   } catch (err) {
     console.error("[artist-update] erreur:", err);
     return res.status(500).json({ error: "Échec de l'enregistrement" });

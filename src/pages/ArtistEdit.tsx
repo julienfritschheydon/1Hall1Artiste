@@ -27,39 +27,67 @@ export default function ArtistEdit() {
   const decoded = useMemo(() => decodeToken(token), [token]);
   const { toast } = useToast();
 
-  const [artist, setArtist] = useState<Artist | undefined>(undefined);
-  const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  // Un lien peut couvrir plusieurs fiches (même email inscrit plusieurs fois).
+  const artistIds = useMemo(() => decoded?.artistIds ?? [], [decoded]);
+  const [activeId, setActiveId] = useState("");
+  const [artists, setArtists] = useState<Record<string, Artist>>({});
+  const [forms, setForms] = useState<Record<string, FormState>>({});
+  const [places, setPlaces] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [resending, setResending] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-  const initialized = useRef(false);
+  const initialized = useRef<Set<string>>(new Set());
 
-  // Charge l'artiste depuis le programme (abonnement au dataService).
+  // Fiche affichée : le premier onglet tant que l'artiste n'a rien choisi.
+  const currentId = activeId || artistIds[0] || "";
+  const artist = artists[currentId];
+  const form = forms[currentId] ?? EMPTY_FORM;
+
+  // Charge les fiches du lien depuis le programme (abonnement au dataService).
   useEffect(() => {
     if (!decoded || decoded.expired) return;
     const sync = () => {
-      const a = dataService.getArtistById(decoded.artistId);
-      if (a && !initialized.current) {
-        initialized.current = true;
-        setArtist(a);
-        setForm({
-          presentation: a.presentation || "",
-          instagram: a.instagram || "",
-          facebook: a.facebook || "",
-          website: a.website || "",
-          thumbnail: a.thumbnail || a.image || "",
-        });
-      } else if (a) {
-        setArtist(a);
+      const found: Record<string, Artist> = {};
+      const seeded: Record<string, FormState> = {};
+      const hints: Record<string, string> = {};
+
+      for (const id of artistIds) {
+        const a = dataService.getArtistById(id);
+        if (!a) continue;
+        found[id] = a;
+
+        // Lieu de la fiche : sert à distinguer deux fiches homonymes dans les onglets
+        // (ex. un même exposant présent dans deux halls).
+        const ev = dataService.getEvents().find((e) => e.artistId === id);
+        const place = ev ? dataService.getLocationById(ev.locationId)?.name : undefined;
+        if (place) hints[id] = place;
+
+        // Pré-remplissage une seule fois par fiche : un refresh du programme ne doit pas
+        // écraser ce que l'artiste est en train de taper.
+        if (!initialized.current.has(id)) {
+          initialized.current.add(id);
+          seeded[id] = {
+            presentation: a.presentation || "",
+            instagram: a.instagram || "",
+            facebook: a.facebook || "",
+            website: a.website || "",
+            thumbnail: a.thumbnail || a.image || "",
+          };
+        }
       }
+
+      if (Object.keys(found).length > 0) setArtists((prev) => ({ ...prev, ...found }));
+      if (Object.keys(hints).length > 0) setPlaces((prev) => ({ ...prev, ...hints }));
+      // prev en dernier : les saisies en cours l'emportent sur le pré-remplissage.
+      if (Object.keys(seeded).length > 0) setForms((prev) => ({ ...seeded, ...prev }));
     };
     sync();
     const unsub = dataService.subscribe(sync);
     dataService.refreshProgram();
     return unsub;
-  }, [decoded]);
+  }, [decoded, artistIds]);
 
   // ── Lien invalide / expiré ────────────────────────────────────────────────
   if (!token || !decoded) {
@@ -85,8 +113,11 @@ export default function ArtistEdit() {
     );
   }
 
+  const patchForm = (patch: Partial<FormState>) =>
+    setForms((prev) => ({ ...prev, [currentId]: { ...(prev[currentId] ?? EMPTY_FORM), ...patch } }));
+
   const set = (k: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-    setForm((f) => ({ ...f, [k]: e.target.value }));
+    patchForm({ [k]: e.target.value } as Partial<FormState>);
 
   async function onPickImage(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -106,7 +137,7 @@ export default function ArtistEdit() {
         maxSizeKB: 800,
       });
       const url = await uploadThumbnail(compressed);
-      setForm((f) => ({ ...f, thumbnail: url }));
+      patchForm({ thumbnail: url });
     } catch (err) {
       toast({ title: "Échec de l'envoi", description: "L'image n'a pas pu être envoyée.", variant: "destructive" });
     } finally {
@@ -120,7 +151,7 @@ export default function ArtistEdit() {
     if (!artist) return; // évite d'écraser les overrides avec un formulaire non pré-rempli
     setSaving(true);
     try {
-      await saveArtistFields(token, form);
+      await saveArtistFields(token, currentId, form);
       dataService.refreshProgram({ force: true });
       setSaved(true);
       toast({ title: "Modifications enregistrées", description: "En ligne d'ici environ 1 minute." });
@@ -131,10 +162,57 @@ export default function ArtistEdit() {
     }
   }
 
+  const multi = artistIds.length > 1;
+
+  // Deux fiches peuvent porter le même nom (même exposant dans deux halls) : on ajoute
+  // alors le lieu pour que les onglets restent distinguables.
+  const tabLabel = (id: string) => {
+    const name = artists[id]?.name || id;
+    const homonyme = artistIds.some((other) => other !== id && artists[other]?.name === name);
+    const place = places[id];
+    return homonyme && place ? `${name} — ${place}` : name;
+  };
+
   return (
     <div className="max-w-md mx-auto px-4 py-6">
-      <h1 className="text-xl font-semibold mb-1">Modifier ma fiche</h1>
-      {artist && <p className="text-sm text-gray-500 mb-4">{artist.name}</p>}
+      <h1 className="text-xl font-semibold mb-1">
+        {multi ? "Modifier mes fiches" : "Modifier ma fiche"}
+      </h1>
+
+      {multi ? (
+        <>
+          <p className="text-sm text-gray-500 mb-3">
+            Votre adresse est inscrite sur {artistIds.length} fiches. Chacune s'enregistre
+            séparément.
+          </p>
+          <div role="tablist" aria-label="Mes fiches" className="flex flex-wrap gap-2 mb-5">
+            {artistIds.map((id) => {
+              const active = id === currentId;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => {
+                    setActiveId(id);
+                    setSaved(false);
+                  }}
+                  className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
+                    active
+                      ? "border-transparent bg-gray-900 text-white"
+                      : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                  }`}
+                >
+                  {tabLabel(id)}
+                </button>
+              );
+            })}
+          </div>
+        </>
+      ) : (
+        artist && <p className="text-sm text-gray-500 mb-4">{artist.name}</p>
+      )}
 
       <form onSubmit={onSubmit} className="space-y-5">
         {/* Vignette */}

@@ -12,6 +12,9 @@ export const ARTIST_EDITABLE_FIELDS = [
 export type ArtistFields = Partial<Record<(typeof ARTIST_EDITABLE_FIELDS)[number], string>>;
 
 export interface DecodedToken {
+  // Toutes les fiches couvertes par le lien (un email peut être inscrit plusieurs fois).
+  artistIds: string[];
+  // Première fiche, pratique quand il n'y en a qu'une.
   artistId: string;
   email: string;
   exp: number;
@@ -30,10 +33,12 @@ export function decodeToken(token: string): DecodedToken | null {
     const [payloadB64] = token.split(".");
     if (!payloadB64) return null;
     const payload = fromB64url(payloadB64);
-    const [artistId, email, expStr] = payload.split("|");
+    const [idsPart, email, expStr] = payload.split("|");
     const exp = Number(expStr);
-    if (!artistId || !email || !Number.isFinite(exp)) return null;
-    return { artistId, email, exp, expired: Date.now() > exp };
+    if (!idsPart || !email || !Number.isFinite(exp)) return null;
+    const artistIds = idsPart.split(",").filter(Boolean);
+    if (artistIds.length === 0) return null;
+    return { artistIds, artistId: artistIds[0], email, exp, expired: Date.now() > exp };
   } catch {
     return null;
   }
@@ -55,12 +60,17 @@ export async function uploadThumbnail(file: File): Promise<string> {
   return data.secure_url as string;
 }
 
-// Enregistre les champs édités. Renvoie une erreur lisible si le token est refusé.
-export async function saveArtistFields(token: string, fields: ArtistFields): Promise<void> {
+// Enregistre les champs édités d'une fiche. Renvoie une erreur lisible si le token est
+// refusé, ou si la fiche visée n'est pas couverte par le lien (403 côté serveur).
+export async function saveArtistFields(
+  token: string,
+  artistId: string,
+  fields: ArtistFields
+): Promise<void> {
   const res = await fetch("/api/artist-update", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ token, fields }),
+    body: JSON.stringify({ token, artistId, fields }),
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));

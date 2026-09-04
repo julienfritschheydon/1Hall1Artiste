@@ -109,14 +109,25 @@ export function parseCsv(text: string): Record<string, string>[] {
 
 // Construit la table email → artistId à partir des deux Sheets.
 // Réutilise la même logique de nom + slug que /api/program pour garantir des IDs identiques.
-export async function buildEmailToArtistId(): Promise<Map<string, string>> {
+// Un même email peut porter plusieurs fiches (ex. une chorale inscrite avec un chœur
+// mixte ET un chœur de femmes, un exposant présent dans deux halls). On collecte donc
+// TOUS les artistId d'un email : écraser reviendrait à rendre les autres fiches
+// inéditables depuis le portail.
+export async function buildEmailToArtistIds(): Promise<Map<string, string[]>> {
   const [expoCsv, concertCsv] = await Promise.all([
     fetchCsv(csvUrl(SHEETS.expositions.id, SHEETS.expositions.gid)),
     fetchCsv(csvUrl(SHEETS.concerts.id, SHEETS.concerts.gid)),
   ]);
 
   const artistIds = new Set<string>();
-  const map = new Map<string, string>();
+  const map = new Map<string, string[]>();
+
+  const add = (email: string, artistId: string) => {
+    if (!email) return;
+    const existing = map.get(email);
+    if (existing) existing.push(artistId);
+    else map.set(email, [artistId]);
+  };
 
   // Expos — mêmes filtres que buildExpos dans program.ts pour garantir des IDs identiques.
   for (const row of parseCsv(expoCsv)) {
@@ -126,8 +137,10 @@ export async function buildEmailToArtistId(): Promise<Map<string, string>> {
     const adresse = pick(row, "Adresse expo", "Adresse");
     if (!locationSet.has(adresse)) continue;
     const email = pick(row, "Adresse e-mail", "Email").toLowerCase();
+    // ensureUniqueId est appelé pour CHAQUE ligne retenue, même sans email, afin que la
+    // numérotation des doublons reste alignée sur celle de program.ts.
     const artistId = ensureUniqueId(slugify(name), artistIds);
-    if (email) map.set(email, artistId);
+    add(email, artistId);
   }
 
   // Concerts — mêmes filtres que buildConcerts dans program.ts.
@@ -137,7 +150,7 @@ export async function buildEmailToArtistId(): Promise<Map<string, string>> {
     if (!parseYesNo(pick(row, "Samedi")) && !parseYesNo(pick(row, "Dimanche"))) continue;
     const email = pick(row, "Email").toLowerCase();
     const artistId = ensureUniqueId(slugify(name), artistIds);
-    if (email) map.set(email, artistId);
+    add(email, artistId);
   }
 
   return map;
