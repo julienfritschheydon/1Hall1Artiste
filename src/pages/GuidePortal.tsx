@@ -66,23 +66,42 @@ export default function GuidePortal() {
   async function fetchRegistrationStats(toursData: Tour[], code: string) {
     const counts: Record<string, number> = {};
     const waitlists: Record<string, number> = {};
-    for (const tour of toursData) {
-      try {
-        const attRes = await fetch(`/api/visit-attendance?tourId=${tour.id}`, { headers: { "x-guide-code": code } });
-        const wlRes = await fetch(`/api/visit-waitlist?tourId=${tour.id}`, { headers: { "x-guide-code": code } });
-        if (attRes.ok) {
-          const data = await attRes.json();
-          counts[tour.id] = data.registrations?.length || 0;
+    const headers = { "x-guide-code": code };
+
+    try {
+      const results = await Promise.all(
+        toursData.flatMap((tour) => [
+          fetch(`/api/visit-attendance?tourId=${tour.id}`, { headers }).then((res) => ({
+            type: "attendance" as const,
+            tourId: tour.id,
+            res,
+          })),
+          fetch(`/api/visit-waitlist?tourId=${tour.id}`, { headers }).then((res) => ({
+            type: "waitlist" as const,
+            tourId: tour.id,
+            res,
+          })),
+        ])
+      );
+
+      for (const result of results) {
+        try {
+          if (!result.res.ok) continue;
+          const data = await result.res.json();
+          if (result.type === "attendance") {
+            counts[result.tourId] = data.registrations?.length || 0;
+          } else {
+            const active = (data.waitlist || []).filter((w: any) => !w.rejectedAt);
+            waitlists[result.tourId] = active.length;
+          }
+        } catch (e) {
+          console.error("Error processing stats for tour", result.tourId, e);
         }
-        if (wlRes.ok) {
-          const data = await wlRes.json();
-          const active = (data.waitlist || []).filter((w: any) => !w.rejectedAt);
-          waitlists[tour.id] = active.length;
-        }
-      } catch (e) {
-        console.error("Error fetching stats for tour", tour.id, e);
       }
+    } catch (e) {
+      console.error("Error fetching registration stats:", e);
     }
+
     setRegistrationCounts(counts);
     setWaitlistCounts(waitlists);
   }
