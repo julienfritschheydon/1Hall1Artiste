@@ -122,6 +122,29 @@ const Map = ({ fullScreen = false }: MapProps) => {
     [mapLocations]
   );
   
+  // Événements navigables dans la vue détail : ceux du lieu ouvert, sinon tous.
+  // Triés par heure de début pour un ordre de navigation cohérent.
+  const eventStartMinutes = (timeRange?: string): number => {
+    const match = timeRange?.match(/(\d{1,2})h(\d{2})/);
+    if (!match) return Number.MAX_SAFE_INTEGER;
+    return parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
+  };
+
+  const navigableEvents = useMemo(() => {
+    const base = activeLocation ? getLocationEvents(activeLocation) : allEvents;
+    return [...base].sort((a, b) => eventStartMinutes(a.time) - eventStartMinutes(b.time));
+  }, [activeLocation, allEvents]);
+
+  const [eventSwipeIndex, setEventSwipeIndex] = useState<number>(0);
+
+  // Synchroniser l'index avec l'événement sélectionné
+  useEffect(() => {
+    if (selectedEvent) {
+      const index = navigableEvents.findIndex(e => e.id === selectedEvent.id);
+      if (index !== -1) setEventSwipeIndex(index);
+    }
+  }, [selectedEvent, navigableEvents]);
+
   // Synchroniser l'index avec le lieu actif
   useEffect(() => {
     if (activeLocation) {
@@ -694,6 +717,21 @@ const Map = ({ fullScreen = false }: MapProps) => {
           setHighlightedLocation(null); // Réinitialiser la mise en évidence
         }}
         source="map"
+        navigableEvents={navigableEvents}
+        currentIndex={eventSwipeIndex}
+        onIndexChange={(newIndex) => {
+          const newEvent = navigableEvents[newIndex];
+          if (newEvent) {
+            setSelectedEvent(newEvent);
+            setEventSwipeIndex(newIndex);
+            analytics.trackFeatureUse('swipe_navigation', {
+              direction: newIndex > eventSwipeIndex ? 'next' : 'previous',
+              from_event: selectedEvent?.id,
+              to_event: newEvent.id,
+              page: 'map'
+            });
+          }
+        }}
       />
       
       {/* Boîte de dialogue de consentement de localisation retirée */}

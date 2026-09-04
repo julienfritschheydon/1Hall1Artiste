@@ -41,6 +41,15 @@ export default function SavedEvents() {
 
   // États pour les détails d'événement
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+  const [eventSwipeIndex, setEventSwipeIndex] = useState<number>(0);
+
+  // Synchroniser l'index de navigation avec l'événement ouvert
+  useEffect(() => {
+    if (selectedEvent) {
+      const index = savedEvents.findIndex(e => e.id === selectedEvent.id);
+      if (index !== -1) setEventSwipeIndex(index);
+    }
+  }, [selectedEvent, savedEvents]);
   const [eventDetailsOpen, setEventDetailsOpen] = useState<boolean>(false);
 
   // États pour les célébrations
@@ -885,6 +894,15 @@ export default function SavedEvents() {
             setSelectedEvent(null);
           }}
           source="saved"
+          navigableEvents={savedEvents}
+          currentIndex={eventSwipeIndex}
+          onIndexChange={(newIndex) => {
+            const newEvent = savedEvents[newIndex];
+            if (newEvent) {
+              setSelectedEvent(newEvent);
+              setEventSwipeIndex(newIndex);
+            }
+          }}
         />
 
         <TourDetailsModal
