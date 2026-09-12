@@ -1,12 +1,12 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BackButton } from "@/components/ui/BackButton";
 import { analytics, EventAction } from "@/services/firebaseAnalytics";
 import "@/styles/decorations.css"; // Import des décorations
 import { type Event } from "@/data/events";
 import { useEvents } from "@/hooks/useData";
-import { EventFilter } from "@/components/EventFilter";
+import { ProgramFilters } from "@/components/ProgramFilters";
+import { ALL_DAYS, ALL_TYPES, daySections, toggleDay, type Day } from "@/utils/programFilters";
 import { ShareButton } from "@/components/ShareButton";
 import { BottomNavigation } from "@/components/BottomNavigation";
 import { EventDetailsNew as EventDetails } from "@/components/EventDetailsModern";
@@ -21,19 +21,26 @@ import { TourDetailsModal } from "@/components/TourDetailsModal";
 import { TourCardModern } from "@/components/TourCardModern";
 import { groupToursByDayAndTime } from "@/utils/groupTours";
 
-const DAY_INDEX: Record<"samedi" | "dimanche", number> = { samedi: 6, dimanche: 0 };
-const toursByDay = (tours: Tour[], day: "samedi" | "dimanche") =>
+const DAY_INDEX: Record<Day, number> = { samedi: 6, dimanche: 0 };
+const toursByDay = (tours: Tour[], day: Day) =>
   tours.filter((t) => new Date(t.date).getDay() === DAY_INDEX[day]);
 
 const Program = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { events: allRemoteEvents, isLoading: eventsLoading } = useEvents();
-  const getEventsByDay = (day: "samedi" | "dimanche") =>
+  const getEventsByDay = (day: Day) =>
     allRemoteEvents.filter(e => e.days.includes(day));
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [selectedTour, setSelectedTour] = useState<Tour | null>(null);
-  const [currentFilter, setCurrentFilter] = useState<string>("");
+  // Jour : les deux cochés par défaut, on peut en décocher un (jamais les deux).
+  const [selectedDays, setSelectedDays] = useState<Day[]>(ALL_DAYS);
+  // Type : « Tout » par défaut, sinon une seule catégorie.
+  const [currentFilter, setCurrentFilter] = useState<string>(ALL_TYPES);
+  // Le header est fixe : on mesure sa hauteur réelle pour décaler la liste,
+  // plutôt qu'une valeur codée en dur qui cachait la première carte.
+  const headerRef = useRef<HTMLDivElement>(null);
+  const [headerHeight, setHeaderHeight] = useState(0);
   const [savedEventIds, setSavedEventIds] = useState<string[]>([]);
   const [eventSwipeIndex, setEventSwipeIndex] = useState<number>(0);
   const [tourSwipeIndex, setTourSwipeIndex] = useState<number>(0);
@@ -92,6 +99,24 @@ const Program = () => {
     analytics.trackProgramInteraction(EventAction.FILTER, { filter });
   };
 
+  const handleToggleDay = (day: Day) => {
+    const next = toggleDay(selectedDays, day);
+    if (next === selectedDays) return;
+    setSelectedDays(next);
+    analytics.trackProgramInteraction(EventAction.FILTER, { days: next.join(",") });
+  };
+
+  useLayoutEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    const measure = () => setHeaderHeight(el.getBoundingClientRect().height);
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   // Catégorie d'affichage d'un event : "Type d'événement" (Sheet) sinon label du type technique.
   const catOf = (e: Event) => e.category || (e.type === 'exposition' ? 'Exposition' : 'Concert');
 
@@ -110,15 +135,15 @@ const Program = () => {
     return Array.from(set).sort((a, b) => order(a) - order(b) || a.localeCompare(b));
   }, [allRemoteEvents, tours, toursLoading]);
 
-  // Sélectionne le premier onglet dès que les catégories sont connues.
+  // Si la catégorie choisie disparaît (données rechargées), on revient à « Tout ».
   useEffect(() => {
-    if (categories.length && !categories.includes(currentFilter)) {
-      setCurrentFilter(categories[0]);
+    if (currentFilter !== ALL_TYPES && categories.length && !categories.includes(currentFilter)) {
+      setCurrentFilter(ALL_TYPES);
     }
   }, [categories, currentFilter]);
 
   const filterEvents = (events: Event[], filter: string) => {
-    if (!filter || filter === "all") return events;
+    if (!filter || filter === ALL_TYPES) return events;
     return events.filter(event => catOf(event) === filter);
   };
   
@@ -134,16 +159,19 @@ const Program = () => {
     return [...items].sort((a, b) => startMinutes(a.time) - startMinutes(b.time));
   };
   
-  // Tous les événements triés chronologiquement pour la navigation - MÉMOÏSÉ
-  const allEventsSorted = useMemo(() => sortByStartTime([
-    ...getEventsByDay("samedi"),
-    ...getEventsByDay("dimanche")
-  ]), []);
-  
-  // Événements filtrés et triés - MÉMOÏSÉ
-  const filteredEventsSorted = useMemo(() => sortByStartTime(
-    filterEvents(allEventsSorted, currentFilter)
-  ), [allEventsSorted, currentFilter]);
+  // Événements visibles (jours cochés + type), dans l'ordre d'affichage, pour la
+  // navigation par balayage dans la fiche. Un événement présent les deux jours
+  // n'apparaît qu'une fois.
+  const filteredEventsSorted = useMemo(() => {
+    const seen = new Set<string>();
+    const out: Event[] = [];
+    for (const { day } of daySections(selectedDays)) {
+      for (const e of sortByStartTime(filterEvents(getEventsByDay(day), currentFilter))) {
+        if (!seen.has(e.id)) { seen.add(e.id); out.push(e); }
+      }
+    }
+    return out;
+  }, [allRemoteEvents, selectedDays, currentFilter]);
   
   // Synchroniser l'index avec l'événement sélectionné
   useEffect(() => {
@@ -178,123 +206,80 @@ const Program = () => {
       backgroundPosition: 'center',
       backgroundAttachment: 'scroll'
     }}>
-      {/* Touches de pinceau décoratives */}
+      {/* Touches de pinceau décoratives (discrètes, sous le contenu) */}
       <div className="brush-stroke-left"></div>
       <div className="brush-stroke-left-2"></div>
 
-      {/* Pinceaux en bas à droite */}
-      <div
-        className="fixed bottom-14 right-0 pointer-events-none z-20"
-        style={{
-          width: '201px',
-          height: '259px',
-          backgroundImage: `url('${getImagePath('/images/Pinceaux.png')}')`,
-          backgroundSize: 'contain',
-          backgroundRepeat: 'no-repeat',
-          backgroundPosition: 'bottom right'
-        }}
-      />
-      
-      {/* Tabs englobant header + contenu pour que TabsList réside dans le header */}
-      <Tabs defaultValue="dimanche" className="w-full">
-        {/* Header fixe en haut */}
-        <div className="fixed top-0 left-0 right-0 z-50 border-b border-gray-200/50" style={{
-          backgroundImage: `url('${IMAGE_PATHS.BACKGROUNDS.TEXTURED_CREAM}')`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center'
-        }}>
-          <div className="container mx-auto px-4 py-4 max-w-4xl">
-            <header className="mb-4 flex items-center justify-between">
-              <BackButton to="/map" />
-              <h1 className="text-2xl font-bold text-[#1a2138]">Programme</h1>
-              <ShareButton 
-                title="Programme - Collectif Île Feydeau"
-                text="Découvrez le programme des événements du Collectif Île Feydeau"
-                url={typeof window !== 'undefined' ? window.location.href : ''}
-              />
-            </header>
-            
-            <div className="mb-3 fade-in">
-              <EventFilter filters={categories} onFilterChange={handleFilterChange} currentFilter={currentFilter} />
-            </div>
-            
-            {/* Onglets jours directement sous les filtres, toujours visibles */}
-            <div className="mb-1">
-              <div className="flex justify-center">
-                <TabsList className="bg-transparent p-0 h-auto gap-2">
-                  <TabsTrigger 
-                    value="samedi"
-                    className="bg-white/80 text-gray-700 data-[state=active]:bg-[#ff7a45] data-[state=active]:text-white data-[state=active]:border-[#ff7a45] rounded-full px-6 py-2 border border-gray-300 font-medium text-sm min-w-[100px] shadow-sm hover:bg-white transition-all duration-200"
-                  >
-                    Samedi
-                  </TabsTrigger>
-                  <TabsTrigger 
-                    value="dimanche"
-                    className="bg-white/80 text-gray-700 data-[state=active]:bg-[#ff7a45] data-[state=active]:text-white data-[state=active]:border-[#ff7a45] rounded-full px-6 py-2 border border-gray-300 font-medium text-sm min-w-[100px] shadow-sm hover:bg-white transition-all duration-200"
-                  >
-                    Dimanche
-                  </TabsTrigger>
-                </TabsList>
-              </div>
-            </div>
-          </div>
+      {/* Header fixe en haut : titre + une ligne de deux filtres */}
+      <div ref={headerRef} className="fixed top-0 left-0 right-0 z-50 border-b border-gray-200/50" style={{
+        backgroundImage: `url('${IMAGE_PATHS.BACKGROUNDS.TEXTURED_CREAM}')`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center'
+      }}>
+        <div className="container mx-auto px-4 pt-4 pb-3 max-w-4xl">
+          <header className="mb-3 flex items-center justify-between">
+            <BackButton to="/map" />
+            <h1 className="text-2xl font-bold text-[#1a2138]">Programme</h1>
+            <ShareButton
+              title="Programme - Collectif Île Feydeau"
+              text="Découvrez le programme des événements du Collectif Île Feydeau"
+              url={typeof window !== 'undefined' ? window.location.href : ''}
+            />
+          </header>
+          <ProgramFilters
+            selectedDays={selectedDays}
+            onToggleDay={handleToggleDay}
+            categories={categories}
+            currentFilter={currentFilter}
+            onFilterChange={handleFilterChange}
+          />
         </div>
-        
-        {/* Contenu avec padding-top pour compenser le header fixe (hauteur titre + filtres + onglets) */}
-        <div className="container mx-auto px-4 max-w-4xl relative z-10" style={{ paddingTop: '200px' }}>
-          {currentFilter === 'Visites guidées' ? (
-            <>
-              <TabsContent value="samedi" className="space-y-4">
-                {toursLoading ? (
-                  <p className="text-gray-600 py-4 text-center text-sm">Chargement…</p>
-                ) : (
-                  <TourSlotsList tours={toursByDay(tours, "samedi")} onTourClick={setSelectedTour} />
-                )}
-              </TabsContent>
-              <TabsContent value="dimanche" className="space-y-4">
-                {toursLoading ? (
-                  <p className="text-gray-600 py-4 text-center text-sm">Chargement…</p>
-                ) : (
-                  <TourSlotsList tours={toursByDay(tours, "dimanche")} onTourClick={setSelectedTour} />
-                )}
-              </TabsContent>
-            </>
-          ) : (
-            <>
-              <TabsContent value="samedi" className="space-y-4">
-                {sortByStartTime(filterEvents(getEventsByDay("samedi"), currentFilter)).map((event, index) => (
-                  <div key={`samedi-${event.id}`}>
-                    <EventCardModern
-                      event={event}
-                      isSaved={savedEventIds.includes(event.id)}
-                      cardIndex={index}
-                      onEventClick={() => setSelectedEvent(event)}
-                      onSaveClick={(e) => handleSaveEvent(event, e)}
-                    />
-                  </div>
-                ))}
-              </TabsContent>
+      </div>
 
-              <TabsContent value="dimanche" className="space-y-4">
-                {sortByStartTime(filterEvents(getEventsByDay("dimanche"), currentFilter)).map((event, index) => (
-                  <div key={`dimanche-${event.id}`}>
-                    <EventCardModern
-                      event={event}
-                      isSaved={savedEventIds.includes(event.id)}
-                      cardIndex={index}
-                      onEventClick={() => setSelectedEvent(event)}
-                      onSaveClick={(e) => handleSaveEvent(event, e)}
-                    />
-                  </div>
+      {/* Contenu décalé de la hauteur mesurée du header */}
+      <div className="container mx-auto px-4 max-w-4xl relative z-10" style={{ paddingTop: headerHeight + 16 }}>
+        {daySections(selectedDays).map(({ day, title }) => {
+          const showEvents = currentFilter !== 'Visites guidées';
+          const showTours = currentFilter === ALL_TYPES || currentFilter === 'Visites guidées';
+          const dayEvents = showEvents ? sortByStartTime(filterEvents(getEventsByDay(day), currentFilter)) : [];
+          const dayTours = showTours ? toursByDay(tours, day) : [];
+          return (
+            <section key={day} className="mb-6">
+              {title && (
+                <div className="flex items-center gap-3 mb-3">
+                  <h2 className="text-[15px] font-bold text-[#1a2138]">{title}</h2>
+                  <div className="flex-1 h-px bg-[#1a2138]/20" />
+                </div>
+              )}
+              <div className="space-y-4">
+                {dayEvents.map((event, index) => (
+                  <EventCardModern
+                    key={event.id}
+                    event={event}
+                    isSaved={savedEventIds.includes(event.id)}
+                    cardIndex={index}
+                    onEventClick={() => setSelectedEvent(event)}
+                    onSaveClick={(e) => handleSaveEvent(event, e)}
+                  />
                 ))}
-              </TabsContent>
-            </>
-          )}
-        </div>
-        
-        {/* Fin Tabs englobant */}
-      </Tabs>
-      
+              </div>
+              {showTours && (
+                currentFilter === 'Visites guidées' && toursLoading && dayTours.length === 0 ? (
+                  <p className="text-gray-600 py-4 text-center text-sm">Chargement…</p>
+                ) : (currentFilter === 'Visites guidées' || dayTours.length > 0) && (
+                  <div className={dayEvents.length > 0 ? "mt-4" : ""}>
+                    <TourSlotsList tours={dayTours} onTourClick={setSelectedTour} />
+                  </div>
+                )
+              )}
+              {showEvents && !showTours && dayEvents.length === 0 && !eventsLoading && (
+                <p className="text-gray-600 py-4 text-center text-sm">Aucun événement ce jour-là</p>
+              )}
+            </section>
+          );
+        })}
+      </div>
+
       <EventDetails 
         event={selectedEvent}
         isOpen={!!selectedEvent}
