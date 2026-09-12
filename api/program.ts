@@ -16,7 +16,16 @@ import {
 } from "./_sheets.js";
 import { fetchArtistOverrides, applyOverrides } from "./_overrides.js";
 
-const EXPO_DEFAULT_TIME = "12h00 - 19h00, samedi et dimanche";
+const EXPO_HOURS = "12h00 - 19h00";
+
+// Horaire affiché sur la fiche d'un exposant : reflète ses jours réels de présence
+// (Samedi/Dimanche dans le Sheet), au lieu d'annoncer systématiquement les deux jours.
+function expoTimeLabel(days: string[]): string {
+  if (days.includes("samedi") && days.includes("dimanche")) return `${EXPO_HOURS}, samedi et dimanche`;
+  if (days.includes("samedi")) return `${EXPO_HOURS}, samedi`;
+  if (days.includes("dimanche")) return `${EXPO_HOURS}, dimanche`;
+  return EXPO_HOURS;
+}
 
 // ── Parsers ───────────────────────────────────────────────────────────────────
 
@@ -67,7 +76,7 @@ function buildExpos(rows: Record<string, string>[], artistIds: Set<string>, even
       id: eventId,
       artistId,
       title,
-      time: EXPO_DEFAULT_TIME,
+      time: expoTimeLabel(days),
       days,
       locationId,
       locationName: locationId,

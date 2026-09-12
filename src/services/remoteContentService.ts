@@ -13,7 +13,7 @@ import {
   REMOTE_FETCH_TIMEOUT_MS,
   REMOTE_CACHE_TTL_MS,
   REMOTE_CACHE_KEY,
-  EXPO_DEFAULT_TIME,
+  expoTimeLabel,
 } from "@/config/remoteContent";
 import { Event } from "@/data/events";
 import { Artist } from "@/data/artists";
@@ -182,7 +182,7 @@ function buildExpoRows(
       id: eventId,
       artistId,
       title,
-      time: EXPO_DEFAULT_TIME,
+      time: expoTimeLabel(days),
       days,
       locationId,
       locationName,

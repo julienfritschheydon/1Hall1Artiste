@@ -42,4 +42,13 @@ export const CONCERT_TIME_SLOTS = [
   "18:30 - 19:00",
 ] as const;
 
-export const EXPO_DEFAULT_TIME = "12h00 - 19h00, samedi et dimanche";
+export const EXPO_HOURS = "12h00 - 19h00";
+
+// Horaire affiché sur la fiche d'un exposant : reflète ses jours réels de présence
+// (Samedi/Dimanche dans le Sheet), au lieu d'annoncer systématiquement les deux jours.
+export function expoTimeLabel(days: string[]): string {
+  if (days.includes("samedi") && days.includes("dimanche")) return `${EXPO_HOURS}, samedi et dimanche`;
+  if (days.includes("samedi")) return `${EXPO_HOURS}, samedi`;
+  if (days.includes("dimanche")) return `${EXPO_HOURS}, dimanche`;
+  return EXPO_HOURS;
+}
