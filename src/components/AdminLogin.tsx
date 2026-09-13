@@ -44,53 +44,51 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin }) => {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-[70vh]">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <div className="flex items-center justify-center mb-4">
-            <div className="bg-[#4a5d94] p-3 rounded-full">
-              <Lock className="h-6 w-6 text-white" />
-            </div>
+    <Card className="w-full max-w-md">
+      <CardHeader className="space-y-1">
+        <div className="flex items-center justify-center mb-4">
+          <div className="bg-[#4a5d94] p-3 rounded-full">
+            <Lock className="h-6 w-6 text-white" />
           </div>
-          <CardTitle className="text-2xl text-center text-[#4a5d94]">
-            Accès Administrateur
-          </CardTitle>
-          <CardDescription className="text-center">
-            Veuillez entrer le mot de passe pour accéder à l'interface d'administration
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit}>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="password">Mot de passe</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  autoComplete="current-password"
-                  maxLength={128}
-                  value={password}
-                  onChange={(e) => {
-                    setPassword(e.target.value);
-                    if (error) setError(null);
-                  }}
-                  className={error ? "border-red-500" : ""}
-                  placeholder="Votre mot de passe"
-                />
-                {error && (
-                  <p className="text-sm text-red-500">
-                    {error} {attempts > 1 ? `${attempts} tentatives échouées.` : ''}
-                  </p>
-                )}
-              </div>
-              <Button type="submit" className="w-full bg-[#4a5d94]" disabled={submitting || !password}>
-                {submitting ? 'Vérification…' : 'Se connecter'}
-              </Button>
+        </div>
+        <CardTitle className="text-2xl text-center text-[#4a5d94]">
+          Accès Administrateur
+        </CardTitle>
+        <CardDescription className="text-center">
+          Veuillez entrer le mot de passe pour accéder à l'interface d'administration
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit}>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="password">Mot de passe</Label>
+              <Input
+                id="password"
+                type="password"
+                autoComplete="current-password"
+                maxLength={128}
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (error) setError(null);
+                }}
+                className={error ? "border-red-500" : ""}
+                placeholder="Votre mot de passe"
+              />
+              {error && (
+                <p className="text-sm text-red-500" role="alert">
+                  {error} {attempts > 1 ? `${attempts} tentatives échouées.` : ''}
+                </p>
+              )}
             </div>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+            <Button type="submit" className="w-full bg-[#4a5d94]" disabled={submitting || !password}>
+              {submitting ? 'Vérification…' : 'Se connecter'}
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   );
 };
 
