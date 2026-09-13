@@ -8,7 +8,7 @@ import { SwipeIndicator } from "@/components/ui/SwipeIndicator";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
 import { getImagePath } from "@/utils/imagePaths";
-import { cloudinaryThumb } from "@/utils/cloudinary";
+import { cloudinaryThumb, cloudinaryOriginal } from "@/utils/cloudinary";
 import { safeHttpUrl } from "@/utils/url";
 import { setEventContributionContext } from "@/services/contextualContributionService";
 import ReactMarkdown from "react-markdown";
@@ -33,6 +33,7 @@ import ChevronUp from "lucide-react/dist/esm/icons/chevron-up";
 import MessageSquareQuote from "lucide-react/dist/esm/icons/message-square-quote";
 import ArrowLeft from "lucide-react/dist/esm/icons/arrow-left";
 import ArrowRight from "lucide-react/dist/esm/icons/arrow-right";
+import Download from "lucide-react/dist/esm/icons/download";
 import { analytics, EventAction, trackInteraction } from "@/services/firebaseAnalytics";
 import { addToCalendar, isCalendarSupported, CalendarErrorType } from "@/services/calendarService";
 import { toast } from "@/components/ui/use-toast";
@@ -325,6 +326,46 @@ export const EventDetailsNew = ({
     }
   };
   
+  // Fonction pour télécharger l'image de l'événement
+  const handleDownloadImage = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!event || !event.imageUrl) return;
+
+    try {
+      const imageUrl = cloudinaryOriginal(event.imageUrl) || event.imageUrl;
+
+      // Récupérer l'image
+      const response = await fetch(imageUrl);
+      if (!response.ok) throw new Error('Impossible de télécharger l\'image');
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+
+      // Créer élément de téléchargement
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${event.title || event.artistName || 'image'}.jpg`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      analytics.trackContentInteraction(EventAction.CLICK, 'download_image', event.id, {
+        event_title: event.title,
+        event_type: event.type
+      });
+    } catch (error) {
+      console.error('Erreur téléchargement image:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de télécharger l'image",
+        variant: "destructive"
+      });
+    }
+  };
+
   // Si pas d'événement ou si le dialogue n'est pas ouvert, ne rien afficher
   if (!event || !isOpen) return null;
   
@@ -383,7 +424,21 @@ export const EventDetailsNew = ({
             >
               <Calendar className="h-5 w-5" />
             </button>
-            
+
+            {/* Bouton télécharger l'image */}
+            {event.imageUrl && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDownloadImage(e);
+                }}
+                className="h-10 w-10 flex items-center justify-center rounded-full border-2 bg-white/70 border-gray-300 text-gray-600 hover:border-amber-500 hover:text-amber-500 transition-colors"
+                title="Télécharger l'image"
+              >
+                <Download className="h-5 w-5" />
+              </button>
+            )}
+
             {/* Bouton situer sur la carte */}
             <button
               onClick={(e) => {
