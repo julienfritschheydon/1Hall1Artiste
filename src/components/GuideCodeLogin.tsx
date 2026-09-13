@@ -61,8 +61,9 @@ export default function GuideCodeLogin({ onSubmit }: GuideCodeLoginProps) {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-2 text-[#4a4636]">Code d'accès</label>
+              <label htmlFor="guide-code" className="block text-sm font-medium mb-2 text-[#4a4636]">Code d'accès</label>
               <Input
+                id="guide-code"
                 type="text"
                 value={code}
                 onChange={(e) => setCode(e.target.value.toUpperCase())}
@@ -72,7 +73,7 @@ export default function GuideCodeLogin({ onSubmit }: GuideCodeLoginProps) {
             </div>
 
             {error && (
-              <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">{error}</div>
+              <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm" role="alert">{error}</div>
             )}
 
             <Button type="submit" disabled={loading} className="w-full text-white" style={{ backgroundColor: "#ff7a45" }}>

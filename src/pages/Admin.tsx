@@ -262,19 +262,23 @@ export default function Admin() {
 
   if (!isAuthenticated) {
     return (
-      <div className="container mx-auto py-4 px-4 sm:px-6 lg:px-8">
-        <div className="mb-6 flex items-center">
-          <Button
-            variant="ghost"
-            className="mr-2 p-0 h-auto"
-            onClick={() => navigate(-1)}
-          >
-            <ArrowLeft className="h-6 w-6" />
-          </Button>
-          <h1 className="text-2xl font-bold text-[#4a5d94]">Administration</h1>
+      <div className="min-h-screen flex flex-col">
+        <div className="container mx-auto py-4 px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center">
+            <Button
+              variant="ghost"
+              className="mr-2 p-0 h-auto"
+              onClick={() => navigate(-1)}
+            >
+              <ArrowLeft className="h-6 w-6" />
+            </Button>
+            <h1 className="text-2xl font-bold text-[#4a5d94]">Administration</h1>
+          </div>
         </div>
-        
-        <AdminLogin onLogin={handleLogin} />
+
+        <div className="flex-1 flex items-center justify-center px-4">
+          <AdminLogin onLogin={handleLogin} />
+        </div>
       </div>
     );
   }
