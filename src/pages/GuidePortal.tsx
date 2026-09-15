@@ -17,6 +17,12 @@ import { escapeCsvCell } from "@/utils/csv";
 const ORANGE = "#ff7a45";
 const orangeBtn = { backgroundColor: ORANGE };
 
+function placesCountHelper(r: any): number {
+  if (Array.isArray(r.companions) && r.companions.length > 0) return 1 + r.companions.length;
+  if (r.companionFirstName) return 2;
+  return 1;
+}
+
 export default function GuidePortal() {
   const [guideCode, setGuideCode] = useState<string | null>(null);
   const [authenticated, setAuthenticated] = useState(false);
@@ -89,10 +95,15 @@ export default function GuidePortal() {
           if (!result.res.ok) continue;
           const data = await result.res.json();
           if (result.type === "attendance") {
-            counts[result.tourId] = data.registrations?.length || 0;
+            const registrations = data.registrations || [];
+            const totalPlaces = registrations
+              .filter((r: any) => r.status === "confirmé" || r.status === "présent")
+              .reduce((sum: number, r: any) => sum + placesCountHelper(r), 0);
+            counts[result.tourId] = totalPlaces;
           } else {
             const active = (data.waitlist || []).filter((w: any) => !w.rejectedAt);
-            waitlists[result.tourId] = active.length;
+            const totalWaitlistPlaces = active.reduce((sum: number, w: any) => sum + (w.places ?? 1), 0);
+            waitlists[result.tourId] = totalWaitlistPlaces;
           }
         } catch (e) {
           console.error("Error processing stats for tour", result.tourId, e);

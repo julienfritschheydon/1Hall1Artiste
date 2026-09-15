@@ -51,7 +51,7 @@ export default function GuideDashboard({
 
   const toursWithStatus = tours.map((tour) => {
     const filled = registrationCounts[tour.id] || 0;
-    const remaining = tour.capacity - filled;
+    const remaining = tour.placesLeft ?? (tour.capacity - filled);
     const waitlist = waitlistCounts[tour.id] || 0;
     return { tour, filled, remaining, waitlist };
   });
