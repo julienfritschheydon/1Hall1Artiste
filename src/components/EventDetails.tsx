@@ -27,7 +27,7 @@ import { getSavedEvents, saveEvent, removeSavedEvent } from "@/services/savedEve
 import { artists as fallbackArtists } from "@/data/artists";
 import { dataService } from "@/services/dataService";
 import { ShareButton } from "@/components/ShareButton";
-import { buildShareUrl } from "@/utils/url";
+import { buildShareUrl, buildApiShareUrl } from "@/utils/url";
 import { getLocationNameById } from "@/data/locations";
 
 interface EventDetailsProps {
@@ -291,7 +291,12 @@ export const EventDetails = ({ event, isOpen, onClose, source }: EventDetailsPro
               <ShareButton
                 title={`${event.title} - Île Feydeau`}
                 text={`Découvrez ${event.title} par ${event.artistName} sur l'Île Feydeau à Nantes!`}
-                url={buildShareUrl(source === "map" ? `/map?event=${event.id}` : `/program?event=${event.id}`)}
+                url={buildApiShareUrl(
+                  source === "map" ? `/map?event=${event.id}` : `/program?event=${event.id}`,
+                  `${event.title} - Île Feydeau`,
+                  `Découvrez ${event.title} par ${event.artistName} sur l'Île Feydeau à Nantes!`,
+                  artist?.photos?.[0] ? `${window.location.origin}${artist.photos[0].startsWith('/') ? '' : '/'}${artist.photos[0]}` : undefined
+                )}
               />
               
               {/* Bouton fermer */}

@@ -47,7 +47,7 @@ import { artists as fallbackArtists } from "@/data/artists";
 import { dataService } from "@/services/dataService";
 import { ShareButton } from "@/components/ShareButton";
 import { getLocationNameById } from "@/data/locations";
-import { buildShareUrl } from "@/utils/url";
+import { buildShareUrl, buildApiShareUrl } from "@/utils/url";
 
 
 interface EventDetailsProps {
@@ -457,8 +457,11 @@ export const EventDetailsNew = ({
                 e.stopPropagation();
                 if (isSharing) return;
 
-                const shareUrl = buildShareUrl(
-                  source === "map" ? `/map?event=${event.id}` : `/program?event=${event.id}`
+                const shareUrl = buildApiShareUrl(
+                  source === "map" ? `/map?event=${event.id}` : `/program?event=${event.id}`,
+                  `${event.title} - Île Feydeau`,
+                  `Découvrez ${event.title} par ${event.artistName} sur l'Île Feydeau à Nantes!`,
+                  artist?.photos?.[0] ? `${window.location.origin}${artist.photos[0].startsWith('/') ? '' : '/'}${artist.photos[0]}` : undefined
                 );
                 if (navigator.share) {
                   setIsSharing(true);
