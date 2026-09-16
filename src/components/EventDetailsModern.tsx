@@ -457,11 +457,17 @@ export const EventDetailsNew = ({
                 e.stopPropagation();
                 if (isSharing) return;
 
+                // Résolution de la meilleure image disponible
+                const bestImage = event.imageUrl || artist?.thumbnail || artist?.image || artist?.photos?.[0];
+                const absoluteImgUrl = bestImage 
+                  ? (bestImage.startsWith('http') ? bestImage : `${window.location.origin}${getImagePath(bestImage)}`)
+                  : undefined;
+
                 const shareUrl = buildApiShareUrl(
                   source === "map" ? `/map?event=${event.id}` : `/program?event=${event.id}`,
                   `${event.title} - Île Feydeau`,
                   `Découvrez ${event.title} par ${event.artistName} sur l'Île Feydeau à Nantes!`,
-                  artist?.photos?.[0] ? `${window.location.origin}${artist.photos[0].startsWith('/') ? '' : '/'}${artist.photos[0]}` : undefined
+                  absoluteImgUrl
                 );
                 if (navigator.share) {
                   setIsSharing(true);

@@ -288,16 +288,25 @@ export const EventDetails = ({ event, isOpen, onClose, source }: EventDetailsPro
               />
               
               {/* Bouton share */}
-              <ShareButton
-                title={`${event.title} - Île Feydeau`}
-                text={`Découvrez ${event.title} par ${event.artistName} sur l'Île Feydeau à Nantes!`}
-                url={buildApiShareUrl(
-                  source === "map" ? `/map?event=${event.id}` : `/program?event=${event.id}`,
-                  `${event.title} - Île Feydeau`,
-                  `Découvrez ${event.title} par ${event.artistName} sur l'Île Feydeau à Nantes!`,
-                  artist?.photos?.[0] ? `${window.location.origin}${artist.photos[0].startsWith('/') ? '' : '/'}${artist.photos[0]}` : undefined
-                )}
-              />
+              {(() => {
+                const bestImage = event.imageUrl || artist?.thumbnail || artist?.image || artist?.photos?.[0];
+                const absoluteImgUrl = bestImage 
+                  ? (bestImage.startsWith('http') ? bestImage : `${window.location.origin}${getImagePath(bestImage)}`)
+                  : undefined;
+                  
+                return (
+                  <ShareButton
+                    title={`${event.title} - Île Feydeau`}
+                    text={`Découvrez ${event.title} par ${event.artistName} sur l'Île Feydeau à Nantes!`}
+                    url={buildApiShareUrl(
+                      source === "map" ? `/map?event=${event.id}` : `/program?event=${event.id}`,
+                      `${event.title} - Île Feydeau`,
+                      `Découvrez ${event.title} par ${event.artistName} sur l'Île Feydeau à Nantes!`,
+                      absoluteImgUrl
+                    )}
+                  />
+                );
+              })()}
               
               {/* Bouton fermer */}
               <ActionButton
