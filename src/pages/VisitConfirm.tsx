@@ -168,6 +168,13 @@ export default function VisitConfirm() {
           } else if (data.error === "token expired") {
             setStatus("error");
             setMessage("Lien expiré. Votre inscription a été annulée. Vous pouvez vous réinscrire.");
+          } else if (data.error === "registration already processed") {
+            setStatus("error");
+            setMessage(
+              data.status === "annulé"
+                ? "Cette inscription a été annulée. Vérifiez vos réservations dans l'onglet « Enregistrés »."
+                : "Cette inscription a déjà été traitée. Vérifiez vos réservations dans l'onglet « Enregistrés »."
+            );
           } else {
             setStatus("error");
             setMessage(data.error || "Validation impossible.");

@@ -406,9 +406,18 @@ async function handleConfirmRegistration(req: VercelRequest, res: VercelResponse
     }
 
     if (verified.expired) {
-      // Token expired: send expiration email
+      // Lien expiré mais inscription déjà confirmée (clic tardif sur le lien de
+      // l'email, parfois des semaines après) : l'inscription est valide, on ne
+      // doit ni afficher « annulée » ni envoyer l'email d'expiration.
+      const expiredReg = await rtdbRegistrationGet(verified.registrationId).catch(() => null);
+      if (expiredReg?.status === "confirmé" || expiredReg?.status === "présent") {
+        return res.json({ ok: true, status: expiredReg.status, message: "Inscription déjà confirmée" });
+      }
+      if (expiredReg && expiredReg.status !== "attente_validation") {
+        return res.status(400).json({ error: "registration already processed", status: expiredReg.status });
+      }
+      // Token expired on a pending registration: send expiration email
       try {
-        const expiredReg = await rtdbRegistrationGet(verified.registrationId);
         await sendRegistrationEmail("validation_expired", {
           to: verified.email,
           firstName: expiredReg?.firstName || "Participant",
