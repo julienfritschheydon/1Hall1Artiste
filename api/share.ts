@@ -1,4 +1,6 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+export const config = {
+  runtime: 'edge',
+};
 
 // Fonction simple pour échapper le HTML et éviter les failles XSS
 function escapeHtml(unsafe: string) {
@@ -10,12 +12,16 @@ function escapeHtml(unsafe: string) {
          .replace(/'/g, "&#039;");
 }
 
-export default function handler(req: VercelRequest, res: VercelResponse) {
-  const { title, desc, img, redirect } = req.query;
+export default async function handler(req: Request) {
+  const url = new URL(req.url);
+  const title = url.searchParams.get("title");
+  const desc = url.searchParams.get("desc");
+  const img = url.searchParams.get("img");
+  const redirect = url.searchParams.get("redirect");
 
-  const safeTitle = escapeHtml((title as string) || "Collectif Feydeau");
-  const safeDesc = escapeHtml((desc as string) || "Événements culturels sur l'Île Feydeau, Nantes");
-  const safeImg = escapeHtml((img as string) || "https://www.1hall1artiste.fr/Logo.png");
+  const safeTitle = escapeHtml(title || "Collectif Feydeau");
+  const safeDesc = escapeHtml(desc || "Événements culturels sur l'Île Feydeau, Nantes");
+  const safeImg = escapeHtml(img || "https://www.1hall1artiste.fr/Logo.png");
   
   // Validation et sécurisation de la redirection
   let safeRedirect = "/#/";
@@ -49,8 +55,11 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
 </body>
 </html>`;
 
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  // Cache public pour que les robots gardent l'image
-  res.setHeader('Cache-Control', 'public, max-age=3600, s-maxage=3600');
-  res.status(200).send(html);
+  return new Response(html, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'public, max-age=3600, s-maxage=3600'
+    }
+  });
 }
