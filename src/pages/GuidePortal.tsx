@@ -2,7 +2,7 @@
 // Fonctions: créer/modifier visite, voir inscrits + file d'attente,
 // inscription manuelle sur place, appel présences, export CSV + impression.
 import { useState, useEffect } from "react";
-import { Tour } from "../types/visitTypes";
+import { Tour, Registration } from "../types/visitTypes";
 import GuideCodeLogin from "../components/GuideCodeLogin";
 import GuideToursList from "../components/GuideToursList";
 import GuideDashboard from "../components/GuideDashboard";
@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getFestivalDates } from "@/utils/festival";
 import { escapeCsvCell } from "@/utils/csv";
+import { computeVisitAggregation, VisitAggregationStats } from "../utils/visitStats";
 
 const ORANGE = "#ff7a45";
 const orangeBtn = { backgroundColor: ORANGE };
@@ -34,6 +35,7 @@ export default function GuidePortal() {
   const [showDashboard, setShowDashboard] = useState(true);
   const [registrationCounts, setRegistrationCounts] = useState<Record<string, number>>({});
   const [waitlistCounts, setWaitlistCounts] = useState<Record<string, number>>({});
+  const [aggregationStats, setAggregationStats] = useState<VisitAggregationStats | null>(null);
 
   useEffect(() => {
     const stored = sessionStorage.getItem("guideCode");
@@ -70,8 +72,8 @@ export default function GuidePortal() {
   }
 
   async function fetchRegistrationStats(toursData: Tour[], code: string) {
-    const counts: Record<string, number> = {};
     const waitlists: Record<string, number> = {};
+    const registrationsByTour: Record<string, Registration[]> = {};
     const headers = { "x-guide-code": code };
 
     try {
@@ -95,11 +97,7 @@ export default function GuidePortal() {
           if (!result.res.ok) continue;
           const data = await result.res.json();
           if (result.type === "attendance") {
-            const registrations = data.registrations || [];
-            const totalPlaces = registrations
-              .filter((r: any) => r.status === "confirmé" || r.status === "présent")
-              .reduce((sum: number, r: any) => sum + placesCountHelper(r), 0);
-            counts[result.tourId] = totalPlaces;
+            registrationsByTour[result.tourId] = data.registrations || [];
           } else {
             const active = (data.waitlist || []).filter((w: any) => !w.rejectedAt);
             const totalWaitlistPlaces = active.reduce((sum: number, w: any) => sum + (w.places ?? 1), 0);
@@ -113,7 +111,9 @@ export default function GuidePortal() {
       console.error("Error fetching registration stats:", e);
     }
 
-    setRegistrationCounts(counts);
+    const agg = computeVisitAggregation(toursData, registrationsByTour);
+    setAggregationStats(agg);
+    setRegistrationCounts(agg.registrationCounts);
     setWaitlistCounts(waitlists);
   }
 
@@ -128,6 +128,7 @@ export default function GuidePortal() {
     setGuideCode(null);
     setAuthenticated(false);
     setTours([]);
+    setAggregationStats(null);
     sessionStorage.removeItem("guideCode");
   }
 
@@ -212,11 +213,16 @@ export default function GuidePortal() {
           tours={tours}
           registrationCounts={registrationCounts}
           waitlistCounts={waitlistCounts}
+          aggregationStats={aggregationStats}
           onSelectTour={setSelectedTourId}
           onCreateTour={() => setCreating(true)}
         />
       ) : (
-        <GuideToursList tours={tours} onSelectTour={setSelectedTourId} />
+        <GuideToursList
+          tours={tours}
+          registrationCounts={registrationCounts}
+          onSelectTour={setSelectedTourId}
+        />
       )}
     </VisitLayout>
   );

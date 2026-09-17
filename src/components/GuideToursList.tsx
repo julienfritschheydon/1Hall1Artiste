@@ -3,6 +3,7 @@ import { Tour } from "../types/visitTypes";
 
 interface GuideTourListProps {
   tours: Tour[];
+  registrationCounts?: Record<string, number>;
   onSelectTour: (tourId: string) => void;
 }
 
@@ -15,7 +16,7 @@ export function tourStatus(tour: Tour, now: number): "upcoming" | "ongoing" | "c
   return now < start ? "upcoming" : now <= end ? "ongoing" : "completed";
 }
 
-export default function GuideToursList({ tours, onSelectTour }: GuideTourListProps) {
+export default function GuideToursList({ tours, registrationCounts, onSelectTour }: GuideTourListProps) {
   const now = Date.now();
   // Visites à venir/en cours d'abord (chronologique), les terminées à la fin.
   const sortedTours = [...tours].sort((a, b) => {
@@ -34,7 +35,11 @@ export default function GuideToursList({ tours, onSelectTour }: GuideTourListPro
         const statusColor =
           status === "upcoming" ? "bg-amber-100 text-amber-800" : status === "completed" ? "bg-[#f3f0e6] text-[#7a6f4d]" : "bg-green-100 text-green-700";
         const placesLeft = tour.placesLeft ?? tour.capacity;
+        const filled = registrationCounts
+          ? (registrationCounts[tour.id] ?? 0)
+          : (tour.placesLeft != null ? tour.capacity - tour.placesLeft : 0);
         const isFull = placesLeft <= 0;
+        const isEmpty = filled === 0;
 
         return (
           <div
@@ -48,6 +53,11 @@ export default function GuideToursList({ tours, onSelectTour }: GuideTourListPro
               </h3>
               <div className="flex flex-col items-end gap-1">
                 <span className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ${statusColor}`}>{statusLabel}</span>
+                {isEmpty && (
+                  <span className="text-xs px-2 py-0.5 rounded-full whitespace-nowrap bg-slate-100 text-slate-700 border border-slate-300 font-medium">
+                    Aucun inscrit
+                  </span>
+                )}
                 {isFull && (
                   <span className="text-xs px-2 py-1 rounded-full whitespace-nowrap bg-red-100 text-red-700 font-bold uppercase">
                     Complet
@@ -63,8 +73,8 @@ export default function GuideToursList({ tours, onSelectTour }: GuideTourListPro
 
             <p className="text-sm text-gray-600 mb-2">Durée : {tour.durationMinutes} min</p>
 
-            <p className={`text-sm font-semibold ${isFull ? "text-red-600" : "text-[#1a2138]"}`}>
-              Places : {placesLeft}/{tour.capacity}
+            <p className={`text-sm font-semibold ${isFull ? "text-red-600" : isEmpty ? "text-slate-600" : "text-[#1a2138]"}`}>
+              Places : {placesLeft}/{tour.capacity} {isEmpty && <span className="font-normal text-xs text-slate-500">(aucun inscrit)</span>}
             </p>
 
             {isFull && (
