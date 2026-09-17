@@ -109,6 +109,10 @@ describe("visitStats - computeVisitAggregation", () => {
     expect(res.multiVisitTourCounts["tour-1"]).toBe(1); // Alice
     expect(res.multiVisitTourCounts["tour-2"]).toBe(1); // Alice
     expect(res.multiVisitTourCounts["tour-3"]).toBe(0);
+
+    // Per-user tour counts
+    expect(res.userTourCounts["alice@example.com"]).toBe(2);
+    expect(res.userTourCounts["charlie@example.com"]).toBe(1);
   });
 
   it("ignore les inscriptions annulées ou autres statuts non confirmés/présents", () => {

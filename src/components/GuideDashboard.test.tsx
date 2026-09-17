@@ -55,13 +55,15 @@ describe("GuideDashboard", () => {
       {
         email: "alice@example.com",
         name: "Alice Dupont",
-        tourIds: ["tour-with-multi", "other-tour"],
-        totalPlaces: 2,
+        tourIds: ["tour-with-multi", "tour-empty"],
       },
     ],
     multiVisitTourCounts: {
       "tour-empty": 0,
       "tour-with-multi": 1,
+    },
+    userTourCounts: {
+      "alice@example.com": 2,
     },
     emptyToursCount: 1,
   };
@@ -128,5 +130,6 @@ describe("GuideDashboard", () => {
     expect(await screen.findByText("Inscrits à plusieurs visites")).toBeInTheDocument();
     expect(screen.getByText("Alice Dupont")).toBeInTheDocument();
     expect(screen.getByText("alice@example.com")).toBeInTheDocument();
+    expect(screen.getByText("2 visites")).toBeInTheDocument();
   });
 });

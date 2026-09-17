@@ -154,6 +154,7 @@ export default function GuidePortal() {
         onBack={() => setSelectedTourId(null)}
         onTourChanged={() => fetchTours(guideCode!)}
         onAuthError={handleLogout}
+        userTourCounts={aggregationStats?.userTourCounts}
       />
     );
   }
@@ -386,12 +387,14 @@ function TourDetails({
   onBack,
   onTourChanged,
   onAuthError,
+  userTourCounts,
 }: {
   tour: Tour;
   guideCode: string;
   onBack: () => void;
   onTourChanged: () => void;
   onAuthError: () => void;
+  userTourCounts?: Record<string, number>;
 }) {
   const [tab, setTab] = useState<"registrations" | "waitlist" | "attendance">("registrations");
   const [loading, setLoading] = useState(true);
@@ -536,12 +539,18 @@ function TourDetails({
                       }}
                     />
                   )}
-                  <RegistrationsList registrations={registrations} />
+                  <RegistrationsList registrations={registrations} userTourCounts={userTourCounts} />
                 </div>
               )}
               {tab === "waitlist" && <WaitlistList waitlist={waitlist} />}
               {tab === "attendance" && (
-                <TourAttendanceSheet tour={tour} registrations={registrations} guideCode={guideCode} onMarked={refresh} />
+                <TourAttendanceSheet
+                  tour={tour}
+                  registrations={registrations}
+                  guideCode={guideCode}
+                  onMarked={refresh}
+                  userTourCounts={userTourCounts}
+                />
               )}
             </>
           )}
@@ -607,7 +616,13 @@ function tdCls() {
   return "p-2 border-t border-[#eadfc7]";
 }
 
-function RegistrationsList({ registrations }: { registrations: any[] }) {
+function RegistrationsList({
+  registrations,
+  userTourCounts,
+}: {
+  registrations: any[];
+  userTourCounts?: Record<string, number>;
+}) {
   if (registrations.length === 0) return <p className="text-gray-600">Aucun inscrit.</p>;
   const totalPlaces = registrations
     .filter((r) => r.status === "confirmé" || r.status === "présent")
@@ -627,13 +642,28 @@ function RegistrationsList({ registrations }: { registrations: any[] }) {
           </tr>
         </thead>
         <tbody>
-          {registrations.map((reg) => (
-            <tr key={reg.id} className="hover:bg-[#faf6ec]">
-              <td className={tdCls()}>{reg.lastName}</td>
-              <td className={tdCls()}>{reg.firstName}</td>
-              <td className={`${tdCls()} text-xs`}>{reg.email}</td>
-              <td className={tdCls()}>{formatCompanions(reg)}</td>
-              <td className={`${tdCls()} text-center`}>{placesCount(reg)}</td>
+          {registrations.map((reg) => {
+            const emailKey = (reg.email || `${reg.firstName}_${reg.lastName}`).trim().toLowerCase();
+            const toursCount = userTourCounts ? (userTourCounts[emailKey] ?? 1) : 1;
+            return (
+              <tr key={reg.id} className="hover:bg-[#faf6ec]">
+                <td className={tdCls()}>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span>{reg.lastName}</span>
+                    {toursCount > 1 && (
+                      <span
+                        className="text-xs px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200 font-medium"
+                        title={`Inscrit(e) à ${toursCount} visites`}
+                      >
+                        👥 {toursCount} visites
+                      </span>
+                    )}
+                  </div>
+                </td>
+                <td className={tdCls()}>{reg.firstName}</td>
+                <td className={`${tdCls()} text-xs`}>{reg.email}</td>
+                <td className={tdCls()}>{formatCompanions(reg)}</td>
+                <td className={`${tdCls()} text-center`}>{placesCount(reg)}</td>
               <td className={tdCls()}>
                 <span
                   className={`text-xs px-2 py-1 rounded-full ${
@@ -648,7 +678,8 @@ function RegistrationsList({ registrations }: { registrations: any[] }) {
                 </span>
               </td>
             </tr>
-          ))}
+          );
+          })}
         </tbody>
       </table>
     </div>

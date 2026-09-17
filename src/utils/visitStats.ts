@@ -4,7 +4,6 @@ export interface MultiVisitAttendee {
   email: string;
   name: string;
   tourIds: string[];
-  totalPlaces: number;
 }
 
 export interface VisitAggregationStats {
@@ -13,6 +12,7 @@ export interface VisitAggregationStats {
   multiVisitAttendeesCount: number;
   multiVisitAttendees: MultiVisitAttendee[];
   multiVisitTourCounts: Record<string, number>; // tourId -> count of attendees on this tour who attend >= 2 tours
+  userTourCounts: Record<string, number>; // emailKey -> count of tours registered for this person
   emptyToursCount: number;
 }
 
@@ -27,7 +27,6 @@ export function computeVisitAggregation(
       email: string;
       name: string;
       tourIds: Set<string>;
-      totalPlaces: number;
     }
   >();
 
@@ -47,12 +46,10 @@ export function computeVisitAggregation(
         .toLowerCase();
       const cleanEmail = (r.email || "").trim().toLowerCase();
       const fullName = `${(r.firstName || "").trim()} ${(r.lastName || "").trim()}`.trim() || cleanEmail;
-      const places = placesOf(r);
 
       const existing = userMap.get(emailKey);
       if (existing) {
         existing.tourIds.add(tour.id);
-        existing.totalPlaces += places;
         if (!existing.name && fullName) {
           existing.name = fullName;
         }
@@ -61,7 +58,6 @@ export function computeVisitAggregation(
           email: cleanEmail,
           name: fullName,
           tourIds: new Set([tour.id]),
-          totalPlaces: places,
         });
       }
     }
@@ -78,7 +74,6 @@ export function computeVisitAggregation(
         email: val.email,
         name: val.name,
         tourIds: Array.from(val.tourIds),
-        totalPlaces: val.totalPlaces,
       });
     }
   }
@@ -109,7 +104,13 @@ export function computeVisitAggregation(
     multiVisitTourCounts[tour.id] = count;
   }
 
-  // 4. Count empty tours
+  // 4. Map each attendee to their total registered tour count
+  const userTourCounts: Record<string, number> = {};
+  for (const [key, val] of userMap.entries()) {
+    userTourCounts[key] = val.tourIds.size;
+  }
+
+  // 5. Count empty tours
   const emptyToursCount = tours.filter((t) => (registrationCounts[t.id] || 0) === 0).length;
 
   return {
@@ -118,6 +119,7 @@ export function computeVisitAggregation(
     multiVisitAttendeesCount: multiVisitAttendees.length,
     multiVisitAttendees,
     multiVisitTourCounts,
+    userTourCounts,
     emptyToursCount,
   };
 }

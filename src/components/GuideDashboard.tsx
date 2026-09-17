@@ -349,7 +349,7 @@ export default function GuideDashboard({
                       <p className="text-xs text-gray-500">{attendee.email}</p>
                     </div>
                     <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200">
-                      {attendeeTours.length} visites ({attendee.totalPlaces} place{attendee.totalPlaces > 1 ? "s" : ""})
+                      {attendeeTours.length} visites
                     </span>
                   </div>
                   <div className="space-y-1">

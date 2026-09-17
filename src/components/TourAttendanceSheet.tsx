@@ -7,6 +7,7 @@ interface TourAttendanceSheetProps {
   registrations: Registration[];
   guideCode: string;
   onMarked?: () => void; // Rafraîchir les compteurs côté parent après marquage
+  userTourCounts?: Record<string, number>;
 }
 
 export default function TourAttendanceSheet({
@@ -14,6 +15,7 @@ export default function TourAttendanceSheet({
   registrations,
   guideCode,
   onMarked,
+  userTourCounts,
 }: TourAttendanceSheetProps) {
   const [checked, setChecked] = useState<Record<string, boolean | null>>({});
   // Un verrou PAR LIGNE : avec un seul id partagé, pointer deux lignes coup sur
@@ -90,6 +92,8 @@ export default function TourAttendanceSheet({
               const isPresent = local ?? (serverMark === true || reg.status === "présent");
               const isAbsent =
                 local === false || (local == null && (serverMark === false || reg.status === "absent"));
+              const emailKey = (reg.email || `${reg.firstName}_${reg.lastName}`).trim().toLowerCase();
+              const toursCount = userTourCounts ? (userTourCounts[emailKey] ?? 1) : 1;
 
               return (
                 <tr
@@ -124,7 +128,19 @@ export default function TourAttendanceSheet({
                       </button>
                     </div>
                   </td>
-                  <td className="border p-2">{reg.lastName}</td>
+                  <td className="border p-2">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span>{reg.lastName}</span>
+                      {toursCount > 1 && (
+                        <span
+                          className="text-xs px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200 font-medium"
+                          title={`Inscrit(e) à ${toursCount} visites`}
+                        >
+                          👥 {toursCount} visites
+                        </span>
+                      )}
+                    </div>
+                  </td>
                   <td className="border p-2">{reg.firstName}</td>
                   <td className="border p-2 text-sm">{reg.email}</td>
                   <td className="border p-2 text-sm">
