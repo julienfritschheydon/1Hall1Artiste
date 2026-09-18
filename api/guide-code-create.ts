@@ -1,9 +1,12 @@
 // Admin endpoint to create custom guide access code
 // POST /api/guide-code-create with { code: "...", revokeOld?: true, oldCode?: "..." }
-// Requires ADMIN_SETUP_KEY env var (temporary setup endpoint)
+// Auth : token admin (body.adminToken ou Bearer), ou Bearer ADMIN_SETUP_KEY (script de setup).
+// Fermé par défaut : sans ADMIN_SETUP_KEY configurée, l'ancienne version laissait
+// n'importe qui créer un code guide — donc lire noms et emails des inscrits.
 
 import { VercelRequest, VercelResponse } from "@vercel/node";
 import { rtdbGuideCodeCreateCustom, rtdbGuideCodeRevoke } from "./_visit-db.js";
+import { isAdminRequest } from "./_admin.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
@@ -11,9 +14,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const setupKey = process.env.ADMIN_SETUP_KEY;
-  const authHeader = req.headers.authorization;
-
-  if (setupKey && authHeader !== `Bearer ${setupKey}`) {
+  const hasSetupKey = Boolean(setupKey) && req.headers.authorization === `Bearer ${setupKey}`;
+  if (!hasSetupKey && !isAdminRequest(req)) {
     return res.status(401).json({ error: "Unauthorized" });
   }
 
