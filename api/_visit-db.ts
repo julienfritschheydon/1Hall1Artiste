@@ -437,6 +437,18 @@ export async function rtdbAttendanceListByTour(tourId: string): Promise<Attendan
   return result;
 }
 
+// ============ NOMS DES GUIDES ============
+// Liste gérée par l'admin, proposée dans le formulaire de visite (champ « Animé par »).
+
+export async function rtdbGuideNamesGet(): Promise<string[]> {
+  const names = await rtdbGet<string[]>("visit_settings/guideNames");
+  return Array.isArray(names) ? names.filter((n) => typeof n === "string") : [];
+}
+
+export async function rtdbGuideNamesSet(names: string[]): Promise<void> {
+  await rtdbPut("visit_settings/guideNames", names);
+}
+
 // ============ GUIDE ACCESS CODES ============
 
 export async function rtdbGuideCodeCreate(): Promise<GuideAccessCode> {

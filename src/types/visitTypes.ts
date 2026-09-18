@@ -31,6 +31,7 @@ export interface Tour {
   startLocationId?: string // Id réel du bâtiment (data/locations.ts) — lien fiable, pas de coïncidence de pixels
   capacity: number
   labels: string[] // Free tags: ['nature', 'architecture', 'enfants']
+  guides?: string[] // Prénoms des guides qui animent — interne, jamais renvoyé au public
   status: 'upcoming' | 'ongoing' | 'completed'
   createdAt: string
   updatedAt: string
@@ -119,6 +120,7 @@ export interface TourCreateInput {
   startLocationId?: string
   capacity: number
   labels: string[]
+  guides?: string[]
   guideId?: string
   status?: 'upcoming' | 'ongoing'
 }

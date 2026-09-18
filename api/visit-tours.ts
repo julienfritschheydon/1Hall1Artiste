@@ -2,9 +2,12 @@
 // POST /api/visit-tours — créer visite (guide)
 // GET /api/visit-tours — lister visites (public: future only; guide: tous)
 // PUT /api/visit-tours/{id} — modifier visite (guide)
+// GET /api/visit-tours?action=guide-names — liste des prénoms de guides (guide ou admin)
+// PUT /api/visit-tours?action=guide-names — remplacer cette liste (admin)
 
 import { VercelRequest, VercelResponse } from "@vercel/node";
-import { rtdbTourCreate, rtdbTourGet, rtdbTourUpdate, rtdbToursListFuture, rtdbToursListAll, rtdbGuideCodeValidate, rtdbCountRegisteredByTour, rtdbCountWaitlistedPlaces } from "./_visit-db.js";
+import { rtdbTourCreate, rtdbTourGet, rtdbTourUpdate, rtdbToursListFuture, rtdbToursListAll, rtdbGuideCodeValidate, rtdbCountRegisteredByTour, rtdbCountWaitlistedPlaces, rtdbGuideNamesGet, rtdbGuideNamesSet } from "./_visit-db.js";
+import { isAdminRequest } from "./_admin.js";
 import { promoteWaitlist } from "./visit-register.js";
 import { Tour, TourCreateInput } from "../src/types/visitTypes.js";
 import { locations } from "../src/data/locations.js";
@@ -35,6 +38,25 @@ async function validateGuideCode(code: string | undefined): Promise<boolean> {
 async function isGuide(req: VercelRequest): Promise<boolean> {
   const code = req.headers["x-guide-code"] as string | undefined;
   return validateGuideCode(code);
+}
+
+const MAX_GUIDES_PER_TOUR = 6;
+const MAX_GUIDE_NAME_LENGTH = 40;
+
+// Normalise une liste de prénoms : trim, longueur bornée, sans doublon (casse ignorée).
+// Retourne null si l'entrée n'est pas un tableau de chaînes.
+function normalizeGuideNames(input: unknown, max: number): string[] | null {
+  if (!Array.isArray(input) || input.some((n) => typeof n !== "string")) return null;
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of input as string[]) {
+    const name = raw.trim().slice(0, MAX_GUIDE_NAME_LENGTH);
+    const key = name.toLowerCase();
+    if (!name || seen.has(key)) continue;
+    seen.add(key);
+    out.push(name);
+  }
+  return out.slice(0, max);
 }
 
 // Validate tour input
@@ -89,6 +111,10 @@ async function handlePost(req: VercelRequest, res: VercelResponse) {
   if (!validation.valid) {
     return res.status(400).json({ errors: validation.errors });
   }
+  const guides = req.body.guides === undefined ? [] : normalizeGuideNames(req.body.guides, MAX_GUIDES_PER_TOUR);
+  if (guides === null) {
+    return res.status(400).json({ errors: ["guides: array of strings required"] });
+  }
 
   try {
     const input: TourCreateInput = {
@@ -99,6 +125,7 @@ async function handlePost(req: VercelRequest, res: VercelResponse) {
       ...fixedStartLocation(),
       capacity,
       labels: labels.map((l: string) => l.trim()),
+      ...(guides.length > 0 ? { guides } : {}),
       guideId: "all-guides",
       status: "upcoming",
     };
@@ -142,7 +169,14 @@ async function handleGet(req: VercelRequest, res: VercelResponse) {
         const taken = await rtdbCountRegisteredByTour(t.id);
         const waitlisted = await rtdbCountWaitlistedPlaces(t.id);
         // Firebase ne stocke pas les tableaux vides → labels peut être undefined
-        return { ...t, labels: t.labels || [], placesLeft: Math.max(0, t.capacity - taken - waitlisted) };
+        // Les noms des guides sont internes : jamais exposés au public.
+        const { guides, ...rest } = t;
+        return {
+          ...rest,
+          ...(isGuideUser ? { guides: guides || [] } : {}),
+          labels: t.labels || [],
+          placesLeft: Math.max(0, t.capacity - taken - waitlisted),
+        };
       })
     );
 
@@ -189,16 +223,27 @@ async function handlePut(req: VercelRequest, res: VercelResponse) {
     const diffMs = tourStart.getTime() - now.getTime();
     const hoursUntilStart = diffMs / (60 * 60 * 1000);
 
-    if (hoursUntilStart < 24) {
-      return res.status(400).json({ error: "cannot modify within 24h of start" });
-    }
-
     // Whitelist des champs modifiables — le corps était fusionné tel quel dans
     // le document (id, deletedAt, batchDeleteExecuted… écrasables).
     const ALLOWED_FIELDS = ["title", "description", "date", "durationMinutes", "capacity", "labels", "status"] as const;
     const updates: Record<string, any> = {};
     for (const field of ALLOWED_FIELDS) {
       if (req.body[field] !== undefined) updates[field] = req.body[field];
+    }
+    // Seuls les champs publics sont gelés à J-1 : un remplacement de guide de
+    // dernière minute doit rester possible (les « guides » sont internes).
+    const publicFieldChanged = ALLOWED_FIELDS.some(
+      (f) => updates[f] !== undefined && JSON.stringify(updates[f]) !== JSON.stringify((tour as any)[f])
+    );
+    if (hoursUntilStart < 24 && publicFieldChanged) {
+      return res.status(400).json({ error: "cannot modify within 24h of start" });
+    }
+    if (req.body.guides !== undefined) {
+      const guides = normalizeGuideNames(req.body.guides, MAX_GUIDES_PER_TOUR);
+      if (guides === null) {
+        return res.status(400).json({ error: "guides: array of strings required" });
+      }
+      updates.guides = guides;
     }
     if (updates.title !== undefined && (typeof updates.title !== "string" || !updates.title.trim())) {
       return res.status(400).json({ error: "title: non-empty string required" });
@@ -252,8 +297,41 @@ async function handlePut(req: VercelRequest, res: VercelResponse) {
   }
 }
 
+// GET/PUT /api/visit-tours?action=guide-names — liste des prénoms de guides.
+// Lecture : guide ou admin. Écriture : admin uniquement.
+async function handleGuideNames(req: VercelRequest, res: VercelResponse) {
+  const isAdmin = isAdminRequest(req);
+  try {
+    if (req.method === "GET") {
+      if (!isAdmin && !(await isGuide(req))) {
+        return res.status(401).json({ error: "guide code or admin token required" });
+      }
+      res.setHeader("Cache-Control", "private, no-store");
+      return res.status(200).json({ names: await rtdbGuideNamesGet() });
+    }
+    if (req.method === "PUT") {
+      if (!isAdmin) {
+        return res.status(401).json({ error: "admin token required" });
+      }
+      const names = normalizeGuideNames(req.body?.names, 50);
+      if (names === null) {
+        return res.status(400).json({ error: "names: array of strings required" });
+      }
+      await rtdbGuideNamesSet(names);
+      return res.status(200).json({ names });
+    }
+    return res.status(405).json({ error: "method not allowed" });
+  } catch (e) {
+    console.error("[visit-tours guide-names]", e);
+    return res.status(500).json({ error: "guide names failed" });
+  }
+}
+
 // Main handler
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.query.action === "guide-names") {
+    return handleGuideNames(req, res);
+  }
   if (req.method === "POST") {
     return handlePost(req, res);
   } else if (req.method === "GET") {
