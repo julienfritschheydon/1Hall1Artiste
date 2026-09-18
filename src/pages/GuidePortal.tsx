@@ -200,6 +200,7 @@ export default function GuidePortal() {
         onAuthError={handleLogout}
         userTourCounts={aggregationStats?.userTourCounts}
         guideNames={guideNames}
+        onGuideNamesLoaded={setGuideNames}
       />
     );
   }
@@ -243,6 +244,7 @@ export default function GuidePortal() {
         <TourForm
           guideCode={guideCode!}
           guideNames={guideNames}
+          onGuideNamesLoaded={setGuideNames}
           onClose={() => setCreating(false)}
           onSaved={() => {
             setCreating(false);
@@ -306,13 +308,15 @@ export default function GuidePortal() {
 // ===== Formulaire création / modification visite =====
 function TourForm({
   guideCode,
-  guideNames,
+  guideNames: initialGuideNames,
+  onGuideNamesLoaded,
   tour,
   onClose,
   onSaved,
 }: {
   guideCode: string;
   guideNames: string[];
+  onGuideNamesLoaded?: (names: string[]) => void;
   tour?: Tour;
   onClose: () => void;
   onSaved: () => void;
@@ -334,9 +338,41 @@ function TourForm({
   const [capacity, setCapacity] = useState(tour?.capacity || 15);
   const [labels, setLabels] = useState((tour?.labels || []).join(", "));
   // « Animé par » : cases pour la liste admin, champ libre « Autre » pour le reste.
-  const isKnown = (g: string) => guideNames.some((n) => n.toLowerCase() === g.toLowerCase());
-  const [selectedGuides, setSelectedGuides] = useState<string[]>((tour?.guides || []).filter(isKnown));
-  const [otherGuides, setOtherGuides] = useState((tour?.guides || []).filter((g) => !isKnown(g)).join(", "));
+  const [guideNames, setGuideNames] = useState<string[]>(initialGuideNames);
+  const isKnownIn = (names: string[], g: string) => names.some((n) => n.toLowerCase() === g.toLowerCase());
+  const [selectedGuides, setSelectedGuides] = useState<string[]>(
+    (tour?.guides || []).filter((g) => isKnownIn(initialGuideNames, g))
+  );
+  const [otherGuides, setOtherGuides] = useState(
+    (tour?.guides || []).filter((g) => !isKnownIn(initialGuideNames, g)).join(", ")
+  );
+
+  // Recharge la liste admin à chaque ouverture : un portail ouvert avant l'ajout
+  // d'un prénom dans /admin n'affichait sinon aucune case à cocher.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/visit-tours?action=guide-names", { headers: { "x-guide-code": guideCode } });
+        if (!res.ok || cancelled) return;
+        const names: string[] = (await res.json()).names || [];
+        if (cancelled) return;
+        setGuideNames(names);
+        onGuideNamesLoaded?.(names);
+        // Redistribue cases / « Autre » selon la liste à jour (à l'ouverture,
+        // l'utilisateur n'a pas encore touché au champ).
+        const current = tour?.guides || [];
+        setSelectedGuides(current.filter((g) => isKnownIn(names, g)));
+        setOtherGuides(current.filter((g) => !isKnownIn(names, g)).join(", "));
+      } catch (e) {
+        console.error("Guide names refresh error:", e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [guideCode]);
   const [saving, setSaving] = useState(false);
 
   function toggleGuide(name: string) {
@@ -500,10 +536,12 @@ function TourDetails({
   onAuthError,
   userTourCounts,
   guideNames,
+  onGuideNamesLoaded,
 }: {
   tour: Tour;
   guideCode: string;
   guideNames: string[];
+  onGuideNamesLoaded?: (names: string[]) => void;
   onBack: () => void;
   onTourChanged: () => void;
   onAuthError: () => void;
@@ -571,6 +609,7 @@ function TourDetails({
         <TourForm
           guideCode={guideCode}
           guideNames={guideNames}
+          onGuideNamesLoaded={onGuideNamesLoaded}
           tour={tour}
           onClose={() => setEditing(false)}
           onSaved={() => {
