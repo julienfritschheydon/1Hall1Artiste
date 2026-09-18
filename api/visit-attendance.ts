@@ -1,6 +1,7 @@
 // Doodates Attendance API — Appel + marquage présences (guide only)
 // POST /api/visit-attendance — marquer présent/absent (guide)
 // GET /api/visit-attendance?tourId=... — lister présences (guide)
+// DELETE /api/visit-attendance — annuler une inscription (guide)
 
 import { VercelRequest, VercelResponse } from "@vercel/node";
 import {
@@ -12,6 +13,7 @@ import {
   rtdbGuideCodeValidate,
 } from "./_visit-db.js";
 import { placesOf, Registration } from "../src/types/visitTypes.js";
+import { cancelRegistration } from "./visit-register.js";
 
 // Une inscription annulée, supprimée (RGPD) ou en attente expirée n'occupe pas
 // de place : elle ne doit ni apparaître sur la feuille d'appel, ni être marquable
@@ -181,12 +183,49 @@ async function handleListAttendance(req: VercelRequest, res: VercelResponse) {
   }
 }
 
+// DELETE /api/visit-attendance — le guide annule une inscription (ex : la
+// personne a prévenu par email). Même effet que l'annulation user : email
+// d'annulation + promotion immédiate de la file d'attente.
+async function handleCancelByGuide(req: VercelRequest, res: VercelResponse) {
+  if (!(await requireGuideCode(req, res))) {
+    return;
+  }
+
+  const { registrationId, tourId } = req.body || {};
+  if (!registrationId || typeof registrationId !== "string") {
+    return res.status(400).json({ error: "registrationId: string required" });
+  }
+  if (!tourId || typeof tourId !== "string") {
+    return res.status(400).json({ error: "tourId: string required" });
+  }
+
+  try {
+    const reg = await rtdbRegistrationGet(registrationId);
+    if (!reg || reg.deletedAt) {
+      return res.status(404).json({ error: "registration not found" });
+    }
+    if (reg.tourId !== tourId) {
+      return res.status(400).json({ error: "registration does not belong to this tour" });
+    }
+    if (reg.status === "annulé") {
+      return res.json({ ok: true, message: "Already cancelled" });
+    }
+    await cancelRegistration(reg);
+    return res.json({ ok: true, message: "Inscription annulée" });
+  } catch (e) {
+    console.error("[visit-attendance cancel]", e);
+    return res.status(500).json({ error: "cancellation failed" });
+  }
+}
+
 // Main handler
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === "POST") {
     return handleMarkAttendance(req, res);
   } else if (req.method === "GET") {
     return handleListAttendance(req, res);
+  } else if (req.method === "DELETE") {
+    return handleCancelByGuide(req, res);
   } else {
     return res.status(405).json({ error: "method not allowed" });
   }

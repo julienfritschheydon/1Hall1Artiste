@@ -157,7 +157,8 @@ export function buildVisitEmail(
           ${d.location ? `<p><strong>Lieu de rendez-vous :</strong> ${esc(d.location)}</p>` : ""}
           ${d.icsUrl ? btn(d.icsUrl, "Ajouter à mon calendrier (.ics)") : ""}
           ${d.googleCalUrl ? `<p style="font-size:13px"><a href="${esc(d.googleCalUrl)}">Ou ajouter à Google Calendar</a></p>` : ""}
-          <p>À bientôt !</p>`
+          <p>À bientôt !</p>
+          ${d.cancelLink ? `<p style="font-size:13px"><a href="${esc(d.cancelLink)}">Annuler mon inscription</a></p>` : ""}`
         ),
       };
 

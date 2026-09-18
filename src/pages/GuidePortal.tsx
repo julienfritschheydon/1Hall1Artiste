@@ -539,7 +539,14 @@ function TourDetails({
                       }}
                     />
                   )}
-                  <RegistrationsList registrations={registrations} userTourCounts={userTourCounts} />
+                  <RegistrationsList
+                    registrations={registrations}
+                    userTourCounts={userTourCounts}
+                    tourId={tour.id}
+                    guideCode={guideCode}
+                    onCancelled={refresh}
+                    onAuthError={onAuthError}
+                  />
                 </div>
               )}
               {tab === "waitlist" && <WaitlistList waitlist={waitlist} />}
@@ -619,10 +626,46 @@ function tdCls() {
 function RegistrationsList({
   registrations,
   userTourCounts,
+  tourId,
+  guideCode,
+  onCancelled,
+  onAuthError,
 }: {
   registrations: any[];
   userTourCounts?: Record<string, number>;
+  tourId: string;
+  guideCode: string;
+  onCancelled: () => void;
+  onAuthError: () => void;
 }) {
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+
+  async function cancel(reg: any) {
+    const who = `${reg.firstName} ${reg.lastName}`.trim();
+    if (!window.confirm(`Annuler l'inscription de ${who} ? Un email d'annulation lui sera envoyé et la place sera proposée à la file d'attente.`)) return;
+    setCancellingId(reg.id);
+    try {
+      const res = await fetch("/api/visit-attendance", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", "x-guide-code": guideCode },
+        body: JSON.stringify({ registrationId: reg.id, tourId }),
+      });
+      if (res.status === 401) {
+        onAuthError();
+        return;
+      }
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || "Échec de l'annulation");
+      }
+      onCancelled();
+    } catch (e) {
+      window.alert((e as Error).message);
+    } finally {
+      setCancellingId(null);
+    }
+  }
+
   if (registrations.length === 0) return <p className="text-gray-600">Aucun inscrit.</p>;
   const totalPlaces = registrations
     .filter((r) => r.status === "confirmé" || r.status === "présent")
@@ -639,6 +682,7 @@ function RegistrationsList({
             <th className={thCls()}>Accompagnants</th>
             <th className={thCls()}>Places</th>
             <th className={thCls()}>Statut</th>
+            <th className={thCls()}></th>
           </tr>
         </thead>
         <tbody>
@@ -676,6 +720,19 @@ function RegistrationsList({
                 >
                   {reg.status}
                 </span>
+              </td>
+              <td className={tdCls()}>
+                {(reg.status === "confirmé" || reg.status === "attente_validation") && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-red-700 border-red-300 hover:bg-red-50"
+                    disabled={cancellingId === reg.id}
+                    onClick={() => cancel(reg)}
+                  >
+                    {cancellingId === reg.id ? "..." : "Annuler"}
+                  </Button>
+                )}
               </td>
             </tr>
           );
