@@ -111,6 +111,7 @@ async function handleActivateWaitlist(req: VercelRequest, res: VercelResponse) {
               durationMinutes: tour.durationMinutes,
             })
           : undefined,
+        cancelLink: `${SITE_URL}/#/reservations/cancel?id=${registration.id}`,
         idempotencyKey: `${registration.id}_waitlist_accepted`,
       });
     } catch (e) {

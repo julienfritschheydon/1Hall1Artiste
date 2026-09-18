@@ -573,6 +573,37 @@ export async function promoteWaitlist(tourId: string): Promise<void> {
   }
 }
 
+// Annule une inscription : statut « annulé », email de confirmation, puis
+// promotion immédiate de la file d'attente (règle 2 : toute place libérée
+// doit être réofferte). Partagé entre l'annulation user et l'annulation guide.
+export async function cancelRegistration(registration: {
+  id: string;
+  tourId: string;
+  email: string;
+  firstName: string;
+}): Promise<void> {
+  await rtdbRegistrationUpdate(registration.id, {
+    status: "annulé",
+    cancelledAt: new Date().toISOString(),
+  });
+
+  try {
+    const tour = await rtdbTourGet(registration.tourId);
+    await sendRegistrationEmail("cancellation", {
+      to: registration.email,
+      firstName: registration.firstName,
+      tourTitle: tour?.title || "",
+      tourDate: tour?.date || "",
+      registrationId: registration.id,
+      idempotencyKey: `${registration.id}_cancellation`,
+    });
+  } catch (e) {
+    console.error("[visit-register] cancellation email failed:", e);
+  }
+
+  await promoteWaitlist(registration.tourId);
+}
+
 // POST /api/visit-register?action=cancel — user annule son inscription (spec §5)
 // Body: { registrationId, email }. Email = clé d'auth faible (visite gratuite).
 // Place libérée → immédiat promotion waitlist + email offre
@@ -602,28 +633,7 @@ async function handleCancelRegistration(req: VercelRequest, res: VercelResponse)
       return res.status(400).json({ error: "tour already happened, cannot cancel" });
     }
 
-    await rtdbRegistrationUpdate(registrationId, {
-      status: "annulé",
-      cancelledAt: new Date().toISOString(),
-    });
-
-    // Send cancellation confirmation email
-    try {
-      const tour = await rtdbTourGet(registration.tourId);
-      await sendRegistrationEmail("cancellation", {
-        to: registration.email,
-        firstName: registration.firstName,
-        tourTitle: tour?.title || "",
-        tourDate: tour?.date || "",
-        registrationId,
-        idempotencyKey: `${registrationId}_cancellation`,
-      });
-    } catch (e) {
-      console.error("[visit-register] cancellation email failed:", e);
-    }
-
-    // Promote waitlist: send offer to next person immediately
-    await promoteWaitlist(registration.tourId);
+    await cancelRegistration(registration);
 
     return res.json({ ok: true, message: "Inscription annulée" });
   } catch (e) {
