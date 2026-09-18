@@ -66,6 +66,9 @@ export default function GuideToursList({ tours, registrationCounts, onSelectTour
               </div>
             </div>
 
+            {tour.guides && tour.guides.length > 0 && (
+              <p className="text-xs text-[#7a6f4d] mb-1">Animé par {tour.guides.join(", ")}</p>
+            )}
             <p className="text-sm text-gray-600 mb-2">
               {new Date(tour.date).toLocaleDateString("fr-FR")} •{" "}
               {new Date(tour.date).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}

@@ -21,6 +21,7 @@ import { LikesTestComponent } from "@/components/test/LikesTestComponent";
 import { LikesStatsComponent } from "@/components/admin/LikesStatsComponent";
 import { EventManagement } from "@/components/admin/EventManagement";
 import { GuideCodesAdmin } from "@/components/admin/GuideCodesAdmin";
+import { GuideNamesAdmin } from "@/components/admin/GuideNamesAdmin";
 import { ArtistAdmin } from "@/components/admin/ArtistAdmin";
 
 // Créer un logger pour le composant Admin
@@ -493,6 +494,7 @@ export default function Admin() {
           {/* Onglet Codes Guides */}
           <TabsContent value="guide-codes" className="space-y-4">
             <GuideCodesAdmin />
+            <GuideNamesAdmin />
           </TabsContent>
         </Tabs>
       </div>

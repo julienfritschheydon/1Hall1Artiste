@@ -18,6 +18,21 @@ import { computeVisitAggregation, VisitAggregationStats } from "../utils/visitSt
 const ORANGE = "#ff7a45";
 const orangeBtn = { backgroundColor: ORANGE };
 
+const GUIDE_FILTER_KEY = "guideFilter";
+
+// Union sans doublon (casse ignorée), ordre de la première liste conservé.
+function mergeNames(...lists: string[][]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const n of lists.flat()) {
+    const key = n.trim().toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(n.trim());
+  }
+  return out;
+}
+
 function placesCountHelper(r: any): number {
   if (Array.isArray(r.companions) && r.companions.length > 0) return 1 + r.companions.length;
   if (r.companionFirstName) return 2;
@@ -36,6 +51,25 @@ export default function GuidePortal() {
   const [registrationCounts, setRegistrationCounts] = useState<Record<string, number>>({});
   const [waitlistCounts, setWaitlistCounts] = useState<Record<string, number>>({});
   const [aggregationStats, setAggregationStats] = useState<VisitAggregationStats | null>(null);
+  const [guideNames, setGuideNames] = useState<string[]>([]);
+  // Filtre « Animé par » mémorisé par navigateur : chaque guide retrouve ses visites.
+  const [guideFilter, setGuideFilterState] = useState<string>(() => {
+    try {
+      return localStorage.getItem(GUIDE_FILTER_KEY) || "";
+    } catch {
+      return "";
+    }
+  });
+
+  function setGuideFilter(name: string) {
+    setGuideFilterState(name);
+    try {
+      if (name) localStorage.setItem(GUIDE_FILTER_KEY, name);
+      else localStorage.removeItem(GUIDE_FILTER_KEY);
+    } catch {
+      /* stockage indisponible : le filtre reste valable pour la session */
+    }
+  }
 
   useEffect(() => {
     const stored = sessionStorage.getItem("guideCode");
@@ -45,6 +79,15 @@ export default function GuidePortal() {
       fetchTours(stored);
     }
   }, []);
+
+  async function fetchGuideNames(code: string) {
+    try {
+      const res = await fetch("/api/visit-tours?action=guide-names", { headers: { "x-guide-code": code } });
+      if (res.ok) setGuideNames((await res.json()).names || []);
+    } catch (e) {
+      console.error("Guide names fetch error:", e);
+    }
+  }
 
   async function fetchTours(code: string) {
     setLoading(true);
@@ -61,6 +104,7 @@ export default function GuidePortal() {
       }
       const toursData = await res.json();
       setTours(toursData);
+      fetchGuideNames(code);
       await fetchRegistrationStats(toursData, code);
     } catch (e) {
       console.error("Tour fetch error:", e);
@@ -155,9 +199,16 @@ export default function GuidePortal() {
         onTourChanged={() => fetchTours(guideCode!)}
         onAuthError={handleLogout}
         userTourCounts={aggregationStats?.userTourCounts}
+        guideNames={guideNames}
       />
     );
   }
+
+  // Noms proposés au filtre : liste admin + noms saisis via « Autre » sur les visites.
+  const filterNames = mergeNames(guideNames, tours.flatMap((t) => t.guides || []));
+  const visibleTours = guideFilter
+    ? tours.filter((t) => (t.guides || []).some((g) => g.toLowerCase() === guideFilter.toLowerCase()))
+    : tours;
 
   return (
     <VisitLayout
@@ -191,6 +242,7 @@ export default function GuidePortal() {
       {creating && (
         <TourForm
           guideCode={guideCode!}
+          guideNames={guideNames}
           onClose={() => setCreating(false)}
           onSaved={() => {
             setCreating(false);
@@ -199,9 +251,31 @@ export default function GuidePortal() {
         />
       )}
 
+      {!loading && filterNames.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <span className="text-sm text-[#4a4636]">Animé par :</span>
+          <TabBtn active={!guideFilter} onClick={() => setGuideFilter("")}>
+            Toutes
+          </TabBtn>
+          {filterNames.map((n) => (
+            <TabBtn
+              key={n}
+              active={guideFilter.toLowerCase() === n.toLowerCase()}
+              onClick={() => setGuideFilter(n)}
+            >
+              {n}
+            </TabBtn>
+          ))}
+        </div>
+      )}
+
       {loading ? (
         <Card className="bg-white/90 backdrop-blur-sm border-2 border-amber-300 shadow-lg">
           <CardContent className="p-6 text-gray-600">Chargement...</CardContent>
+        </Card>
+      ) : guideFilter && visibleTours.length === 0 && tours.length > 0 ? (
+        <Card className="bg-white/90 backdrop-blur-sm border-2 border-amber-300 shadow-lg">
+          <CardContent className="p-6 text-gray-600">Aucune visite animée par {guideFilter}.</CardContent>
         </Card>
       ) : tours.length === 0 ? (
         <Card className="bg-white/90 backdrop-blur-sm border-2 border-amber-300 shadow-lg">
@@ -211,7 +285,7 @@ export default function GuidePortal() {
         </Card>
       ) : showDashboard ? (
         <GuideDashboard
-          tours={tours}
+          tours={visibleTours}
           registrationCounts={registrationCounts}
           waitlistCounts={waitlistCounts}
           aggregationStats={aggregationStats}
@@ -220,7 +294,7 @@ export default function GuidePortal() {
         />
       ) : (
         <GuideToursList
-          tours={tours}
+          tours={visibleTours}
           registrationCounts={registrationCounts}
           onSelectTour={setSelectedTourId}
         />
@@ -232,11 +306,13 @@ export default function GuidePortal() {
 // ===== Formulaire création / modification visite =====
 function TourForm({
   guideCode,
+  guideNames,
   tour,
   onClose,
   onSaved,
 }: {
   guideCode: string;
+  guideNames: string[];
   tour?: Tour;
   onClose: () => void;
   onSaved: () => void;
@@ -257,7 +333,19 @@ function TourForm({
   const [durationMinutes, setDurationMinutes] = useState(tour?.durationMinutes || 90);
   const [capacity, setCapacity] = useState(tour?.capacity || 15);
   const [labels, setLabels] = useState((tour?.labels || []).join(", "));
+  // « Animé par » : cases pour la liste admin, champ libre « Autre » pour le reste.
+  const isKnown = (g: string) => guideNames.some((n) => n.toLowerCase() === g.toLowerCase());
+  const [selectedGuides, setSelectedGuides] = useState<string[]>((tour?.guides || []).filter(isKnown));
+  const [otherGuides, setOtherGuides] = useState((tour?.guides || []).filter((g) => !isKnown(g)).join(", "));
   const [saving, setSaving] = useState(false);
+
+  function toggleGuide(name: string) {
+    setSelectedGuides((prev) =>
+      prev.some((g) => g.toLowerCase() === name.toLowerCase())
+        ? prev.filter((g) => g.toLowerCase() !== name.toLowerCase())
+        : [...prev, name]
+    );
+  }
   const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -272,6 +360,7 @@ function TourForm({
         durationMinutes: Number(durationMinutes),
         capacity: Number(capacity),
         labels: labels.split(",").map((l) => l.trim()).filter(Boolean),
+        guides: mergeNames(selectedGuides, otherGuides.split(",")),
       };
       const url = isEdit ? `/api/visit-tours?id=${tour!.id}` : "/api/visit-tours";
       const res = await fetch(url, {
@@ -366,6 +455,28 @@ function TourForm({
             <label className={labelCls}>Labels (séparés par virgule)</label>
             <Input value={labels} onChange={(e) => setLabels(e.target.value)} placeholder="architecture, histoire, enfants" />
           </div>
+          <div>
+            <label className={labelCls}>Animé par (interne, non visible du public)</label>
+            {guideNames.length > 0 && (
+              <div className="flex flex-wrap gap-x-4 gap-y-1 mb-2">
+                {guideNames.map((n) => (
+                  <label key={n} className="flex items-center gap-1.5 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={selectedGuides.some((g) => g.toLowerCase() === n.toLowerCase())}
+                      onChange={() => toggleGuide(n)}
+                    />
+                    {n}
+                  </label>
+                ))}
+              </div>
+            )}
+            <Input
+              value={otherGuides}
+              onChange={(e) => setOtherGuides(e.target.value)}
+              placeholder={guideNames.length > 0 ? "Autre (séparés par virgule)" : "Prénoms (séparés par virgule)"}
+            />
+          </div>
           <div className="flex gap-2 pt-2">
             <Button type="submit" disabled={saving} className="text-white" style={orangeBtn}>
               {saving ? "Enregistrement..." : isEdit ? "Modifier" : "Créer"}
@@ -388,9 +499,11 @@ function TourDetails({
   onTourChanged,
   onAuthError,
   userTourCounts,
+  guideNames,
 }: {
   tour: Tour;
   guideCode: string;
+  guideNames: string[];
   onBack: () => void;
   onTourChanged: () => void;
   onAuthError: () => void;
@@ -457,6 +570,7 @@ function TourDetails({
       {editing && (
         <TourForm
           guideCode={guideCode}
+          guideNames={guideNames}
           tour={tour}
           onClose={() => setEditing(false)}
           onSaved={() => {
@@ -483,6 +597,9 @@ function TourDetails({
               </span>
             )}
           </p>
+          {tour.guides && tour.guides.length > 0 && (
+            <p className="text-sm text-[#7a6f4d] mb-2">Animé par {tour.guides.join(", ")}</p>
+          )}
           {tour.description && <p className="text-gray-700 mb-4 whitespace-pre-wrap">{tour.description}</p>}
 
           {loading ? (
@@ -865,7 +982,9 @@ function printAttendance(tour: Tour, registrations: any[]) {
     tour.title
   )}</title></head><body style="font-family:sans-serif;padding:20px">
     <h1 style="font-size:18px">Feuille d'appel — ${escapeHtml(tour.title)}</h1>
-    <p style="color:#555">${dateStr} • ${registrations.length} inscrit(s)</p>
+    <p style="color:#555">${dateStr} • ${registrations.length} inscrit(s)${
+      tour.guides && tour.guides.length > 0 ? ` • Animé par ${escapeHtml(tour.guides.join(", "))}` : ""
+    }</p>
     <table style="border-collapse:collapse;width:100%;font-size:14px">
       <thead><tr>
         <th style="border:1px solid #999;padding:6px">Présent</th>
