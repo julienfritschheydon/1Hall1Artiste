@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getAdminToken } from "@/services/adminAuth";
 
 export function GuideCodesAdmin() {
   const [newCode, setNewCode] = useState("");
@@ -24,7 +25,7 @@ export function GuideCodesAdmin() {
       const res = await fetch("/api/guide-code-create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: newCode.trim() }),
+        body: JSON.stringify({ code: newCode.trim(), adminToken: getAdminToken() }),
       });
       const data = await res.json();
 
