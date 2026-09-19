@@ -32,6 +32,11 @@ Les actions du §3 sont exposées à deux endroits, via **un composant partagé*
 - **Onglet « File d'attente »** du détail visite — mêmes colonnes et mêmes boutons, filtrés sur
   la visite courante.
 
+L'ordre de la file reste **strictement chronologique** : il n'y a pas de réordonnancement manuel.
+Le besoin réel (« proposer à quelqu'un d'autre ») est couvert par l'offre hors rang, qui ne touche
+pas aux positions — or la position est visible par l'inscrit côté public, la déplacer changerait
+silencieusement ce qu'il voit.
+
 ### 2.1 En-tête de la modale globale
 
 - Total : « N personnes en attente sur M visites » (en **places** : un groupe de 3 compte 3).
@@ -46,7 +51,7 @@ Groupée par visite (tri chronologique), puis par `position` croissante.
 
 | Colonne | Contenu |
 |---|---|
-| # | `position`, avec flèches ↑ ↓ de réordonnancement (§3.3) |
+| # | `position` |
 | Nom | `firstName lastName` |
 | Email | `email` |
 | Places | `places` (1 + accompagnants) |
@@ -71,8 +76,8 @@ l'historique (§5).
 |---|---|---|
 | **Proposer la place** | entrée sans offre active ET places libres ≥ places de l'entrée | envoie l'offre (token 24H) |
 | **Relancer l'offre** | offre en cours | renvoie l'email d'offre ; case à cocher « prolonger de 24H » dans la confirmation (décochée par défaut) |
-| **Redonner une offre** | entrée refusée / expirée | repose une offre neuve ; l'entrée **retrouve son rang d'origine**, les suivantes sont décalées |
-| **Inscrire directement** | toujours (hors entrée déjà consommée) ET places libres suffisantes | convertit en inscription `confirmé` sans passer par l'email d'offre |
+| **Redonner une offre** | entrée refusée / expirée | repose une offre neuve ; l'entrée repart **en fin de file** par défaut, le guide peut choisir « reprendre son rang d'origine » dans la confirmation |
+| **Inscrire directement** | visite dans **moins de 48H** ET places libres suffisantes | convertit en inscription `confirmé` sans passer par l'email d'offre |
 | **Retirer de la file** | toujours | soft-delete + réordonnancement + email `waitlist_left` + promotion du suivant si offre active |
 
 Règles :
@@ -87,6 +92,10 @@ Règles :
   `attente_validation` : le guide fait foi du consentement, typiquement recueilli au téléphone),
   envoie l'email de confirmation habituel avec le lien calendrier, et soft-delete l'entrée de file.
   Réutilise le chemin de `handleActivateWaitlist` pour rester idempotent.
+  **Bornée aux visites dans moins de 48H** : au-delà, le délai de validation email de 24H a le
+  temps de jouer, et court-circuiter le consentement ferait courir le risque d'une place occupée
+  par quelqu'un qui n'a rien reçu (email mal saisi au téléphone) et ne viendra pas. Le bouton est
+  masqué sur les visites plus lointaines ; le serveur applique la même borne (409).
 - **Retrait** : réutilise exactement la logique de `handleDeleteWaitlist` (soft-delete →
   `rtdbWaitlistReorderAfter` → `promoteWaitlist` si offre active) et le template `waitlist_left`
   existant, pour ne pas diverger.
@@ -98,16 +107,6 @@ prénom, nom, email, nombre d'accompagnants (0–5), noms des accompagnants opti
 L'entrée est ajoutée **en fin de file** via `rtdbWaitlistAdd`. Refus si un email identique a déjà
 une entrée active ou une inscription active sur cette visite (409, message explicite).
 Sert aux demandes reçues par téléphone ou sur place.
-
-### 3.3 Réordonnancement manuel
-
-Flèches ↑ ↓ sur chaque entrée sans offre active. Déplace l'entrée d'un rang et décale la voisine.
-Interdit sur une entrée dont l'offre est en cours (sa place est déjà réservée) et sur une entrée
-refusée/expirée. Chaque déplacement est journalisé (§5).
-
-> Attention produit : la position est visible par l'inscrit côté public (réponse anonymisée du
-> `GET` public). Un réordonnancement modifie donc ce qu'il voit, sans notification. À utiliser
-> pour corriger une erreur, pas comme outil de priorisation courante.
 
 ## 4. API
 
@@ -139,22 +138,23 @@ Sans `x-guide-code` valide : 401 — pas de version anonymisée, ces données so
 
 ### 4.2 `POST /api/visit-waitlist?action=offer`
 
-Body `{ "waitlistId": "…", "resend": false, "extend": false }`.
+Body `{ "waitlistId": "…", "resend": false, "extend": false, "keepPosition": false }`.
 
 - offre neuve → `createRegistrationToken`, écrit `invitationToken`, `invitationSentAt`,
   `invitationExpiresAt`, envoie l'email.
 - `resend: true` → renvoie l'email avec le token existant ; `extend: true` décale
   `invitationExpiresAt` de 24H à partir de maintenant et régénère le token, `extend: false` n'y
   touche pas. `idempotencyKey` distinct par envoi, sinon `sendRegistrationEmail` déduplique.
-- sur une entrée `rejectedAt` → efface `rejectedAt`, repose une offre neuve, **conserve
-  `position`** et décale les entrées de rang ≥ à celle-ci.
+- sur une entrée `rejectedAt` → efface `rejectedAt` et repose une offre neuve. Body
+  `keepPosition` : `false` (défaut) place l'entrée en fin de file, `true` lui rend sa `position`
+  d'origine et décale les entrées de rang ≥ à celle-ci.
 - 409 si offre déjà active sans `resend`, 409 si places insuffisantes (recalcul serveur),
   410 si soft-deleted, 404 si inconnue.
 
 ### 4.3 `POST /api/visit-waitlist?action=register`
 
 Body `{ "waitlistId": "…" }`. Conversion directe en inscription `confirmé` (§3.1).
-409 si places insuffisantes, 410 si déjà consommée. Idempotent : si une inscription active existe
+409 si places insuffisantes, 409 si la visite est à plus de 48H, 410 si déjà consommée. Idempotent : si une inscription active existe
 déjà pour cet email sur cette visite, renvoie `{ ok: true, registrationId }` sans doublon.
 
 ### 4.4 `POST /api/visit-waitlist?action=add`
@@ -162,16 +162,11 @@ déjà pour cet email sur cette visite, renvoie `{ ok: true, registrationId }` s
 Body `{ "tourId", "firstName", "lastName", "email", "companions": [] }`. Ajoute en fin de file.
 409 si doublon (entrée ou inscription active pour cet email sur cette visite).
 
-### 4.5 `POST /api/visit-waitlist?action=reorder`
-
-Body `{ "waitlistId": "…", "direction": "up" | "down" }`. Échange la position avec la voisine
-éligible. 409 si l'entrée a une offre active ou est refusée, 409 si déjà en bout de file.
-
-### 4.6 `DELETE /api/visit-waitlist?action=guide-remove&id=…`
+### 4.5 `DELETE /api/visit-waitlist?action=guide-remove&id=…`
 
 Même effet que la suppression publique, autorisée par le code guide au lieu de l'email.
 
-### 4.7 `GET /api/visit-waitlist?action=history&tourId=…`
+### 4.6 `GET /api/visit-waitlist?action=history&tourId=…`
 
 Renvoie l'historique (§5), le plus récent d'abord, 100 entrées max.
 
@@ -181,7 +176,7 @@ Nouveau nœud RTDB `waitlistHistory/{tourId}/{entryId}` :
 
 ```json
 { "at": "2026-09-19T15:33:00Z", "guideCode": "…", "guideName": "…",
-  "action": "offer" | "resend" | "register" | "add" | "reorder" | "remove",
+  "action": "offer" | "resend" | "register" | "add" | "remove",
   "waitlistId": "…", "target": "prénom nom", "details": "hors rang (3 personnes doublées)" }
 ```
 
@@ -227,13 +222,11 @@ composant.
     `invitationExpiresAt` inchangé ; `extend: true` → expiration repoussée de 24H.
   - `action=offer` quand `freePlaces < places` → 409, **aucune écriture DB**.
   - `action=offer` hors rang → l'entrée de rang supérieur n'est pas modifiée.
-  - `action=offer` sur entrée rejetée → `rejectedAt` effacé, position d'origine conservée,
-    suivantes décalées.
+  - `action=offer` sur entrée rejetée → `rejectedAt` effacé ; sans `keepPosition` l'entrée passe
+    en fin de file ; avec `keepPosition: true` elle retrouve son rang et les suivantes sont décalées.
   - `action=register` → inscription `confirmé`, entrée soft-deleted, pas de dépassement de
-    capacité ; second appel → pas de doublon.
+    capacité ; second appel → pas de doublon ; visite à plus de 48H → 409.
   - `action=add` avec email déjà en file ou déjà inscrit → 409.
-  - `action=reorder` sur entrée avec offre active → 409 ; en bout de file → 409 ;
-    cas nominal → positions échangées, aucune autre entrée touchée.
   - `guide-remove` sur entrée avec offre active → suivant promu (assertion sur `promoteWaitlist`) ;
     second appel → 410.
   - Chaque action écrit une ligne d'historique ; un échec (409) n'en écrit aucune.
@@ -241,7 +234,8 @@ composant.
   - clic sur le bouton → modale ouverte, appel `action=all` effectué ;
   - file vide → message d'état vide ;
   - « Proposer la place » désactivé quand `freePlaces` insuffisant ;
-  - entrée refusée rendue grisée et sans flèches de réordonnancement ;
+  - entrée refusée rendue grisée ;
+  - « Inscrire directement » absent sur une visite à plus de 48H ;
   - export CSV : contenu généré conforme aux filtres actifs (test unitaire de la fonction de
     sérialisation, pas du téléchargement).
 - **Non-régression** : le total « En attente » du dashboard diminue après un retrait et après une
