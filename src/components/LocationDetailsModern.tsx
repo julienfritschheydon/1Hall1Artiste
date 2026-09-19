@@ -449,12 +449,15 @@ export const LocationDetailsModern: React.FC<LocationDetailsModernProps> = ({
                                     // cours ou déjà fini vaut mieux qu'un
                                     // horaire brut.
                                     const status = eventStatusToday(event);
-                                    if (status !== "ongoing" && status !== "past") return null;
+                                    if (status !== "ongoing" && status !== "past" && status !== "tomorrow")
+                                      return null;
                                     return (
                                       <span
                                         className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full ${
                                           status === "ongoing"
                                             ? "bg-green-100 text-green-700"
+                                            : status === "tomorrow"
+                                            ? "bg-amber-100 text-amber-800"
                                             : "bg-gray-200 text-gray-600"
                                         }`}
                                       >
