@@ -144,6 +144,27 @@ describe("GuideDashboard", () => {
     expect(screen.getByText("0%")).toBeInTheDocument();
     expect(screen.getByText("0 place à pourvoir")).toBeInTheDocument();
     expect(screen.getByText("2 terminées")).toBeInTheDocument();
+    // « Personnes inscrites » ne compte plus que ce qu'il reste à animer,
+    // comme le remplissage ; le passé reste lisible, en retrait.
+    expect(screen.getByText("5 sur visites passées")).toBeInTheDocument();
+  });
+
+  it("n'annonce pas de part passée quand toutes les visites sont à venir", () => {
+    render(
+      <GuideDashboard
+        tours={dummyTours}
+        registrationCounts={registrationCounts}
+        waitlistCounts={waitlistCounts}
+        aggregationStats={aggregationStats}
+        onSelectTour={vi.fn()}
+        onCreateTour={vi.fn()}
+        guideCode="CODE"
+      />
+    );
+
+    expect(screen.queryByText(/sur visites? passées?/)).not.toBeInTheDocument();
+    // Tout est à venir : la carte annonce les 5 inscrits du programme.
+    expect(screen.getByText("5")).toBeInTheDocument();
   });
 
   it("affiche le badge 'Aucun inscrit' pour la visite sans participants", () => {

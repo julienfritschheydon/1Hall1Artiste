@@ -16,6 +16,8 @@ interface GuideDashboardStats {
   openCapacity: number;
   remainingPlaces: number;
   totalRegistrations: number;
+  openRegistrations: number;
+  pastRegistrations: number;
   averageFillRate: number;
   totalWaitlist: number;
   atRiskCount: number;
@@ -44,6 +46,10 @@ function calcStats(
   const totalRegistrations = tours.reduce((s, t) => s + (registrationCounts[t.id] || 0), 0);
   const openCapacity = openTours.reduce((s, t) => s + t.capacity, 0);
   const openRegistrations = openTours.reduce((s, t) => s + (registrationCounts[t.id] || 0), 0);
+  // « Personnes inscrites » annonce les visites qu'il reste à animer, comme le
+  // remplissage juste à côté : le total saison faisait lire « 39 inscrits »
+  // face à « 15 % ». Le passé reste visible, en retrait.
+  const pastRegistrations = totalRegistrations - openRegistrations;
   // Places réellement libres (capacité moins inscrits) sur les visites à venir :
   // une visite commencée n'accepte plus d'inscription. Afficher la capacité
   // brute donnait « 180 places à pourvoir » alors que la moitié était prise.
@@ -67,6 +73,8 @@ function calcStats(
     openCapacity,
     remainingPlaces,
     totalRegistrations,
+    openRegistrations,
+    pastRegistrations,
     averageFillRate,
     totalWaitlist,
     atRiskCount,
@@ -121,13 +129,17 @@ export default function GuideDashboard({
     },
     {
       label: "Personnes inscrites",
-      value: stats.totalRegistrations,
+      value: stats.openRegistrations,
       subtext: stats.multiVisitAttendeesCount > 0
         ? `dont ${stats.multiVisitAttendeesCount} à 2+ visites`
         : stats.uniqueAttendeesCount > 0
         ? `${stats.uniqueAttendeesCount} inscrit(s) distinct(s)`
         : undefined,
       subtextColor: stats.multiVisitAttendeesCount > 0 ? "#1d4ed8" : "#7a6f4d",
+      secondarySubtext:
+        stats.pastRegistrations > 0
+          ? `${stats.pastRegistrations} sur visite${stats.pastRegistrations > 1 ? "s" : ""} passée${stats.pastRegistrations > 1 ? "s" : ""}`
+          : undefined,
       color: "bg-[#f3f0e6]",
       onClick: stats.multiVisitAttendeesCount > 0 ? () => setShowMultiModal(true) : undefined,
       clickable: stats.multiVisitAttendeesCount > 0,
@@ -189,6 +201,11 @@ export default function GuideDashboard({
               {card.subtext && (
                 <p style={{ fontSize: "11px", color: card.subtextColor || "#7a6f4d", margin: "4px 0 0 0", fontWeight: 500 }}>
                   {card.subtext}
+                </p>
+              )}
+              {card.secondarySubtext && (
+                <p style={{ fontSize: "11px", color: "#a8a293", margin: "2px 0 0 0", fontWeight: 400 }}>
+                  {card.secondarySubtext}
                 </p>
               )}
               {card.buttonLabel && (
