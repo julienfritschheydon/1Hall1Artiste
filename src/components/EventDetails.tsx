@@ -209,7 +209,9 @@ export const EventDetails = ({ event, isOpen, onClose, source }: EventDetailsPro
           title: "Erreur",
           description: result.errorType === CalendarErrorType.NOT_SUPPORTED
             ? "Votre navigateur ne supporte pas cette fonctionnalité."
-            : "Impossible d'ajouter l'événement au calendrier.",
+            // Le message d'origine est affiché : sans lui, un échec sur mobile
+            // est indiagnosticable (pas de console accessible sur téléphone).
+            : `Impossible d'ajouter l'événement au calendrier.${result.errorMessage ? ` (${result.errorMessage})` : ""}`,
           variant: "destructive"
         });
         return;
