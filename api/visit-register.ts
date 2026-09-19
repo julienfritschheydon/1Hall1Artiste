@@ -1,7 +1,8 @@
 // Doodates Registration API — Inscription visites
 // POST /api/visit-register — créer inscription (public)
-// POST /api/visit-register/confirm — valider un ancien lien email (public, rétrocompat :
-//   l'inscription est désormais confirmée directement à la création)
+// POST /api/visit-register/confirm — compatibilité des anciens liens email
+//   (l'inscription est confirmée directement à la création depuis le retrait du
+//   double opt-in ; cet endpoint ne fait plus que rassurer le porteur du lien)
 
 import { VercelRequest, VercelResponse } from "@vercel/node";
 import {
@@ -12,6 +13,7 @@ import {
   rtdbRegistrationExists,
   rtdbCountUserTours,
   rtdbCountRegisteredByTour,
+  holdsSeat,
   rtdbCountPendingWaitlistOffers,
   rtdbCountWaitlistedPlaces,
   rtdbRegistrationsListByTour,
@@ -28,8 +30,10 @@ import {
 import { rtdbGet } from "./_firebase.js";
 import { buildVisitEmail, VisitEmailType } from "./_visit-email.js";
 import { createRegistrationToken, verifyRegistrationToken } from "./_token.js";
-import { placesOf } from "../src/types/visitTypes.js";
+import { placesOf, bookableCapacity } from "../src/types/visitTypes.js";
 import { buildIcs, googleCalendarUrl } from "./_ics.js";
+import { rateLimited, clientIp, REGISTER_RULE, GDPR_RULE } from "./_rate-limit.js";
+import { withTourLock } from "./_tour-lock.js";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Public site URL for email links. HashRouter → links use /#/ prefix.
@@ -189,6 +193,13 @@ async function sendConfirmedEmail(reg: {
 
 // POST /api/visit-register — créer inscription
 async function handleCreateRegistration(req: VercelRequest, res: VercelResponse) {
+  // L'inscription manuelle du guide est exemptée : elle est authentifiée par le
+  // code guide, et un guide qui inscrit un groupe sur place enchaîne
+  // légitimement les soumissions depuis une seule adresse.
+  if (req.body?.manual !== true && rateLimited("visit-register", clientIp(req), REGISTER_RULE)) {
+    return res.status(429).json({ error: "Trop de tentatives. Réessayez dans une minute." });
+  }
+
   const { tourId, email, firstName, lastName, companionFirstName, companionLastName } = req.body;
 
   // Q13: Validate email
@@ -265,83 +276,39 @@ async function handleCreateRegistration(req: VercelRequest, res: VercelResponse)
       return res.status(400).json({ error: "already in waitlist for this tour" });
     }
 
-    // Lazy expiry: annule les inscriptions "attente_validation" dont le délai de confirmation
-    // email est dépassé, et promeut immédiatement la file d'attente sur chaque place libérée —
-    // sinon la personne qui tente de s'inscrire maintenant pourrait doubler celle qui attend déjà.
-    const tourRegs = await rtdbRegistrationsListByTour(tourId);
-    const now = new Date();
-    for (const reg of tourRegs) {
-      if (reg.status === "attente_validation" && reg.validationExpiresAt && new Date(reg.validationExpiresAt) < now) {
-        await rtdbRegistrationUpdate(reg.id, { status: "annulé", cancelledAt: now.toISOString() });
-        await promoteWaitlist(tourId);
+    // ── Section critique ────────────────────────────────────────────────────
+    // Compter les places puis écrire, c'est lire-puis-écrire : sans exclusion
+    // mutuelle, deux requêtes concurrentes lisent « il reste 1 place » et
+    // créent chacune une inscription. Le verrou par visite sérialise la
+    // décision. Les envois d'email restent DEHORS : ils prennent des centaines
+    // de millisecondes et n'ont aucune raison de retenir le verrou.
+    const outcome = await withTourLock(tourId, async () => {
+      // Places prises = confirmés + TOUTE la file d'attente, offre envoyée ou
+      // pas. Toute personne déjà en attente réserve son rang — sinon un nouvel
+      // inscrit avec un groupe plus petit la doublerait simplement parce qu'il
+      // rentre dans la capacité brute restante, alors qu'elle est arrivée avant
+      // lui (voir doc §6.7).
+      const registeredPlaces = await rtdbCountRegisteredByTour(tourId);
+      const waitlistedPlaces = await rtdbCountWaitlistedPlaces(tourId);
+      const hasSpace = registeredPlaces + waitlistedPlaces + groupSize <= bookableCapacity(tour);
+
+      // Inscription manuelle du guide : le passe-droit de capacité est voulu
+      // (surbooking décidé sur place), mais il doit être signalé — sans
+      // avertissement le guide ne voit ni que la visite était complète, ni
+      // qu'il vient de doubler la file d'attente.
+      if (isManual || hasSpace) {
+        const registration = await rtdbRegistrationCreate({
+          tourId,
+          email,
+          firstName: sanitizedFirstName,
+          lastName: sanitizedLastName,
+          companions: companionsField,
+          status: "confirmé",
+        });
+        await rtdbRegistrationUpdate(registration.id, { confirmedAt: new Date().toISOString() });
+        return { kind: "registered" as const, id: registration.id, overCapacity: isManual && !hasSpace };
       }
-    }
 
-    // Count places taken (confirmés + TOUTE la file d'attente, offre envoyée ou pas).
-    // Toute personne déjà en attente réserve son rang — sinon un nouvel inscrit avec un
-    // groupe plus petit pourrait la doubler simplement parce qu'il rentre dans la capacité
-    // brute restante, alors qu'elle est arrivée avant lui (voir doc §6.7).
-    const registeredPlaces = await rtdbCountRegisteredByTour(tourId);
-    const waitlistedPlaces = await rtdbCountWaitlistedPlaces(tourId);
-    const hasSpace = registeredPlaces + waitlistedPlaces + groupSize <= tour.capacity;
-
-    // Guide manual on-site registration: create directly as confirmé, no email.
-    // Le passe-droit capacité est voulu (surbooking volontaire du guide), mais
-    // il doit être signalé — sans warning le guide ne voit même pas que la
-    // visite était complète ni qu'il double la file d'attente.
-    if (isManual) {
-      const registration = await rtdbRegistrationCreate({
-        tourId,
-        email,
-        firstName: sanitizedFirstName,
-        lastName: sanitizedLastName,
-        companions: companionsField,
-        status: "confirmé",
-      });
-      await rtdbRegistrationUpdate(registration.id, { confirmedAt: new Date().toISOString() });
-      const overCapacity = !hasSpace;
-      return res.status(201).json({
-        status: "confirmé",
-        registrationId: registration.id,
-        message: "Inscription manuelle confirmée",
-        ...(overCapacity
-          ? {
-              warning:
-                "Attention : la visite était complète (ou une file d'attente existe). Cette inscription passe outre la capacité et la file.",
-            }
-          : {}),
-      });
-    }
-
-    if (hasSpace) {
-      // Inscription confirmée immédiatement : le double opt-in par email
-      // (lien à cliquer sous 24h) faisait abandonner des inscrits et laissait
-      // des places bloquées en « attente_validation ». On crée directement en
-      // « confirmé » et l'email récapitule la visite (horaire, lieu, calendrier).
-      const registration = await rtdbRegistrationCreate({
-        tourId,
-        email,
-        firstName: sanitizedFirstName,
-        lastName: sanitizedLastName,
-        companions: companionsField,
-        status: "confirmé",
-      });
-      await rtdbRegistrationUpdate(registration.id, { confirmedAt: new Date().toISOString() });
-
-      await sendConfirmedEmail({
-        id: registration.id,
-        tourId,
-        email,
-        firstName: sanitizedFirstName,
-      });
-
-      return res.status(201).json({
-        status: "confirmé",
-        registrationId: registration.id,
-        message: "Inscription confirmée ! Un email récapitulatif vient de vous être envoyé.",
-      });
-    } else {
-      // Waitlist — token not needed for waitlist (no email validation step)
       const position = (await rtdbWaitlistCount(tourId)) + 1;
       const waitlist = await rtdbWaitlistAdd({
         tourId,
@@ -351,29 +318,60 @@ async function handleCreateRegistration(req: VercelRequest, res: VercelResponse)
         companions: companionsField,
         position,
       });
+      return { kind: "waitlisted" as const, id: waitlist.id, position };
+    });
+    // ── Fin de section critique ─────────────────────────────────────────────
 
-      // Send waitlist confirmation email
-      try {
-        await sendRegistrationEmail("waitlist_confirmation", {
-          to: email,
-          firstName: sanitizedFirstName,
-          tourTitle: tour.title,
-          position,
-          queueLink: `${SITE_URL}/#/reservations/cancel-waitlist?id=${waitlist.id}&email=${encodeURIComponent(email)}`,
-          registrationId: waitlist.id,
-          idempotencyKey: `${waitlist.id}_waitlist_confirmation`,
+    if (outcome.kind === "registered") {
+      if (isManual) {
+        return res.status(201).json({
+          status: "confirmé",
+          registrationId: outcome.id,
+          message: "Inscription manuelle confirmée",
+          ...(outcome.overCapacity
+            ? {
+                warning:
+                  "Attention : la visite était complète (ou une file d'attente existe). Cette inscription passe outre la capacité et la file.",
+              }
+            : {}),
         });
-      } catch (e) {
-        console.error("[visit-register] Failed to send waitlist email:", e);
       }
 
+      await sendConfirmedEmail({
+        id: outcome.id,
+        tourId,
+        email,
+        firstName: sanitizedFirstName,
+      });
+
       return res.status(201).json({
-        status: "waitlist",
-        waitlistId: waitlist.id,
-        position,
-        message: `Visite complète — vous êtes #${position} en file d'attente. Vous recevrez un email si une place se libère.`,
+        status: "confirmé",
+        registrationId: outcome.id,
+        message: "Inscription confirmée ! Un email récapitulatif vient de vous être envoyé.",
       });
     }
+
+    const { id: waitlistId, position } = outcome;
+    try {
+      await sendRegistrationEmail("waitlist_confirmation", {
+        to: email,
+        firstName: sanitizedFirstName,
+        tourTitle: tour.title,
+        position,
+        queueLink: `${SITE_URL}/#/reservations/cancel-waitlist?id=${waitlistId}&email=${encodeURIComponent(email)}`,
+        registrationId: waitlistId,
+        idempotencyKey: `${waitlistId}_waitlist_confirmation`,
+      });
+    } catch (e) {
+      console.error("[visit-register] Failed to send waitlist email:", e);
+    }
+
+    return res.status(201).json({
+      status: "waitlist",
+      waitlistId,
+      position,
+      message: `Visite complète — vous êtes #${position} en file d'attente. Vous recevrez un email si une place se libère.`,
+    });
   } catch (e) {
     console.error("[visit-register POST]", e);
     return res.status(500).json({ error: "registration failed" });
@@ -418,7 +416,13 @@ async function handleIcsDownload(req: VercelRequest, res: VercelResponse) {
   }
 }
 
-// POST /api/visit-register/confirm — valider lien email
+// POST /api/visit-register/confirm — compatibilité des anciens liens email.
+//
+// Le double opt-in a été retiré : une inscription est confirmée dès sa
+// création, plus rien ne produit d'inscription « en attente de validation ».
+// Cet endpoint reste en place uniquement parce que des emails envoyés avant ce
+// changement circulent encore, et qu'un clic sur leur lien ne doit pas tomber
+// sur une erreur inquiétante alors que l'inscription est parfaitement valide.
 async function handleConfirmRegistration(req: VercelRequest, res: VercelResponse) {
   const { token } = req.body;
 
@@ -433,67 +437,23 @@ async function handleConfirmRegistration(req: VercelRequest, res: VercelResponse
       return res.status(400).json({ error: "invalid token" });
     }
 
-    if (verified.expired) {
-      // Lien expiré mais inscription déjà confirmée (clic tardif sur le lien de
-      // l'email, parfois des semaines après) : l'inscription est valide, on ne
-      // doit ni afficher « annulée » ni envoyer l'email d'expiration.
-      const expiredReg = await rtdbRegistrationGet(verified.registrationId).catch(() => null);
-      if (expiredReg?.status === "confirmé" || expiredReg?.status === "présent") {
-        return res.json({ ok: true, status: expiredReg.status, message: "Inscription déjà confirmée" });
-      }
-      if (expiredReg && expiredReg.status !== "attente_validation") {
-        return res.status(400).json({ error: "registration already processed", status: expiredReg.status });
-      }
-      // Token expired on a pending registration: send expiration email
-      try {
-        await sendRegistrationEmail("validation_expired", {
-          to: verified.email,
-          firstName: expiredReg?.firstName || "Participant",
-          registrationId: verified.registrationId,
-          idempotencyKey: `${verified.registrationId}_validation_expired`,
-        });
-      } catch (e) {
-        console.error("[visit-register] Failed to send expiration email:", e);
-      }
+    // L'expiration du jeton est sans objet ici : on ne valide plus rien, on se
+    // contente de rassurer le porteur du lien sur l'état de son inscription.
+    const registration = await rtdbRegistrationGet(verified.registrationId).catch(() => null);
 
-      return res.status(400).json({ error: "token expired" });
-    }
-
-    const registrationId = verified.registrationId;
-    const registration = await rtdbRegistrationGet(registrationId);
-
-    if (!registration) {
+    if (!registration || registration.deletedAt) {
       return res.status(404).json({ error: "registration not found" });
     }
 
-    // Idempotency: if already confirmed, return success.
-    // Cas re-validation J-1 (Q15) : le clic doit effacer la deadline, sinon le
-    // cron auto-annule la personne alors qu'elle vient de confirmer sa présence.
-    if (registration.status === "confirmé") {
-      if (registration.validationDeadline) {
-        await rtdbRegistrationUpdate(registrationId, { validationDeadline: undefined, revalidatedAt: new Date().toISOString() });
-      }
-      return res.json({ ok: true, status: "confirmé", message: "Inscription déjà confirmée" });
+    if (registration.status === "confirmé" || registration.status === "présent") {
+      return res.json({
+        ok: true,
+        status: registration.status,
+        message: "Votre inscription est confirmée, aucune action n'est nécessaire.",
+      });
     }
 
-    if (registration.status !== "attente_validation") {
-      return res.status(400).json({ error: "registration already processed" });
-    }
-
-    // Mark confirmed
-    await rtdbRegistrationUpdate(registrationId, {
-      status: "confirmé",
-      confirmedAt: new Date().toISOString(),
-    });
-
-    await sendConfirmedEmail({
-      id: registrationId,
-      tourId: registration.tourId,
-      email: registration.email,
-      firstName: registration.firstName,
-    });
-
-    return res.json({ ok: true, status: "confirmé", message: "Inscription confirmée" });
+    return res.status(400).json({ error: "registration already processed", status: registration.status });
   } catch (e) {
     console.error("[visit-register confirm]", e);
     return res.status(500).json({ error: "confirmation failed" });
@@ -512,33 +472,45 @@ export async function promoteWaitlist(tourId: string): Promise<void> {
     const tour = await rtdbTourGet(tourId);
     if (!tour) return;
 
-    const now = new Date();
-    const confirmedCount = await rtdbCountRegisteredByTour(tourId);
-    const waits = await rtdbWaitlistListByTour(tourId); // triés par position, exclut les supprimés
+    // Réserver les places sous verrou : sans lui, une inscription concurrente
+    // peut prendre la place qu'on est en train d'offrir, et la personne promue
+    // reçoit une offre déjà caduque. Les envois d'email se font APRÈS, hors
+    // section critique.
+    const promoted = await withTourLock(tourId, async () => {
+      const now = new Date();
+      const confirmedCount = await rtdbCountRegisteredByTour(tourId);
+      const waits = await rtdbWaitlistListByTour(tourId); // triés par position, exclut les supprimés
 
-    // Une offre en cours (envoyée, ni acceptée ni expirée/refusée) réserve sa place.
-    const pendingPlaces = waits
-      .filter((w) => w.invitationSentAt && !w.rejectedAt && w.invitationExpiresAt && new Date(w.invitationExpiresAt) >= now)
-      .reduce((sum, w) => sum + placesOf(w), 0);
+      // Une offre en cours (envoyée, ni acceptée ni expirée/refusée) réserve sa place.
+      const pendingPlaces = waits
+        .filter((w) => w.invitationSentAt && !w.rejectedAt && w.invitationExpiresAt && new Date(w.invitationExpiresAt) >= now)
+        .reduce((sum, w) => sum + placesOf(w), 0);
 
-    let freeSlots = tour.capacity - confirmedCount - pendingPlaces;
-    if (freeSlots <= 0) return;
+      let freeSlots = bookableCapacity(tour) - confirmedCount - pendingPlaces;
+      if (freeSlots <= 0) return [];
 
-    // Candidats = ceux sans offre active/refusée, dans l'ordre de position (FIFO).
-    const candidates = waits.filter((w) => !w.invitationSentAt && !w.rejectedAt);
+      // Candidats = ceux sans offre active/refusée, dans l'ordre de position (FIFO).
+      const candidates = waits.filter((w) => !w.invitationSentAt && !w.rejectedAt);
+      const offers: { entry: (typeof candidates)[number]; token: string }[] = [];
 
-    for (const next of candidates) {
-      const need = placesOf(next);
-      if (need > freeSlots) break; // groupe ne rentre pas — équité FIFO, on ne saute pas de rang
+      for (const next of candidates) {
+        const need = placesOf(next);
+        if (need > freeSlots) break; // groupe ne rentre pas — équité FIFO, on ne saute pas de rang
 
-      const invitationToken = createRegistrationToken(next.id, next.email);
-      await rtdbWaitlistUpdate(next.id, {
-        invitationToken: invitationToken.token,
-        invitationExpiresAt: invitationToken.expiresAt,
-        invitationSentAt: new Date().toISOString(),
-      });
-      freeSlots -= need;
+        const invitationToken = createRegistrationToken(next.id, next.email);
+        await rtdbWaitlistUpdate(next.id, {
+          invitationToken: invitationToken.token,
+          invitationExpiresAt: invitationToken.expiresAt,
+          invitationSentAt: new Date().toISOString(),
+        });
+        freeSlots -= need;
+        offers.push({ entry: next, token: invitationToken.token });
+      }
 
+      return offers;
+    });
+
+    for (const { entry: next, token } of promoted) {
       try {
         await sendRegistrationEmail("waitlist_offer", {
           to: next.email,
@@ -549,7 +521,7 @@ export async function promoteWaitlist(tourId: string): Promise<void> {
           // seule la route accept-waitlist appelle l'endpoint d'activation.
           // Avec /confirm le lien répondait « registration not found » et la
           // personne promue perdait sa place à l'expiration de l'offre.
-          acceptLink: `${SITE_URL}/#/reservations/accept-waitlist?token=${invitationToken.token}`,
+          acceptLink: `${SITE_URL}/#/reservations/accept-waitlist?token=${token}`,
           deadline: new Date(new Date().getTime() + 24 * 60 * 60 * 1000),
           registrationId: next.id,
           idempotencyKey: `${next.id}_waitlist_offer`,
@@ -650,6 +622,13 @@ async function handleCancelRegistration(req: VercelRequest, res: VercelResponse)
 // On envoie donc un lien de confirmation signé (HMAC, 24h) à l'adresse
 // concernée ; la suppression n'a lieu qu'à l'étape 2 (action=gdpr-confirm).
 async function handleGdprRequest(req: VercelRequest, res: VercelResponse) {
+  // Cet endpoint envoie un email à une adresse que l'appelant choisit
+  // librement : sans limite, il sert à inonder un tiers de messages et à vider
+  // le quota EmailJS du collectif au passage.
+  if (rateLimited("visit-gdpr", clientIp(req), GDPR_RULE)) {
+    return res.status(429).json({ error: "Trop de demandes. Réessayez plus tard." });
+  }
+
   const { email } = req.body;
   if (!email || typeof email !== "string" || !EMAIL_REGEX.test(email)) {
     return res.status(400).json({ error: "email: valid email required" });
@@ -703,11 +682,7 @@ async function handleGdprConfirm(req: VercelRequest, res: VercelResponse) {
     if (allRegs) {
       for (const [regId, reg] of Object.entries(allRegs)) {
         if (reg && reg.email && reg.email.toLowerCase() === email.toLowerCase() && !reg.deletedAt) {
-          const heldSeat =
-            reg.status === "confirmé" ||
-            reg.status === "présent" ||
-            (reg.status === "attente_validation" && reg.validationExpiresAt && new Date(reg.validationExpiresAt) > now);
-          if (heldSeat) affectedTourIds.add(reg.tourId);
+          if (holdsSeat(reg)) affectedTourIds.add(reg.tourId);
           await rtdbRegistrationErase(regId);
           deletedRegs++;
         }
@@ -750,59 +725,6 @@ async function handleGdprConfirm(req: VercelRequest, res: VercelResponse) {
   }
 }
 
-// POST /api/visit-register?action=resend — renvoyer email de validation (admin only)
-// Body: { registrationId }. Requires X-Guide-Code header.
-async function handleResendValidation(req: VercelRequest, res: VercelResponse) {
-  const guideCode = req.headers["x-guide-code"] as string | undefined;
-  if (!guideCode || !(await rtdbGuideCodeValidate(guideCode))) {
-    return res.status(403).json({ error: "guide code required" });
-  }
-
-  const { registrationId } = req.body;
-  if (!registrationId || typeof registrationId !== "string") {
-    return res.status(400).json({ error: "registrationId: string required" });
-  }
-
-  try {
-    const registration = await rtdbRegistrationGet(registrationId);
-    if (!registration || registration.deletedAt) {
-      return res.status(404).json({ error: "registration not found" });
-    }
-    if (registration.status === "confirmé") {
-      return res.json({ ok: true, message: "Déjà confirmée — aucun email nécessaire" });
-    }
-    if (registration.status !== "attente_validation") {
-      return res.status(400).json({ error: `cannot resend for status: ${registration.status}` });
-    }
-
-    const tour = await rtdbTourGet(registration.tourId);
-
-    // Always regenerate token with real registrationId
-    const newToken = createRegistrationToken(registrationId, registration.email);
-    const token = newToken.token;
-    await rtdbRegistrationUpdate(registrationId, {
-      validationToken: token,
-      validationExpiresAt: newToken.expiresAt,
-    });
-
-    await sendRegistrationEmail("confirmation", {
-      to: registration.email,
-      firstName: registration.firstName,
-      tourTitle: tour?.title || "",
-      tourDate: tour?.date || "",
-      validationLink: `${SITE_URL}/#/reservations/confirm?token=${token}`,
-      cancelLink: `${SITE_URL}/#/reservations/cancel?id=${registrationId}`,
-      registrationId,
-      idempotencyKey: `${registrationId}_confirmation_resend_${Date.now()}`,
-    });
-
-    return res.json({ ok: true, message: `Email de validation renvoyé à ${registration.email}` });
-  } catch (e) {
-    console.error("[visit-register resend]", e);
-    return res.status(500).json({ error: "resend failed" });
-  }
-}
-
 // Main router
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // GET ?action=ics&id=<registrationId> — téléchargement fichier calendrier.
@@ -828,8 +750,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return handleGdprRequest(req, res);
   } else if (action === "gdpr-confirm") {
     return handleGdprConfirm(req, res);
-  } else if (action === "resend") {
-    return handleResendValidation(req, res);
   } else if (action) {
     // Une action inconnue (typo) ne doit pas créer silencieusement une inscription.
     return res.status(400).json({ error: `unknown action: ${action}` });

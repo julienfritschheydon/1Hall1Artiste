@@ -38,7 +38,7 @@ export function computeVisitAggregation(
     // occupe sa place, un absent l'a rendue. Compter autrement affichait
     // « 2/15 » à côté de « 11 places restantes ».
     const activeList = list.filter(
-      (r) => r.status === "confirmé" || r.status === "présent" || r.status === "attente_validation"
+      (r) => r.status === "confirmé" || r.status === "présent"
     );
 
     const tourPlaces = activeList.reduce((sum, r) => sum + placesOf(r), 0);
@@ -94,7 +94,7 @@ export function computeVisitAggregation(
   for (const tour of tours) {
     const list = registrationsByTour[tour.id] || [];
     const activeList = list.filter(
-      (r) => r.status === "confirmé" || r.status === "présent" || r.status === "attente_validation"
+      (r) => r.status === "confirmé" || r.status === "présent"
     );
     let count = 0;
     for (const r of activeList) {

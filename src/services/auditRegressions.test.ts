@@ -61,6 +61,18 @@ vi.mock("../../api/_firebase.js", () => ({
     setAtPath(path, { ...existing, ...JSON.parse(JSON.stringify(value)) });
   }),
   rtdbDelete: vi.fn(async (path: string) => setAtPath(path, null)),
+  // Écriture conditionnelle : l'ETag est ici la valeur sérialisée du nœud, ce
+  // qui reproduit la sémantique compare-and-set dont dépend le verrou par
+  // visite (api/_tour-lock.ts).
+  rtdbGetWithEtag: vi.fn(async (path: string) => {
+    const value = getAtPath(path);
+    return { value, etag: JSON.stringify(value ?? null) };
+  }),
+  rtdbPutIfMatch: vi.fn(async (path: string, value: any, etag: string) => {
+    if (JSON.stringify(getAtPath(path) ?? null) !== etag) return false;
+    setAtPath(path, value === null ? null : JSON.parse(JSON.stringify(value)));
+    return true;
+  }),
 }));
 
 const fetchMock = vi.fn(async () => new Response("{}", { status: 200 }));
@@ -281,11 +293,13 @@ describe("C5 — réinscription possible après annulation", () => {
   });
 });
 
-describe("H1 — re-validation J-1", () => {
-  it("cliquer le lien de re-validation efface la deadline ; seul le non-cliqueur est auto-annulé", async () => {
-    // Visite le 8 août à 15:00Z. Les deux inscriptions sont confirmées d'emblée.
+describe("H1 — rappel de la veille", () => {
+  it("n'annule JAMAIS une inscription, même si personne ne clique", async () => {
+    // Régression majeure : le job J-1 exigeait un clic de re-confirmation et
+    // annulait en silence quiconque n'avait pas cliqué sous 24h — alors que le
+    // formulaire public promet « aucun lien à valider ». La personne se
+    // présentait devant un guide qui ne l'avait plus sur sa liste.
     const tourId = makeTour(5, `tour_h1_${tourCounter}`, "2026-08-08T15:00:00.000Z");
-    const { createRegistrationToken } = await import("../../api/_token.js");
 
     const clicker = await register(tourId, "clicker@t.fr");
     const ghost = await register(tourId, "ghost@t.fr");
@@ -293,25 +307,33 @@ describe("H1 — re-validation J-1", () => {
       expect(r.body.status).toBe("confirmé");
     }
 
-    // J-1 : le cron envoie les demandes de re-validation (fenêtre +24h ±1h).
+    // J-1 : le cron envoie les rappels.
     vi.setSystemTime(new Date("2026-08-07T14:30:00.000Z"));
-    const sent = await runCron("send-1d-validation");
+    const sent = await runCron("send-1d-reminder");
     expect(sent.body.sent).toBe(2);
+    // Le job ne pose plus aucune échéance d'annulation.
+    for (const r of [clicker, ghost]) {
+      expect(getAtPath(`registrations/${r.body.registrationId}`).validationDeadline).toBeFalsy();
+    }
 
-    // clicker re-valide via le lien (deadline effacée).
-    const clickToken = createRegistrationToken(clicker.body.registrationId, "clicker@t.fr").token;
-    const res = mockRes();
-    await registerHandler(mockReq({ query: { action: "confirm" }, body: { token: clickToken } }), res);
-    expect(jsonOf(res).ok).toBe(true);
-    expect(getAtPath(`registrations/${clicker.body.registrationId}`).validationDeadline).toBeFalsy();
-
-    // Deadline (J-1 + 24h = 08/08 14:30) dépassée, visite pas encore commencée.
+    // Bien après l'ancienne échéance (J-1 + 24h), visite pas encore commencée :
+    // personne n'a cliqué, et personne ne doit être annulé.
     vi.setSystemTime(new Date("2026-08-08T14:45:00.000Z"));
-    const swept = await runCron("send-1d-validation");
-    expect(swept.body.autocancelled).toBe(1);
+    const swept = await runCron("send-1d-reminder");
+    expect(swept.body.autocancelled).toBeUndefined();
 
-    expect(getAtPath(`registrations/${clicker.body.registrationId}`).status).toBe("confirmé");
-    expect(getAtPath(`registrations/${ghost.body.registrationId}`).status).toBe("annulé");
+    for (const r of [clicker, ghost]) {
+      expect(getAtPath(`registrations/${r.body.registrationId}`).status).toBe("confirmé");
+    }
+  });
+
+  it("n'envoie qu'un seul rappel par inscription", async () => {
+    const tourId = makeTour(5, `tour_h1b_${tourCounter}`, "2026-08-08T15:00:00.000Z");
+    await register(tourId, "once@t.fr");
+
+    vi.setSystemTime(new Date("2026-08-07T04:00:00.000Z"));
+    expect((await runCron("send-1d-reminder")).body.sent).toBe(1);
+    expect((await runCron("send-1d-reminder")).body.sent).toBe(0);
   });
 });
 

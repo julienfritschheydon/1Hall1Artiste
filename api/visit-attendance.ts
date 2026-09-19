@@ -11,22 +11,14 @@ import {
   rtdbRegistrationUpdate,
   rtdbRegistrationsListByTour,
   rtdbGuideCodeValidate,
+  holdsSeat,
+  rtdbRegistrationsGroupedByTour,
+  rtdbWaitlistGroupedByTour,
+  rtdbToursListAll,
+  rtdbTourStatsList,
 } from "./_visit-db.js";
 import { placesOf, Registration } from "../src/types/visitTypes.js";
 import { cancelRegistration } from "./visit-register.js";
-
-// Une inscription annulée, supprimée (RGPD) ou en attente expirée n'occupe pas
-// de place : elle ne doit ni apparaître sur la feuille d'appel, ni être marquable
-// (le marquage écrasait « annulé » → « présent » alors que la place avait pu
-// être réattribuée à la file d'attente).
-function holdsSeat(reg: Registration, now: number): boolean {
-  if (reg.deletedAt) return false;
-  if (reg.status === "confirmé" || reg.status === "présent" || reg.status === "absent") return true;
-  if (reg.status === "attente_validation") {
-    return Boolean(reg.validationExpiresAt && new Date(reg.validationExpiresAt).getTime() > now);
-  }
-  return false;
-}
 
 // Helper: validate guide code
 async function validateGuideCode(code: string | undefined): Promise<boolean> {
@@ -79,7 +71,7 @@ async function handleMarkAttendance(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: "registration does not belong to this tour" });
     }
 
-    if (!holdsSeat(reg, Date.now())) {
+    if (!holdsSeat(reg)) {
       return res.status(409).json({ error: `cannot mark attendance: registration is "${reg.status}"` });
     }
 
@@ -137,17 +129,14 @@ async function handleListAttendance(req: VercelRequest, res: VercelResponse) {
     }
 
     // Enrich registrations with attendance data.
-    // Seules les inscriptions occupant une place sont renvoyées (annulés et
-    // attentes expirées exclus : ils polluaient feuille d'appel, CSV, impression
-    // et compteurs). Les tokens de validation ne sortent pas du serveur.
-    const now = Date.now();
+    // Seules les inscriptions occupant une place sont renvoyées : les annulées
+    // polluaient la feuille d'appel, le CSV, l'impression et les compteurs.
     const enriched = registrations
-      .filter((r) => holdsSeat(r, now))
+      .filter((r) => holdsSeat(r))
       .map((r) => {
         const att = attendanceMap.get(r.id);
-        const { validationToken, ...safe } = r as Registration & { validationToken?: string };
         return {
-          ...safe,
+          ...r,
           attendance: att || null,
           markedPresent: att?.present ?? null,
         };
@@ -167,9 +156,6 @@ async function handleListAttendance(req: VercelRequest, res: VercelResponse) {
       // c'est ce que le guide a sous les yeux, et donc ce qu'affichent la carte
       // « Inscrits » et l'onglet du portail.
       seatsTaken: sumPlaces(enriched),
-      // Places réservées le temps de la confirmation par e-mail : elles comptent
-      // dans la jauge de capacité, d'où l'écart avec les confirmés.
-      awaitingValidation: sumPlaces(enriched.filter((r) => r.status === "attente_validation")),
       totalPeople: sumPlaces(enriched.filter((r) => r.status === "confirmé" || r.status === "présent")),
       confirmed: sumPlaces(enriched.filter((r) => r.status === "confirmé")),
       present: sumPlaces(enriched.filter((r) => r.markedPresent === true)),
@@ -225,8 +211,93 @@ async function handleCancelByGuide(req: VercelRequest, res: VercelResponse) {
   }
 }
 
+// GET /api/visit-attendance?action=overview — chiffres de TOUTES les visites,
+// en une seule requête (guide).
+//
+// Le portail guide lançait deux requêtes par visite au chargement — une pour la
+// feuille d'appel, une pour la file d'attente — et chacune relisait les
+// inscriptions document par document. Sur un programme d'une trentaine de
+// visites, ça faisait une soixantaine d'appels HTTP et plusieurs centaines de
+// lectures en base, à chaque ouverture et à chaque rafraîchissement. Tout est
+// désormais calculé ici à partir de deux lectures groupées.
+async function handleOverview(req: VercelRequest, res: VercelResponse) {
+  if (!(await requireGuideCode(req, res))) {
+    return;
+  }
+
+  try {
+    const [tours, regsByTour, waitsByTour] = await Promise.all([
+      rtdbToursListAll(),
+      rtdbRegistrationsGroupedByTour(),
+      rtdbWaitlistGroupedByTour(),
+    ]);
+
+    const tourIds = tours.map((t) => t.id);
+    const registrations: Record<string, unknown[]> = {};
+    const waitlistPlaces: Record<string, number> = {};
+
+    for (const tourId of tourIds) {
+      const seated = (regsByTour.get(tourId) || []).filter((r) => holdsSeat(r));
+      // Mêmes champs que la réponse détaillée : le portail calcule ses
+      // statistiques sur cette liste, elle doit avoir exactement la même forme.
+      registrations[tourId] = seated;
+
+      waitlistPlaces[tourId] = (waitsByTour.get(tourId) || [])
+        .filter((w) => !w.rejectedAt)
+        .reduce((sum, w) => sum + placesOf(w), 0);
+    }
+
+    res.setHeader("Cache-Control", "private, no-store");
+    return res.json({ registrations, waitlistPlaces });
+  } catch (e) {
+    console.error("[visit-attendance overview]", e);
+    return res.status(500).json({ error: "overview failed" });
+  }
+}
+
+// GET /api/visit-attendance?action=stats — bilan des visites passées (guide).
+// Données strictement anonymes, conservées après la purge RGPD.
+async function handleStats(req: VercelRequest, res: VercelResponse) {
+  if (!(await requireGuideCode(req, res))) {
+    return;
+  }
+
+  try {
+    const stats = await rtdbTourStatsList();
+
+    // Taux d'absentéisme global : c'est LE chiffre qui permet de régler le
+    // surbooking. On ne le calcule que sur les visites réellement pointées —
+    // inclure les visites où personne n'a fait l'appel le ferait tendre vers
+    // zéro et donnerait une fausse impression d'assiduité.
+    const pointees = stats.filter((s) => s.present + s.absent > 0);
+    const attendus = pointees.reduce((sum, s) => sum + s.present + s.absent, 0);
+    const absents = pointees.reduce((sum, s) => sum + s.absent, 0);
+
+    res.setHeader("Cache-Control", "private, no-store");
+    return res.json({
+      tours: stats,
+      global: {
+        toursRecorded: stats.length,
+        toursWithAttendance: pointees.length,
+        expected: attendus,
+        absent: absents,
+        noShowRate: attendus > 0 ? Math.round((absents / attendus) * 100) : null,
+      },
+    });
+  } catch (e) {
+    console.error("[visit-attendance stats]", e);
+    return res.status(500).json({ error: "stats failed" });
+  }
+}
+
 // Main handler
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method === "GET" && req.query.action === "stats") {
+    return handleStats(req, res);
+  }
+  if (req.method === "GET" && req.query.action === "overview") {
+    return handleOverview(req, res);
+  }
   if (req.method === "POST") {
     return handleMarkAttendance(req, res);
   } else if (req.method === "GET") {

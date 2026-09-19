@@ -29,7 +29,14 @@ export interface Tour {
   startLocationY: number // Coordonnée Y sur la carte custom
   startLocationName?: string // Nom du lieu (dénormalisé)
   startLocationId?: string // Id réel du bâtiment (data/locations.ts) — lien fiable, pas de coïncidence de pixels
-  capacity: number
+  capacity: number // Places que le guide peut réellement accueillir sur le terrain
+  // Places proposées EN PLUS de la capacité réelle, pour compenser les absents.
+  // Sur une visite gratuite, l'absentéisme se situe structurellement entre 30 et
+  // 50 % : plafonner à la capacité réelle, c'est partir à 9 avec 15 places et 6
+  // personnes en file d'attente. Contrepartie assumée : si tout le monde vient,
+  // quelqu'un est refusé au départ. Valeur par défaut 0 — le surbooking reste
+  // désactivé tant que le collectif n'a pas mesuré son propre taux.
+  overbookingSeats?: number
   labels: string[] // Free tags: ['nature', 'architecture', 'enfants']
   guides?: string[] // Prénoms des guides qui animent — interne, jamais renvoyé au public
   status: 'upcoming' | 'ongoing' | 'completed'
@@ -38,6 +45,7 @@ export interface Tour {
   deletedAt?: string
   batchDeleteExecuted?: boolean // Idempotency: batch delete already ran
   placesLeft?: number // Calculé côté serveur (GET) — places restantes
+  waitlistCount?: number // Calculé côté serveur (GET) — personnes en file d'attente
 }
 
 export interface Registration {
@@ -49,17 +57,21 @@ export interface Registration {
   companions?: Companion[] // Jusqu'à 4 accompagnants (5 places max)
   companionFirstName?: string // Legacy (1 accompagnant) — lecture seule
   companionLastName?: string // Legacy
-  status: 'attente_validation' | 'confirmé' | 'présent' | 'absent' | 'annulé'
-  validationToken?: string
-  validationExpiresAt?: string
+  // Plus de 'attente_validation' : le double opt-in par email a été retiré,
+  // l'inscription est confirmée dès la création. Des documents résiduels
+  // peuvent porter cet ancien statut en base — ils datent d'avant le
+  // changement, leur jeton a expiré depuis longtemps, et ils sont traités
+  // partout comme n'occupant aucune place.
+  status: 'confirmé' | 'présent' | 'absent' | 'annulé'
   confirmedAt?: string
   attendedAt?: string
   cancelledAt?: string
-  reminder7dSent?: boolean // Q2: Idempotency for 7d reminder
-  reminder3hSent?: boolean // Idempotency for 3h reminder (cron horaire)
-  validation1dSent?: boolean // Q15: Idempotency for 1d validation
-  validationDeadline?: string // Q15: Auto-cancel deadline (effacée quand l'utilisateur re-valide)
-  revalidatedAt?: string // Q15: L'utilisateur a re-confirmé sa présence via le lien J-1
+  reminder7dSent?: boolean // Idempotence du rappel J-7
+  reminder3hSent?: boolean // Idempotence du rappel du jour même (cron horaire)
+  // Idempotence du rappel J-1. Le nom date de l'époque où cet email exigeait
+  // une re-validation ; il est conservé tel quel, le renommer imposerait une
+  // migration des documents existants pour aucun gain.
+  validation1dSent?: boolean
   createdAt: string
   deletedAt?: string
 }
@@ -120,6 +132,7 @@ export interface TourCreateInput {
   startLocationName?: string
   startLocationId?: string
   capacity: number
+  overbookingSeats?: number
   labels: string[]
   guides?: string[]
   guideId?: string
@@ -135,8 +148,6 @@ export interface RegistrationCreateInput {
   companionFirstName?: string
   companionLastName?: string
   status?: RegistrationStatus
-  validationToken?: string
-  validationExpiresAt?: string
 }
 
 export interface WaitlistCreateInput {
@@ -150,6 +161,14 @@ export interface WaitlistCreateInput {
   position: number
   invitationToken?: string
   invitationExpiresAt?: string
+}
+
+// Nombre de places réellement ouvertes à l'inscription : capacité de terrain
+// plus le surbooking décidé par le guide. C'est cette valeur, et non `capacity`,
+// qui arbitre inscription directe ou file d'attente.
+export function bookableCapacity(tour: { capacity: number; overbookingSeats?: number }): number {
+  const extra = Number.isFinite(tour.overbookingSeats) ? Math.max(0, tour.overbookingSeats as number) : 0;
+  return tour.capacity + extra;
 }
 
 // Nombre de places occupées par une inscription/file (titulaire + accompagnants).

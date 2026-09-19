@@ -49,6 +49,7 @@ export async function rtdbTourCreate(input: TourCreateInput): Promise<Tour> {
     startLocationName: input.startLocationName,
     startLocationId: input.startLocationId,
     capacity: input.capacity,
+    ...(input.overbookingSeats ? { overbookingSeats: input.overbookingSeats } : {}),
     labels: input.labels,
     status: input.status || "upcoming",
     createdAt: now,
@@ -110,9 +111,7 @@ export async function rtdbRegistrationCreate(input: RegistrationCreateInput): Pr
     companions: input.companions,
     companionFirstName: input.companionFirstName,
     companionLastName: input.companionLastName,
-    status: input.status || "attente_validation",
-    validationToken: input.validationToken,
-    validationExpiresAt: input.validationExpiresAt,
+    status: input.status || "confirmé",
     createdAt: now,
   };
   await rtdbPut(`registrations/${id}`, reg);
@@ -153,30 +152,22 @@ export async function rtdbRegistrationErase(regId: string): Promise<void> {
     companions: undefined,
     companionFirstName: undefined,
     companionLastName: undefined,
-    validationToken: undefined,
     deletedAt: reg.deletedAt || new Date().toISOString(),
   };
   await rtdbPut(`registrations/${regId}`, erased);
 }
 
-// Une inscription ne bloque la réinscription que si elle occupe (ou peut encore
-// occuper) une place : annulée → réinscription permise (les emails le promettent),
-// attente_validation expirée → idem (elle sera annulée au prochain sweep).
+// Une inscription ne bloque la réinscription que si elle occupe réellement une
+// place. Annulée → réinscription permise (les emails le promettent). Tout
+// statut hérité inconnu (notamment l'ancien « attente_validation », dont le
+// jeton a expiré depuis longtemps) ne bloque rien non plus.
 export async function rtdbRegistrationExists(tourId: string, email: string): Promise<boolean> {
   const regs = await rtdbGet<Record<string, boolean>>(`registrations_by_email/${emailKey(email)}`);
   if (!regs) return false;
-  const now = Date.now();
   for (const regId of Object.keys(regs)) {
     const reg = await rtdbRegistrationGet(regId);
     if (!reg || reg.tourId !== tourId || reg.deletedAt) continue;
-    if (reg.status === "annulé") continue;
-    if (
-      reg.status === "attente_validation" &&
-      reg.validationExpiresAt &&
-      new Date(reg.validationExpiresAt).getTime() <= now
-    )
-      continue;
-    return true;
+    if (holdsSeat(reg)) return true;
   }
   return false;
 }
@@ -192,27 +183,27 @@ export async function rtdbCountUserTours(email: string): Promise<number> {
   return count;
 }
 
-// Compte les PLACES occupées (titulaire + accompagnants) par les inscriptions
-// qui occupent réellement un siège : confirmé, présent, OU en attente de validation
-// non expirée (la place est réservée pendant le délai de confirmation email).
-// L'appel ne libère pas la place.
+// Une inscription occupe-t-elle réellement une place ? Source unique de vérité,
+// partagée par le comptage de capacité, le blocage de réinscription et la
+// feuille d'appel — ces trois endroits divergeaient auparavant, chacun avec sa
+// propre liste de statuts.
+//
+// « présent » et « absent » comptent : ils décrivent une visite déjà faite,
+// pas une place à réattribuer.
+export function holdsSeat(reg: { status: string; deletedAt?: string }): boolean {
+  if (reg.deletedAt) return false;
+  return reg.status === "confirmé" || reg.status === "présent" || reg.status === "absent";
+}
+
+// Compte les PLACES occupées (titulaire + accompagnants) sur une visite.
 export async function rtdbCountRegisteredByTour(tourId: string): Promise<number> {
   const regs = await rtdbGet<Record<string, boolean>>(`registrations_by_tour/${tourId}`);
   if (!regs) return 0;
   let places = 0;
-  const now = Date.now();
   for (const regId of Object.keys(regs)) {
     const reg = await rtdbRegistrationGet(regId);
-    if (!reg || reg.deletedAt) continue;
-    if (reg.status === "confirmé" || reg.status === "présent") {
-      places += placesOf(reg);
-    } else if (
-      reg.status === "attente_validation" &&
-      reg.validationExpiresAt &&
-      new Date(reg.validationExpiresAt).getTime() > now
-    ) {
-      places += placesOf(reg);
-    }
+    if (!reg || !holdsSeat(reg)) continue;
+    places += placesOf(reg);
   }
   return places;
 }
@@ -226,6 +217,42 @@ export async function rtdbRegistrationsListByTour(tourId: string): Promise<Regis
     if (reg && !reg.deletedAt) result.push(reg);
   }
   return result;
+}
+
+// Toutes les inscriptions vivantes, groupées par visite, en UNE lecture.
+//
+// `rtdbRegistrationsListByTour` lit l'index puis chaque document un par un :
+// c'est un aller-retour réseau par inscrit. Le portail guide, qui affiche tout
+// le programme, en déclenchait plusieurs centaines à chaque ouverture. Ici on
+// lit le nœud entier une fois et on trie en mémoire — le volume reste modeste
+// (quelques milliers de documents au plus, purgés 24h après chaque visite),
+// sans commune mesure avec le coût de la rafale de requêtes qu'il remplace.
+export async function rtdbRegistrationsGroupedByTour(): Promise<Map<string, Registration[]>> {
+  const all = await rtdbGet<Record<string, Registration>>("registrations");
+  const grouped = new Map<string, Registration[]>();
+  for (const reg of Object.values(all || {})) {
+    if (!reg || reg.deletedAt || !reg.tourId) continue;
+    const list = grouped.get(reg.tourId);
+    if (list) list.push(reg);
+    else grouped.set(reg.tourId, [reg]);
+  }
+  return grouped;
+}
+
+/** Pendant de `rtdbRegistrationsGroupedByTour` pour la file d'attente. */
+export async function rtdbWaitlistGroupedByTour(): Promise<Map<string, Waitlist[]>> {
+  const all = await rtdbGet<Record<string, Waitlist>>("waitlist");
+  const grouped = new Map<string, Waitlist[]>();
+  for (const wait of Object.values(all || {})) {
+    if (!wait || wait.deletedAt || !wait.tourId) continue;
+    const list = grouped.get(wait.tourId);
+    if (list) list.push(wait);
+    else grouped.set(wait.tourId, [wait]);
+  }
+  for (const list of grouped.values()) {
+    list.sort((a, b) => a.position - b.position || (a.createdAt || "").localeCompare(b.createdAt || ""));
+  }
+  return grouped;
 }
 
 export async function rtdbRegistrationsListByDateRange(
@@ -574,6 +601,41 @@ export async function rtdbLocationsList(): Promise<LocationPoint[]> {
     .map(([id, l]) => ({ ...l, id }))
     .filter((l) => l && typeof l.x === "number" && typeof l.y === "number")
     .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+}
+
+// ============ BILAN DE FRÉQUENTATION ============
+// Compteurs anonymes par visite, écrits AVANT la purge RGPD des inscriptions.
+//
+// Sans eux, le bilan d'une édition disparaissait 24h après la dernière visite :
+// le portail calcule ses statistiques à partir des inscriptions vivantes, et la
+// purge les efface toutes. Le collectif se retrouvait sans aucun chiffre — donc
+// sans moyen de régler le surbooking, qui a précisément besoin du taux
+// d'absentéisme réel.
+//
+// Aucune donnée personnelle ici : uniquement des nombres et l'intitulé public
+// de la visite. Ces enregistrements sont donc conservés sans limite de durée.
+
+export interface TourStats {
+  tourId: string;
+  title: string;
+  date: string;
+  capacity: number;
+  overbookingSeats: number;
+  seatsTaken: number; // places occupées par les inscriptions (accompagnants inclus)
+  present: number;
+  absent: number;
+  unmarked: number; // inscrits que le guide n'a pas pointés
+  waitlistPlaces: number;
+  recordedAt: string;
+}
+
+export async function rtdbTourStatsPut(stats: TourStats): Promise<void> {
+  await rtdbPut(`visit_stats/${stats.tourId}`, stats);
+}
+
+export async function rtdbTourStatsList(): Promise<TourStats[]> {
+  const all = await rtdbGet<Record<string, TourStats>>("visit_stats");
+  return Object.values(all || {}).sort((a, b) => (b.date || "").localeCompare(a.date || ""));
 }
 
 // ============ AUDIT LOGS ============

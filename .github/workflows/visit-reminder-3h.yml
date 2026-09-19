@@ -6,9 +6,14 @@ name: ⏰ Rappel visite 3h avant
 # reste gratuit. L'endpoint est authentifié par CRON_SECRET, comme pour Vercel.
 on:
   schedule:
-    # Toutes les heures. GitHub décale parfois les runs planifiés de plusieurs
-    # minutes en période de charge — sans conséquence, le job retient les
-    # visites dans 3h ±30 min et reminder3hSent évite tout doublon.
+    # Toutes les heures. Un run manqué ou décalé est sans conséquence : le job
+    # rattrape TOUTE visite partant dans moins de 4h dont le rappel n'est pas
+    # encore parti, et reminder3hSent évite le doublon.
+    #
+    # ⚠️ GitHub DÉSACTIVE un workflow planifié après 60 jours sans activité sur
+    # le dépôt — soit la situation normale entre deux éditions du festival.
+    # Le réactiver fait partie de la checklist d'avant-festival
+    # (docs/CHECKLIST-AVANT-FESTIVAL.md).
     - cron: '0 * * * *'
   workflow_dispatch:
 

@@ -7,7 +7,12 @@ export type VisitEmailType =
   | "confirmation"
   | "registration_confirmed"
   | "reminder_7d"
-  | "reminder_1d_validate"
+  // Anciennement « reminder_1d_validate » : l'email de la veille exigeait un clic
+  // sous peine d'annulation automatique. C'est devenu un simple rappel assorti
+  // d'un bouton d'annulation volontaire (cf. sendReminderEmails1d). Les templates
+  // EmailJS étant interchangeables (seuls subject/message varient, resolveTemplateId
+  // se replie sur n'importe quel id configuré), le renommage ne casse aucun envoi.
+  | "reminder_1d"
   | "reminder_3h"
   | "waitlist_confirmation"
   | "waitlist_offer"
@@ -103,15 +108,28 @@ export function buildVisitEmail(
         ),
       };
 
-    case "reminder_1d_validate":
+    // Rappel de la veille. Aucune action n'est requise : votre place est gardée.
+    // Le seul bouton est celui qui libère la place, volontairement — c'est le
+    // levier anti-absentéisme documenté (un désistement facile vaut mieux qu'une
+    // place perdue), à l'inverse de l'ancienne annulation automatique.
+    case "reminder_1d":
       return {
-        subject: `Confirmez votre présence — ${d.tourTitle || "votre visite"}`,
+        subject: `C'est demain — ${d.tourTitle || "votre visite"}`,
         message: wrap(
           `${hi}
-          <p>Votre visite « ${title} » approche. Merci de <strong>confirmer votre présence</strong>${
-            d.deadline ? ` avant le ${esc(formatDate(d.deadline))}` : ""
-          }, sinon votre place sera libérée :</p>
-          ${btn(d.validationLink, "Confirmer ma présence")}`
+          <p>Votre visite « ${title} »${date ? ` a lieu le ${date}` : " a lieu demain"}.</p>
+          ${
+            d.location
+              ? `<p>Rendez-vous au <strong>${esc(d.location)}</strong>.</p>`
+              : ""
+          }
+          <p><strong>Vous n'avez rien à faire</strong> : votre place est réservée, venez simplement au point de rendez-vous.</p>
+          <p>Un empêchement ? Libérez votre place en un clic — ${
+            d.waitlistCount
+              ? `<strong>${esc(d.waitlistCount)} personne(s)</strong> attendent qu'une place se libère`
+              : "elle profitera à quelqu'un d'autre"
+          } :</p>
+          ${btn(d.cancelLink, "Je ne pourrai pas venir")}`
         ),
       };
 

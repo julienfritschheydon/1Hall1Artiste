@@ -10,6 +10,9 @@ type CompanionInput = { firstName: string; lastName: string };
 
 export function TourRegistrationForm({ tour, placesLeft }: { tour: Tour; placesLeft: number }) {
   const queryClient = useQueryClient();
+  // Les identifiants doivent être uniques dans la page : plusieurs formulaires
+  // de visites différentes peuvent cohabiter dans le DOM.
+  const fieldId = (name: string) => `tour-${tour.id}-${name}`;
   const [email, setEmail] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -82,6 +85,8 @@ export function TourRegistrationForm({ tour, placesLeft }: { tour: Tour; placesL
   if (submitted && result) {
     return (
       <div
+        role="status"
+        aria-live="polite"
         className={`p-4 rounded-lg ${
           result.status === "waitlist" ? "bg-amber-50 border border-amber-200" : "bg-green-50 border border-green-200"
         }`}
@@ -105,43 +110,119 @@ export function TourRegistrationForm({ tour, placesLeft }: { tour: Tour; placesL
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <h3 className="font-bold text-lg text-[#1a2138]">S'inscrire</h3>
+    <form onSubmit={handleSubmit} className="space-y-4" aria-labelledby={fieldId("legend")}>
+      <h3 id={fieldId("legend")} className="font-bold text-lg text-[#1a2138]">
+        S'inscrire
+      </h3>
 
-      {error && <div className="p-2 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">{error}</div>}
+      {/* role="alert" : l'erreur doit être annoncée dès son apparition, un
+          lecteur d'écran ne « voit » pas le cadre rouge. */}
+      {error && (
+        <div
+          role="alert"
+          id={fieldId("error")}
+          className="p-2 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm"
+        >
+          {error}
+        </div>
+      )}
 
-      <Input
-        type="email"
-        placeholder="Email *"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        required
-      />
-
-      <div className="grid grid-cols-2 gap-3">
-        <Input type="text" placeholder="Prénom *" value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
-        <Input type="text" placeholder="Nom *" value={lastName} onChange={(e) => setLastName(e.target.value)} required />
+      {/* Les champs n'avaient qu'un placeholder : il disparaît à la saisie et
+          n'est pas un libellé pour les technologies d'assistance. */}
+      <div>
+        <label htmlFor={fieldId("email")} className="block text-sm font-medium text-[#1a2138] mb-1">
+          Email <span aria-hidden="true">*</span>
+        </label>
+        <Input
+          id={fieldId("email")}
+          name="email"
+          type="email"
+          autoComplete="email"
+          placeholder="vous@exemple.fr"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          aria-required="true"
+          aria-describedby={error ? fieldId("error") : undefined}
+          required
+        />
       </div>
 
-      <div>
-        <p className="text-sm text-gray-500 mb-2">
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label htmlFor={fieldId("firstName")} className="block text-sm font-medium text-[#1a2138] mb-1">
+            Prénom <span aria-hidden="true">*</span>
+          </label>
+          <Input
+            id={fieldId("firstName")}
+            name="firstName"
+            type="text"
+            autoComplete="given-name"
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+            aria-required="true"
+            required
+          />
+        </div>
+        <div>
+          <label htmlFor={fieldId("lastName")} className="block text-sm font-medium text-[#1a2138] mb-1">
+            Nom <span aria-hidden="true">*</span>
+          </label>
+          <Input
+            id={fieldId("lastName")}
+            name="lastName"
+            type="text"
+            autoComplete="family-name"
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+            aria-required="true"
+            required
+          />
+        </div>
+      </div>
+
+      <fieldset className="border-0 p-0 m-0">
+        <legend className="text-sm text-gray-500 mb-2">
           Accompagnants (optionnel, {companions.length}/{maxCompanions})
-        </p>
+        </legend>
         {companions.map((c, i) => (
-          <div key={i} className="grid grid-cols-[1fr_1fr_auto] gap-2 mb-2">
-            <Input
-              type="text"
-              placeholder={`Prénom accompagnant ${i + 1}`}
-              value={c.firstName}
-              onChange={(e) => updateCompanion(i, "firstName", e.target.value)}
-            />
-            <Input
-              type="text"
-              placeholder="Nom"
-              value={c.lastName}
-              onChange={(e) => updateCompanion(i, "lastName", e.target.value)}
-            />
-            <Button type="button" variant="outline" onClick={() => removeCompanion(i)} className="text-sm">
+          <div key={i} className="grid grid-cols-[1fr_1fr_auto] gap-2 mb-2 items-end">
+            <div>
+              <label
+                htmlFor={fieldId(`companion-${i}-firstName`)}
+                className="block text-xs text-gray-600 mb-1"
+              >
+                Prénom accompagnant {i + 1}
+              </label>
+              <Input
+                id={fieldId(`companion-${i}-firstName`)}
+                type="text"
+                value={c.firstName}
+                onChange={(e) => updateCompanion(i, "firstName", e.target.value)}
+              />
+            </div>
+            <div>
+              <label
+                htmlFor={fieldId(`companion-${i}-lastName`)}
+                className="block text-xs text-gray-600 mb-1"
+              >
+                Nom accompagnant {i + 1}
+              </label>
+              <Input
+                id={fieldId(`companion-${i}-lastName`)}
+                type="text"
+                value={c.lastName}
+                onChange={(e) => updateCompanion(i, "lastName", e.target.value)}
+              />
+            </div>
+            {/* Le libellé visible dit seulement « Retirer » : sans précision,
+                une liste de boutons identiques est inexploitable à l'oreille. */}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => removeCompanion(i)}
+              className="text-sm"
+              aria-label={`Retirer l'accompagnant ${i + 1}`}
+            >
               Retirer
             </Button>
           </div>
@@ -151,7 +232,7 @@ export function TourRegistrationForm({ tour, placesLeft }: { tour: Tour; placesL
             + Ajouter un accompagnant
           </button>
         )}
-      </div>
+      </fieldset>
 
       {placesLeft <= 0 ? (
         <p className="text-sm p-3 bg-amber-100 border-2 border-amber-400 text-amber-900 rounded-lg font-semibold">

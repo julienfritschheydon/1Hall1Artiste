@@ -17,6 +17,7 @@ import {
 import { verifyRegistrationToken } from "./_token.js";
 import { promoteWaitlist, sendRegistrationEmail } from "./visit-register.js";
 import { googleCalendarUrl } from "./_ics.js";
+import { withTourLock } from "./_tour-lock.js";
 
 const SITE_URL = process.env.PUBLIC_SITE_URL || "https://www.1hall1artiste.fr";
 const MEETING_ADDRESS = "17 allée Duguay Trouin, Île Feydeau, 44000 Nantes";
@@ -69,20 +70,25 @@ async function handleActivateWaitlist(req: VercelRequest, res: VercelResponse) {
       return res.status(410).json({ error: "offer no longer valid" });
     }
 
-    // Create registration from waitlist (carry companions + legacy fields)
-    const registration = await rtdbRegistrationCreate({
-      tourId: waitlist.tourId,
-      email: waitlist.email,
-      firstName: waitlist.firstName,
-      lastName: waitlist.lastName,
-      companions: waitlist.companions,
-      companionFirstName: waitlist.companionFirstName,
-      companionLastName: waitlist.companionLastName,
-      status: "confirmé",
+    // Conversion file d'attente → inscription, sous le même verrou que
+    // l'inscription publique : les deux consomment la même place, et une
+    // acceptation d'offre qui croise une inscription directe doit rester
+    // sérialisée. La suppression de l'entrée de file fait partie de la même
+    // section critique, sinon la place serait comptée deux fois.
+    const registration = await withTourLock(waitlist.tourId, async () => {
+      const created = await rtdbRegistrationCreate({
+        tourId: waitlist.tourId,
+        email: waitlist.email,
+        firstName: waitlist.firstName,
+        lastName: waitlist.lastName,
+        companions: waitlist.companions,
+        companionFirstName: waitlist.companionFirstName,
+        companionLastName: waitlist.companionLastName,
+        status: "confirmé",
+      });
+      await rtdbWaitlistSoftDelete(waitlistId);
+      return created;
     });
-
-    // Soft delete waitlist entry
-    await rtdbWaitlistSoftDelete(waitlistId);
 
     // Log: Offer accepted
     console.log(`[waitlist] Offer accepted: waitlist_${waitlistId} → registration_${registration.id}`);

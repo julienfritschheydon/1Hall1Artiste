@@ -9,7 +9,7 @@ import { VercelRequest, VercelResponse } from "@vercel/node";
 import { rtdbTourCreate, rtdbTourGet, rtdbTourUpdate, rtdbToursListFuture, rtdbToursListAll, rtdbGuideCodeValidate, rtdbCountRegisteredByTour, rtdbCountWaitlistedPlaces, rtdbGuideNamesGet, rtdbGuideNamesSet } from "./_visit-db.js";
 import { isAdminRequest } from "./_admin.js";
 import { promoteWaitlist } from "./visit-register.js";
-import { Tour, TourCreateInput } from "../src/types/visitTypes.js";
+import { Tour, TourCreateInput, bookableCapacity } from "../src/types/visitTypes.js";
 import { locations } from "../src/data/locations.js";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -41,6 +41,9 @@ async function isGuide(req: VercelRequest): Promise<boolean> {
 }
 
 const MAX_GUIDES_PER_TOUR = 6;
+// Borne haute du surbooking. Au-delà, ce n'est plus compenser l'absentéisme
+// mais promettre des places qui n'existent pas.
+const MAX_OVERBOOKING_SEATS = 50;
 const MAX_GUIDE_NAME_LENGTH = 40;
 
 // Normalise une liste de prénoms : trim, longueur bornée, sans doublon (casse ignorée).
@@ -57,6 +60,10 @@ function normalizeGuideNames(input: unknown, max: number): string[] | null {
     out.push(name);
   }
   return out.slice(0, max);
+}
+
+function isValidOverbooking(value: unknown): boolean {
+  return Number.isInteger(value) && (value as number) >= 0 && (value as number) <= MAX_OVERBOOKING_SEATS;
 }
 
 // Validate tour input
@@ -85,6 +92,9 @@ function validateTourInput(data: any): { valid: boolean; errors: string[] } {
   if (!Number.isFinite(data.capacity) || data.capacity < 1) {
     errors.push("capacity: number >= 1 required");
   }
+  if (data.overbookingSeats !== undefined && !isValidOverbooking(data.overbookingSeats)) {
+    errors.push(`overbookingSeats: integer in [0, ${MAX_OVERBOOKING_SEATS}] required`);
+  }
   if (!Array.isArray(data.labels)) {
     errors.push("labels: array required");
   } else {
@@ -105,7 +115,7 @@ async function handlePost(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: "guide code required" });
   }
 
-  const { title, description, date, durationMinutes, capacity, labels } = req.body;
+  const { title, description, date, durationMinutes, capacity, labels, overbookingSeats } = req.body;
   const validation = validateTourInput(req.body);
 
   if (!validation.valid) {
@@ -124,6 +134,7 @@ async function handlePost(req: VercelRequest, res: VercelResponse) {
       durationMinutes,
       ...fixedStartLocation(),
       capacity,
+      ...(overbookingSeats ? { overbookingSeats } : {}),
       labels: labels.map((l: string) => l.trim()),
       ...(guides.length > 0 ? { guides } : {}),
       guideId: "all-guides",
@@ -175,7 +186,13 @@ async function handleGet(req: VercelRequest, res: VercelResponse) {
           ...rest,
           ...(isGuideUser ? { guides: guides || [] } : {}),
           labels: t.labels || [],
-          placesLeft: Math.max(0, t.capacity - taken - waitlisted),
+          placesLeft: Math.max(0, bookableCapacity(t) - taken - waitlisted),
+          // Nombre de personnes en attente — un simple compte, sans la moindre
+          // donnée nominative. Affiché au public à dessein : savoir que
+          // quelqu'un attend sa place transforme le désistement en geste utile
+          // plutôt qu'en aveu, et c'est le levier anti-absentéisme le moins
+          // coûteux dont on dispose.
+          waitlistCount: waitlisted,
         };
       })
     );
@@ -225,7 +242,7 @@ async function handlePut(req: VercelRequest, res: VercelResponse) {
 
     // Whitelist des champs modifiables — le corps était fusionné tel quel dans
     // le document (id, deletedAt, batchDeleteExecuted… écrasables).
-    const ALLOWED_FIELDS = ["title", "description", "date", "durationMinutes", "capacity", "labels", "status"] as const;
+    const ALLOWED_FIELDS = ["title", "description", "date", "durationMinutes", "capacity", "overbookingSeats", "labels", "status"] as const;
     const updates: Record<string, any> = {};
     for (const field of ALLOWED_FIELDS) {
       if (req.body[field] !== undefined) updates[field] = req.body[field];
@@ -274,23 +291,31 @@ async function handlePut(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: "capacity: number >= 1 required" });
       }
     }
+    if (updates.overbookingSeats !== undefined && !isValidOverbooking(updates.overbookingSeats)) {
+      return res.status(400).json({ error: `overbookingSeats: integer in [0, ${MAX_OVERBOOKING_SEATS}] required` });
+    }
     await rtdbTourUpdate(id, updates);
 
-    // Spec §9: capacity reduced below confirmed count → warn guide (no auto-removal).
+    // Le nombre de places ouvertes dépend de la capacité ET du surbooking : les
+    // deux doivent être pris en compte ensemble, sinon réduire le surbooking
+    // tout en augmentant la capacité passerait inaperçu.
+    const placesAvant = bookableCapacity(tour);
+    const placesApres = bookableCapacity({ ...tour, ...updates } as Tour);
+
+    // Spec §9 : places ouvertes passées sous le nombre d'inscrits → avertir le
+    // guide, sans jamais désinscrire personne automatiquement.
     let warning: string | undefined;
-    if (updates.capacity !== undefined && updates.capacity < tour.capacity) {
+    if (placesApres < placesAvant) {
       const confirmedCount = await rtdbCountRegisteredByTour(id);
-      if (updates.capacity < confirmedCount) {
-        warning = `Nouvelle capacité (${updates.capacity}) < inscrits confirmés (${confirmedCount}). ${confirmedCount - updates.capacity} personne(s) en surnombre — à gérer manuellement (annuler des inscriptions).`;
+      if (placesApres < confirmedCount) {
+        warning = `Places ouvertes (${placesApres}) < inscrits confirmés (${confirmedCount}). ${confirmedCount - placesApres} personne(s) en surnombre — à gérer manuellement (annuler des inscriptions).`;
       }
     }
 
-    // Capacity increase: promote waitlist (immediate, not batch)
-    if (updates.capacity !== undefined && updates.capacity > tour.capacity) {
-      const newPlaces = updates.capacity - tour.capacity;
-      for (let i = 0; i < newPlaces; i++) {
-        await promoteWaitlist(id);
-      }
+    // Places ouvertes en plus : proposer immédiatement à la file d'attente.
+    // Un seul appel suffit, promoteWaitlist remplit tous les sièges libres.
+    if (placesApres > placesAvant) {
+      await promoteWaitlist(id);
     }
 
     return res.status(200).json({ ok: true, ...(warning ? { warning } : {}) });

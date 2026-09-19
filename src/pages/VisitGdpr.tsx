@@ -49,21 +49,33 @@ export default function VisitGdpr() {
           </p>
 
           {status === "success" ? (
-            <div className="p-5 bg-green-50 border border-green-200 text-green-800 rounded-lg text-center">
+            <div role="status" aria-live="polite" className="p-5 bg-green-50 border border-green-200 text-green-800 rounded-lg text-center">
               <p className="font-semibold">{message}</p>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-3">
               {status === "error" && (
-                <div className="p-2 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">{message}</div>
+                <div role="alert" id="gdpr-error" className="p-2 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+                  {message}
+                </div>
               )}
-              <Input
-                type="email"
-                placeholder="Votre email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
+              <div>
+                <label htmlFor="gdpr-email" className="block text-sm font-medium text-[#1a2138] mb-1">
+                  Votre email <span aria-hidden="true">*</span>
+                </label>
+                <Input
+                  id="gdpr-email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  placeholder="vous@exemple.fr"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  aria-required="true"
+                  aria-describedby={status === "error" ? "gdpr-error" : undefined}
+                  required
+                />
+              </div>
               <Button type="submit" variant="destructive" disabled={status === "loading"} className="w-full">
                 {status === "loading" ? "Envoi..." : "Recevoir l'email de confirmation"}
               </Button>

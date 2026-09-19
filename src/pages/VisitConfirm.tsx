@@ -228,28 +228,41 @@ export default function VisitConfirm() {
       <Card className="bg-white/90 backdrop-blur-sm border-2 border-amber-300 shadow-lg max-w-lg mx-auto">
         <CardContent className="p-6 text-center">
           {status === "loading" && (
-            <div className="flex flex-col items-center gap-3 py-4">
+            <div className="flex flex-col items-center gap-3 py-4" role="status" aria-live="polite">
               <div
+                aria-hidden="true"
                 className="w-8 h-8 border-2 border-gray-300 rounded-full animate-spin"
                 style={{ borderTopColor: ORANGE }}
               />
-              <p className="text-gray-600">Traitement en cours...</p>
+              <p className="text-gray-600">Traitement en cours…</p>
             </div>
           )}
 
           {status === "form" && mode === "cancel" && (
             <form onSubmit={submitCancel} className="space-y-3 text-left">
               {message && (
-                <div className="p-2 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">{message}</div>
+                <div role="alert" id="cancel-error" className="p-2 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+                  {message}
+                </div>
               )}
               <p className="text-gray-600 text-sm">Confirmez votre email pour annuler votre inscription.</p>
-              <Input
-                type="email"
-                placeholder="Votre email"
-                value={cancelEmail}
-                onChange={(e) => setCancelEmail(e.target.value)}
-                required
-              />
+              <div>
+                <label htmlFor="cancel-email" className="block text-sm font-medium text-[#1a2138] mb-1">
+                  Votre email <span aria-hidden="true">*</span>
+                </label>
+                <Input
+                  id="cancel-email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  placeholder="vous@exemple.fr"
+                  value={cancelEmail}
+                  onChange={(e) => setCancelEmail(e.target.value)}
+                  aria-required="true"
+                  aria-describedby={message ? "cancel-error" : undefined}
+                  required
+                />
+              </div>
               <Button type="submit" variant="destructive" className="w-full">
                 Annuler mon inscription
               </Button>
@@ -281,13 +294,13 @@ export default function VisitConfirm() {
           )}
 
           {status === "success" && (
-            <div className="p-5 bg-green-50 border border-green-200 text-green-800 rounded-lg">
+            <div role="status" aria-live="polite" className="p-5 bg-green-50 border border-green-200 text-green-800 rounded-lg">
               <p className="font-semibold">{message}</p>
             </div>
           )}
 
           {status === "error" && (
-            <div className="p-5 bg-red-50 border border-red-200 text-red-800 rounded-lg">
+            <div role="alert" className="p-5 bg-red-50 border border-red-200 text-red-800 rounded-lg">
               <p className="font-semibold">{message}</p>
             </div>
           )}

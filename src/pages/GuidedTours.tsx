@@ -1,6 +1,6 @@
 // Page publique: /reservations — Listing visites guidées + inscription
 import { useEffect, useMemo, useState } from "react";
-import { Tour } from "../types/visitTypes";
+import { Tour, bookableCapacity } from "../types/visitTypes";
 import { VisitLayout } from "@/components/VisitLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { TourRegistrationForm } from "@/components/TourRegistrationForm";
@@ -44,11 +44,15 @@ export default function GuidedTours() {
     >
       {loading ? (
         <Card className="bg-white/90 backdrop-blur-sm border-2 border-amber-300 shadow-lg">
-          <CardContent className="p-6 text-gray-600">Chargement...</CardContent>
+          <CardContent className="p-6 text-gray-600" role="status" aria-live="polite">
+            Chargement des visites…
+          </CardContent>
         </Card>
       ) : error ? (
         <Card className="bg-white/90 backdrop-blur-sm border-2 border-amber-300 shadow-lg">
-          <CardContent className="p-6 text-red-600">Impossible de charger les visites. Vérifiez que l'API est disponible.</CardContent>
+          <CardContent className="p-6 text-red-600" role="alert">
+            Impossible de charger les visites. Vérifiez que l'API est disponible.
+          </CardContent>
         </Card>
       ) : selectedTour ? (
         <TourDetail
@@ -116,11 +120,26 @@ function TourCard({ tour, onClick }: { tour: Tour; onClick: () => void }) {
   // plus personne : annoncer « Places : 11/15 » serait un faux espoir.
   const started = tourStatus(tour) !== "upcoming";
   const isFull = !started && placesLeft <= 0;
+  const dateStr = new Date(tour.date).toLocaleDateString("fr-FR", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+  const timeStr = new Date(tour.date).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+
+  // La carte était un simple <div> cliquable : inatteignable au clavier et
+  // invisible pour un lecteur d'écran. Un vrai <button> apporte le focus, la
+  // touche Entrée et l'annonce du rôle sans rien coder de plus.
   return (
-    <Card
-      onClick={onClick}
-      className="bg-white/90 backdrop-blur-sm border-2 border-amber-300 shadow-lg cursor-pointer transition hover:-translate-y-0.5 hover:shadow-xl"
-    >
+    <Card className="bg-white/90 backdrop-blur-sm border-2 border-amber-300 shadow-lg cursor-pointer transition hover:-translate-y-0.5 hover:shadow-xl focus-within:ring-2 focus-within:ring-[#ff7a45] overflow-hidden">
+      <button
+        type="button"
+        onClick={onClick}
+        className="w-full text-left"
+        aria-label={`${tour.title}, ${dateStr} à ${timeStr}. ${
+          started ? "Départ donné, inscriptions closes" : isFull ? "Complet, liste d'attente" : `${placesLeft} places restantes`
+        }`}
+      >
       <CardContent className="p-5">
         <div className="flex items-start justify-between gap-2 mb-1">
           <h3 className={`font-bold text-lg ${isFull ? "text-gray-400 line-through" : started ? "text-gray-500" : "text-[#1a2138]"}`}>
@@ -144,7 +163,12 @@ function TourCard({ tour, onClick }: { tour: Tour; onClick: () => void }) {
           <p className="text-sm font-semibold text-green-700">Départ donné — inscription close</p>
         ) : (
           <p className={`text-sm ${isFull ? "font-semibold text-red-600" : "text-gray-600"}`}>
-            Places : {placesLeft}/{tour.capacity}
+            Places : {placesLeft}/{bookableCapacity(tour)}
+          </p>
+        )}
+        {!started && (tour.waitlistCount ?? 0) > 0 && (
+          <p className="text-sm text-amber-700">
+            {tour.waitlistCount} personne{(tour.waitlistCount ?? 0) > 1 ? "s" : ""} en liste d'attente
           </p>
         )}
         {(tour.labels?.length ?? 0) > 0 && (
@@ -157,11 +181,12 @@ function TourCard({ tour, onClick }: { tour: Tour; onClick: () => void }) {
           </div>
         )}
         <div className="flex items-center justify-end mt-3">
-          <span className="text-sm font-bold" style={{ color: isFull ? "#b45309" : ORANGE }}>
+          <span className="text-sm font-bold" aria-hidden="true" style={{ color: isFull ? "#b45309" : ORANGE }}>
             {isFull ? "Liste d'attente ›" : "S'inscrire ›"}
           </span>
         </div>
       </CardContent>
+      </button>
     </Card>
   );
 }
@@ -239,14 +264,26 @@ function TourDetail({
         ) : placesLeft <= 0 ? (
           <>
             <div className="mb-6 p-3 rounded-lg bg-amber-100 border-2 border-amber-400 font-bold text-amber-900">
-              Visite complète ({tour.capacity}/{tour.capacity}) — rejoignez la liste d'attente ci-dessous
+              Visite complète ({bookableCapacity(tour)}/{bookableCapacity(tour)}) — rejoignez la liste
+              d'attente ci-dessous
+              {(tour.waitlistCount ?? 0) > 0 && (
+                <span className="block font-normal mt-1">
+                  {tour.waitlistCount} personne{(tour.waitlistCount ?? 0) > 1 ? "s" : ""} attendent déjà
+                  qu'une place se libère.
+                </span>
+              )}
             </div>
             <TourRegistrationForm tour={tour} placesLeft={placesLeft} />
           </>
         ) : (
           <>
             <div className="mb-6 p-3 rounded-lg bg-[#fff6ef] border border-[#ffd9c4] font-bold text-[#e8693a]">
-              Places restantes : {placesLeft}/{tour.capacity}
+              Places restantes : {placesLeft}/{bookableCapacity(tour)}
+              {(tour.waitlistCount ?? 0) > 0 && (
+                <span className="block font-normal text-amber-700 mt-1">
+                  {tour.waitlistCount} personne{(tour.waitlistCount ?? 0) > 1 ? "s" : ""} en liste d'attente.
+                </span>
+              )}
             </div>
             <TourRegistrationForm tour={tour} placesLeft={placesLeft} />
           </>
