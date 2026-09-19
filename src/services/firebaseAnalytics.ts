@@ -43,8 +43,6 @@ export enum EventAction {
   SHARE = 'share',
   SAVE = 'save',
   UNSAVE = 'unsave',
-  LIKE = 'like',
-  UNLIKE = 'unlike',
   
   // Media
   PLAY = 'play',

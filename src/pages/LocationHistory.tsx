@@ -33,7 +33,6 @@ import {
 } from "@/components/ui/select";
 import { locations } from "@/data/locations";
 import { setLocationContributionContext } from "@/services/contextualContributionService";
-import { LikeButton } from "@/components/community/LikeButton";
 import Share2 from "lucide-react/dist/esm/icons/share-2";
 import MessageSquareQuote from "lucide-react/dist/esm/icons/message-square-quote";
 import MapPin from "lucide-react/dist/esm/icons/map-pin";
@@ -337,13 +336,6 @@ export function LocationHistory() {
                   {selectedLocationData.name}
                 </CardTitle>
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  {/* Bouton de like pour le lieu */}
-                  <LikeButton 
-                    entryId={`location-${selectedLocationData.id}`}
-                    variant="icon"
-                    showCount={true}
-                  />
-                  
                   {/* Bouton témoignage */}
                   <button
                     onClick={() => {

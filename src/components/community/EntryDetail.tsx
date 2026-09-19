@@ -12,7 +12,6 @@ import { useSwipeable } from "react-swipeable";
 import { CommunityEntry } from "../../types/communityTypes";
 import { cn } from "../../lib/utils";
 import { LocalImage } from "./LocalImage";
-import { LikeButton } from "./LikeButton";
 import { buildShareUrl } from "@/utils/url";
 import Share2 from "lucide-react/dist/esm/icons/share-2";
 
@@ -205,13 +204,9 @@ export const EntryDetail: React.FC<EntryDetailProps> = ({ entry, entries, curren
 
           </div>
 
-          {/* Pied de page avec like, partage et date */}
+          {/* Pied de page avec partage et date */}
           <div className="p-3 border-t flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <LikeButton
-                entryId={entry.id}
-                variant="full"
-              />
               <button
                 onClick={() => {
                   const shareUrl = buildShareUrl(`/community?entry=${entry.id}`);

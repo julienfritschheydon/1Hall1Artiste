@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 // Variantes "action" : petits boutons d'icône circulaires avec une couleur sémantique
-type ActionVariant = 'like' | 'save' | 'share' | 'calendar' | 'delete' | 'edit' | 'info' | 'bell' | 'trash';
+type ActionVariant = 'save' | 'share' | 'calendar' | 'delete' | 'edit' | 'info' | 'bell' | 'trash';
 // Variantes "bouton" classiques (avec libellé / children)
 type ButtonVariant = 'primary' | 'outline' | 'secondary' | 'ghost' | 'destructive' | 'link';
 
@@ -23,7 +23,7 @@ interface ActionButtonProps {
   type?: 'button' | 'submit' | 'reset';
 }
 
-const ACTION_VARIANTS: ActionVariant[] = ['like', 'save', 'share', 'calendar', 'delete', 'edit', 'info', 'bell', 'trash'];
+const ACTION_VARIANTS: ActionVariant[] = ['save', 'share', 'calendar', 'delete', 'edit', 'info', 'bell', 'trash'];
 
 export const ActionButton: React.FC<ActionButtonProps> = ({
   icon,
@@ -45,7 +45,6 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
   if (isIconMode) {
     // Couleurs spécifiques par type d'action
     const actionColors: Record<ActionVariant, string> = {
-      like: active ? 'text-red-500 hover:text-red-600' : 'text-gray-500 hover:text-red-500',
       save: active ? 'text-amber-500 hover:text-amber-600' : 'text-gray-500 hover:text-amber-500',
       share: 'text-gray-600 hover:text-gray-700',
       calendar: 'text-green-600 hover:text-green-700',

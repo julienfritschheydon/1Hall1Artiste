@@ -15,7 +15,6 @@ import Trash from "lucide-react/dist/esm/icons/trash";
 import CheckCircle from "lucide-react/dist/esm/icons/check-circle";
 import XCircle from "lucide-react/dist/esm/icons/x-circle";
 import Heart from "lucide-react/dist/esm/icons/heart";
-import { LikesCounter } from "@/components/admin/LikesCounter";
 
 // Créer un logger pour le composant
 const logger = createLogger('CommunityManagement');
@@ -186,7 +185,6 @@ export function CommunityManagement() {
                   <p className="text-sm text-gray-500">
                     {entry.type === 'photo' ? 'Photo' : 'Témoignage'} • {formatDate(entry.timestamp || entry.createdAt)}
                   </p>
-                  <LikesCounter entryId={entry.id} className="mt-1" />
                 </div>
                 <div className="flex items-center space-x-2">
                   {entry.moderation?.status === 'approved' ? (

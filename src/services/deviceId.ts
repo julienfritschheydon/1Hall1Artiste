@@ -1,7 +1,7 @@
 // Identifiant anonyme dédié aux favoris.
-// Volontairement distinct du sessionId des likes : celui-ci est publié en
-// lecture publique RTDB (likes-data/*/likedBy) et serait donc récoltable.
-// Cet ID n'apparaît jamais dans un chemin lisible publiquement.
+// Cet ID n'apparaît jamais dans un chemin lisible publiquement, contrairement
+// aux identifiants qui seraient exposés en lecture publique RTDB : il ne peut
+// donc pas être récolté.
 
 const STORAGE_KEY = 'favorites-device-id';
 
