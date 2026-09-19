@@ -55,27 +55,58 @@ export const isCalendarSupported = (): boolean => {
 };
 
 /**
- * Calcule les dates de début et de fin réelles d'un événement du festival.
+ * Analyse un horaire saisi librement dans le Google Sheet.
+ * Accepte « 14h30 », « 14h », « 14:30 », « 14 », et tolère du texte autour
+ * (« 19h, samedi et dimanche »). Renvoie null si aucune heure n'est lisible.
+ *
+ * L'ancien parsing faisait `time.split('h')` : sur un horaire sans « h »
+ * (« 14:00 »), le tableau n'avait qu'un élément, les minutes valaient
+ * `undefined`, et `setHours(14, undefined)` produisait une date invalide —
+ * `toISOString()` levait alors « Invalid time value » et l'ajout au calendrier
+ * échouait entièrement.
  */
-const getEventDates = (event: Event): { startDate: Date; endDate: Date } => {
+const parseTimeOfDay = (raw: string): { hours: number; minutes: number } | null => {
+  const match = /(\d{1,2})\s*[h:]\s*(\d{1,2})?|(\d{1,2})\s*h/i.exec(raw ?? '');
+  if (!match) return null;
+
+  const hours = parseInt(match[1] ?? match[3], 10);
+  const minutes = match[2] ? parseInt(match[2], 10) : 0;
+
+  if (!Number.isFinite(hours) || hours > 23 || minutes > 59) return null;
+  return { hours, minutes };
+};
+
+/**
+ * Calcule les dates de début et de fin réelles d'un événement du festival.
+ * Renvoie null si l'horaire de l'événement est illisible : mieux vaut une
+ * erreur explicite qu'un événement placé à une date absurde.
+ */
+const getEventDates = (event: Event): { startDate: Date; endDate: Date } | null => {
   // Date réelle du week-end du festival — l'ancien calcul « prochain samedi
   // après aujourd'hui » créait l'événement le mauvais week-end (voire une date
   // fictive après le festival).
   const festivalDates = getFestivalDates();
-  const dayKey = event.days.includes('samedi') ? 'samedi' : 'dimanche';
+  const dayKey = event.days?.includes('samedi') ? 'samedi' : 'dimanche';
   const eventDate = new Date(`${festivalDates[dayKey]}T00:00:00`);
 
-  // Extraire les heures de début et de fin
-  const startTime = event.time.split(' - ')[0];
-  const endTime = event.time.split(' - ')[1] || (parseInt(startTime.split('h')[0]) + 1) + 'h00';
+  const [rawStart, rawEnd] = (event.time ?? '').split(/\s*[-–]\s*/);
+  const start = parseTimeOfDay(rawStart);
+  if (!start) return null;
+
+  // Sans heure de fin lisible, on prévoit une heure par défaut.
+  const end = parseTimeOfDay(rawEnd ?? '') ?? { hours: start.hours + 1, minutes: start.minutes };
 
   const startDate = new Date(eventDate);
-  const [startHour, startMinute] = startTime.split('h').map(part => parseInt(part) || 0);
-  startDate.setHours(startHour, startMinute, 0, 0);
+  startDate.setHours(start.hours, start.minutes, 0, 0);
 
   const endDate = new Date(eventDate);
-  const [endHour, endMinute] = endTime.split('h').map(part => parseInt(part) || 0);
-  endDate.setHours(endHour, endMinute, 0, 0);
+  endDate.setHours(end.hours, end.minutes, 0, 0);
+
+  // Une fin antérieure au début (horaire mal saisi) décalerait l'événement :
+  // on retombe sur une durée d'une heure.
+  if (endDate <= startDate) {
+    endDate.setTime(startDate.getTime() + 60 * 60 * 1000);
+  }
 
   return { startDate, endDate };
 };
@@ -91,8 +122,10 @@ const EVENT_LOCATION = 'Île Feydeau, Nantes';
  * C'est la méthode fiable sur Android : le lien ouvre directement
  * l'application Google Agenda (ou le web) avec l'événement pré-rempli.
  */
-export const buildGoogleCalendarUrl = (event: Event): string => {
-  const { startDate, endDate } = getEventDates(event);
+export const buildGoogleCalendarUrl = (event: Event): string | null => {
+  const dates = getEventDates(event);
+  if (!dates) return null;
+  const { startDate, endDate } = dates;
   const params = new URLSearchParams({
     action: 'TEMPLATE',
     text: event.title,
@@ -106,8 +139,10 @@ export const buildGoogleCalendarUrl = (event: Event): string => {
 /**
  * Formate un événement pour l'export vers le calendrier
  */
-const formatEventForCalendar = (event: Event): string => {
-  const { startDate, endDate } = getEventDates(event);
+const formatEventForCalendar = (event: Event): string | null => {
+  const dates = getEventDates(event);
+  if (!dates) return null;
+  const { startDate, endDate } = dates;
 
   const formatText = (text: string): string => {
     return text.replace(/\n/g, '\\n').replace(/,/g, '\\,');
@@ -166,6 +201,17 @@ export const addToCalendar = async (event: Event): Promise<CalendarResult> => {
     
     // Formater l'événement au format iCalendar
     const icalEvent = formatEventForCalendar(event);
+
+    // Horaire illisible : on s'arrête ici avec un message explicite plutôt que
+    // de laisser une date invalide faire échouer l'ensemble.
+    if (!icalEvent) {
+      logger.warn("Horaire illisible, ajout au calendrier impossible", { eventId: event.id, time: event.time });
+      return {
+        success: false,
+        errorType: CalendarErrorType.GENERAL_ERROR,
+        errorMessage: `Horaire de l'événement illisible : « ${event.time} »`
+      };
+    }
     
     // Détecter les plateformes
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
@@ -195,7 +241,7 @@ export const addToCalendar = async (event: Event): Promise<CalendarResult> => {
       // objet fenêtre, donc on rapportait un succès sans rien afficher. Un clic
       // sur une ancre est une navigation utilisateur, qui ouvre bien
       // l'application Google Agenda (ou l'onglet web).
-      if (openExternalUrl(googleUrl)) {
+      if (googleUrl && openExternalUrl(googleUrl)) {
         logger.info("Google Agenda ouvert pour ajout au calendrier Android", { eventId: event.id });
         return { success: true };
       }
@@ -270,7 +316,10 @@ export const addToCalendar = async (event: Event): Promise<CalendarResult> => {
     logger.info("Fichier .ics téléchargé", { eventId: event.id, platform: isAndroid ? 'Android' : isIOS ? 'iOS' : 'Desktop' });
     return { success: true };
   } catch (error) {
-    logger.error("Erreur lors de l'ajout au calendrier", { error });
+    // Le détail est mis dans le message : passé en donnée, il se perd à la copie
+    // depuis un téléphone (un Error se sérialise en « {} »).
+    const detail = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+    logger.error(`Erreur lors de l'ajout au calendrier — ${detail}`, { error });
     return {
       success: false,
       errorType: CalendarErrorType.GENERAL_ERROR,
