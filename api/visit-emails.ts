@@ -197,7 +197,7 @@ function validateCronAuth(req: VercelRequest): boolean {
 }
 
 // ==== JOB 1: Send 7d reminder ====
-async function sendReminderEmails7d(): Promise<{ sent: number; failed: number }> {
+async function sendReminderEmails7d(): Promise<{ sent: number; failed: number; examined: number }> {
   quotaWarningAlertSent = false; // Reset for this run
   const now = new Date();
   const sevenDaysLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
@@ -246,7 +246,10 @@ async function sendReminderEmails7d(): Promise<{ sent: number; failed: number }>
     await sendAdminAlert("Doodates 7d Reminder Failures", `${failed} reminders failed to send`);
   }
 
-  return { sent, failed };
+  // `examined` distingue « aucune visite ce jour-là » (0 candidat, normal) de
+  // « des candidats mais aucun envoi » (anormal) — sans lui, un `sent: 0` dans
+  // les logs est ininterprétable.
+  return { sent, failed, examined: registrations.length };
 }
 
 // ==== JOB 1bis: Send 3h reminder (cron horaire — GitHub Actions) ====
@@ -255,7 +258,7 @@ async function sendReminderEmails7d(): Promise<{ sent: number; failed: number }>
 // ratent (ils ne tournent qu'une fois par jour, hors de leur fenêtre).
 // Fenêtre large (±30 min) car GitHub Actions décale parfois les runs planifiés
 // de plusieurs minutes ; reminder3hSent garantit l'absence de doublon.
-async function sendReminderEmails3h(): Promise<{ sent: number; failed: number }> {
+async function sendReminderEmails3h(): Promise<{ sent: number; failed: number; examined: number }> {
   quotaWarningAlertSent = false; // Reset for this run
   const now = new Date();
   const threeHoursLater = new Date(now.getTime() + 3 * 60 * 60 * 1000);
@@ -303,11 +306,11 @@ async function sendReminderEmails3h(): Promise<{ sent: number; failed: number }>
     await sendAdminAlert("Doodates 3h Reminder Failures", `${failed} reminders failed to send`);
   }
 
-  return { sent, failed };
+  return { sent, failed, examined: registrations.length };
 }
 
 // ==== JOB 2: Send 1d validation (Q15: auto-cancel if not confirmed) ====
-async function sendValidationEmails1d(): Promise<{ sent: number; autocancelled: number }> {
+async function sendValidationEmails1d(): Promise<{ sent: number; autocancelled: number; examined: number }> {
   quotaWarningAlertSent = false; // Reset for this run
   const now = new Date();
   const oneDayLater = new Date(now.getTime() + 24 * 60 * 60 * 1000);
@@ -381,7 +384,7 @@ async function sendValidationEmails1d(): Promise<{ sent: number; autocancelled: 
     });
   }
 
-  return { sent, autocancelled };
+  return { sent, autocancelled, examined: registrations.length };
 }
 
 // ==== JOB 3: Batch delete 24H after tour (Q3: 01:00 daily) ====
@@ -620,6 +623,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } else {
       return res.status(400).json({ error: "unknown job type" });
     }
+
+    // Trace unique et lisible dans les logs Vercel : le corps de la réponse
+    // part chez l'invocateur du cron et n'est archivé nulle part, donc sans
+    // cette ligne un run ne laisse qu'un « 200 » — impossible de vérifier après
+    // coup si des rappels sont réellement partis.
+    console.log(`[visit-emails] Job « ${type} » terminé : ${JSON.stringify(result)}`);
 
     return res.json({ ok: true, type, ...result });
   } catch (e) {
