@@ -107,7 +107,7 @@ describe("GuideDashboard", () => {
 
     // 3 inscrits sur 15 places = 20 %, et non (3 + 176) / 15.
     expect(screen.getByText("20%")).toBeInTheDocument();
-    expect(screen.getByText("15 places à pourvoir")).toBeInTheDocument();
+    expect(screen.getByText("12 places à pourvoir")).toBeInTheDocument();
     // Ni les inscrits ni la file d'attente des autres visites n'apparaissent.
     expect(screen.queryByText("179")).not.toBeInTheDocument();
     expect(screen.queryByText("12")).not.toBeInTheDocument();
@@ -139,7 +139,7 @@ describe("GuideDashboard", () => {
 
     // Plus rien à remplir : le taux de remplissage ne parle plus du passé.
     expect(screen.getByText("0%")).toBeInTheDocument();
-    expect(screen.getByText("0 places à pourvoir")).toBeInTheDocument();
+    expect(screen.getByText("0 place à pourvoir")).toBeInTheDocument();
     expect(screen.getByText("2 terminées")).toBeInTheDocument();
   });
 

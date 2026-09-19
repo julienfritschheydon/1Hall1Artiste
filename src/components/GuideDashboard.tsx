@@ -12,6 +12,7 @@ interface GuideDashboardStats {
   totalTours: number;
   completedToursCount: number;
   openCapacity: number;
+  remainingPlaces: number;
   totalRegistrations: number;
   averageFillRate: number;
   totalWaitlist: number;
@@ -41,6 +42,12 @@ function calcStats(
   const totalRegistrations = tours.reduce((s, t) => s + (registrationCounts[t.id] || 0), 0);
   const openCapacity = openTours.reduce((s, t) => s + t.capacity, 0);
   const openRegistrations = openTours.reduce((s, t) => s + (registrationCounts[t.id] || 0), 0);
+  // Places réellement libres (capacité moins inscrits) sur les visites à venir :
+  // une visite commencée n'accepte plus d'inscription. Afficher la capacité
+  // brute donnait « 180 places à pourvoir » alors que la moitié était prise.
+  const remainingPlaces = openTours
+    .filter((t) => tourStatus(t, now) === "upcoming")
+    .reduce((s, t) => s + Math.max(0, t.capacity - (registrationCounts[t.id] || 0)), 0);
   const averageFillRate = openCapacity > 0 ? Math.round((openRegistrations / openCapacity) * 100) : 0;
   const totalWaitlist = openTours.reduce((s, t) => s + (waitlistCounts[t.id] || 0), 0);
   const atRiskCount = openTours.filter((t) => {
@@ -56,6 +63,7 @@ function calcStats(
     totalTours,
     completedToursCount,
     openCapacity,
+    remainingPlaces,
     totalRegistrations,
     averageFillRate,
     totalWaitlist,
@@ -117,7 +125,7 @@ export default function GuideDashboard({
     {
       label: "Remplissage",
       value: `${stats.averageFillRate}%`,
-      subtext: `${stats.openCapacity} places à pourvoir`,
+      subtext: `${stats.remainingPlaces} place${stats.remainingPlaces > 1 ? "s" : ""} à pourvoir`,
       subtextColor: "#7a6f4d",
       color: "bg-[#f3f0e6]",
     },
