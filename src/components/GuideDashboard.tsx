@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import DailyAttendanceModal from "./DailyAttendanceModal";
+import ExportRegistrationsModal from "./ExportRegistrationsModal";
 
 const ORANGE = "#ff7a45";
 
@@ -88,6 +89,7 @@ export default function GuideDashboard({
 }) {
   const [showMultiModal, setShowMultiModal] = useState(false);
   const [showDailyModal, setShowDailyModal] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
   const stats = calcStats(tours, registrationCounts, waitlistCounts, aggregationStats);
 
   const statCards = [
@@ -355,7 +357,7 @@ export default function GuideDashboard({
                 📋 Voir appels du jour
               </button>
               <button
-                onClick={() => alert("Export inscriptions - à implémenter")}
+                onClick={() => setShowExportModal(true)}
                 style={{ textAlign: "left", background: "transparent", border: "none", color: "#ff7a45", cursor: "pointer", padding: 0, textDecoration: "underline" }}
               >
                 📥 Exporter inscriptions
@@ -374,6 +376,14 @@ export default function GuideDashboard({
       <DailyAttendanceModal
         open={showDailyModal}
         onOpenChange={setShowDailyModal}
+        tours={tours}
+        guideCode={guideCode}
+        onAuthError={onAuthError}
+      />
+
+      <ExportRegistrationsModal
+        open={showExportModal}
+        onOpenChange={setShowExportModal}
         tours={tours}
         guideCode={guideCode}
         onAuthError={onAuthError}

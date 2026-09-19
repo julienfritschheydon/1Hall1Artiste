@@ -1,6 +1,7 @@
 # SPEC — Boutons « Voir appels du jour » et « Exporter inscriptions » (portail guide)
 
-> Statut : spécification, non implémenté.
+> Statut : **implémenté** (PR #65) — ce document reste la référence de conception.
+> Les écarts constatés à l'implémentation sont signalés en encadré.
 > Les deux boutons du bloc « Actions rapides » de `GuideDashboard.tsx` font aujourd'hui un
 > `alert("… à implémenter")`
 > ([src/components/GuideDashboard.tsx:347](../src/components/GuideDashboard.tsx#L347) et
@@ -102,7 +103,14 @@ défaut n'est pas évident :
   déroulante).
 - **Inclure** : `Inscrits` (coché) / `File d'attente` (décoché) — la file ajoute des lignes avec
   un statut dédié, pas un second fichier.
-- **Inscriptions annulées** : décoché par défaut.
+
+> **Écarté à l'implémentation — les inscriptions annulées.** La spec prévoyait une case
+> « inclure les annulées ». `GET /api/visit-attendance` ne les renvoie jamais : il filtre par
+> `holdsSeat` ([api/visit-attendance.ts:141](../api/visit-attendance.ts#L141)), justement parce
+> que leur présence polluait feuille d'appel, CSV et compteurs. Les exposer demanderait un
+> paramètre serveur supplémentaire, pour un besoin marginal (elles n'occupent plus de place et
+> n'intéressent ni le publipostage ni le bilan de remplissage). Option retirée ; la modale le dit
+> explicitement à l'utilisateur.
 
 Puis bouton `Télécharger le CSV`.
 
@@ -155,7 +163,10 @@ API. Les tests de composant se limitent au câblage.
     déjà traité par `escapeCsvCell`, à ne pas régresser) ;
   - CSV : ligne de file d'attente correctement étiquetée, colonne `Places` cohérente avec
     `placesOf` ;
-  - CSV : périmètre « à venir » exclut les visites passées ; annulées exclues sauf option cochée ;
+  - CSV : périmètre « à venir » exclut les visites passées, « une visite » ne garde que la
+    visite choisie, les visites supprimées sont exclues partout ;
+  - concurrence : `mapWithLimit` ne dépasse jamais la limite, garde l'ordre des résultats et
+    rapporte la progression une fois par élément ;
   - HTML : une feuille par visite avec saut de page entre elles ; visite sans inscrit → tableau
     vide mais en-tête présent ; champs échappés (`escapeHtml`) sur un titre contenant `<`.
 - **Composant** (`GuideDashboard.test.tsx`) :

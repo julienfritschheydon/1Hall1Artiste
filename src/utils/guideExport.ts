@@ -187,3 +187,134 @@ export function exportRegistrationsCsv(tour: Tour, registrations: any[]): void {
     buildRegistrationsCsv(registrations)
   );
 }
+
+// ---------------------------------------------------------------------------
+// Export global (toutes visites) — bouton « Exporter inscriptions » du dashboard
+// ---------------------------------------------------------------------------
+
+export interface ExportEntry {
+  tour: Tour;
+  registrations: any[];
+  /** Entrées de file d'attente (réponse guide), incluses seulement sur demande. */
+  waitlist?: any[];
+}
+
+const FULL_HEADER = [
+  "Visite",
+  "Date",
+  "Heure",
+  "Nom",
+  "Prénom",
+  "Email",
+  "Accompagnants",
+  "Places",
+  "Statut",
+  "Inscrit le",
+];
+
+function frDate(iso: string | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("fr-FR");
+}
+
+function frTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+}
+
+function waitlistStatus(w: any): string {
+  if (w.rejectedAt) return "file d'attente (offre expirée)";
+  if (w.hasOffer) return "file d'attente (offre envoyée)";
+  return `file d'attente (position ${w.position})`;
+}
+
+/**
+ * CSV multi-visites. Une ligne par inscription ; les accompagnants restent dans
+ * leur colonne, comme dans l'export par visite, pour ne pas dérouter.
+ *
+ * Les inscriptions annulées n'y figurent pas : l'API d'appel ne les renvoie
+ * pas (elles n'occupent plus de place, cf. api/visit-attendance.ts).
+ */
+export function buildFullRegistrationsCsv(
+  entries: ExportEntry[],
+  opts: { includeWaitlist?: boolean } = {}
+): string {
+  const sorted = [...entries].sort(
+    (a, b) => new Date(a.tour.date).getTime() - new Date(b.tour.date).getTime()
+  );
+
+  const rows: string[][] = [FULL_HEADER];
+
+  for (const { tour, registrations, waitlist } of sorted) {
+    const date = frDate(tour.date);
+    const time = frTime(tour.date);
+
+    for (const r of registrations) {
+      rows.push([
+        tour.title,
+        date,
+        time,
+        r.lastName,
+        r.firstName,
+        r.email,
+        companionsCell(r),
+        String(placesOf(r)),
+        r.status,
+        frDate(r.createdAt),
+      ]);
+    }
+
+    if (opts.includeWaitlist) {
+      for (const w of waitlist || []) {
+        rows.push([
+          tour.title,
+          date,
+          time,
+          w.lastName,
+          w.firstName,
+          w.email,
+          companionsCell(w),
+          String(w.places ?? 1),
+          waitlistStatus(w),
+          "",
+        ]);
+      }
+    }
+  }
+
+  return buildCsv(rows);
+}
+
+/** Ligne de commentaire finale listant les visites qu'on n'a pas pu charger. */
+export function appendFailedToursNote(csv: string, failedTitles: string[]): string {
+  if (failedTitles.length === 0) return csv;
+  return `${csv}\n${buildCsv([[`Visites non exportées (erreur de chargement) : ${failedTitles.join(" / ")}`]])}`;
+}
+
+/**
+ * `Promise.all` borné : sur « toutes les visites » le fan-out peut atteindre
+ * quelques dizaines de requêtes, qu'on ne veut pas lancer d'un coup.
+ * `onProgress` est appelé après chaque élément terminé.
+ */
+export async function mapWithLimit<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>,
+  onProgress?: (done: number, total: number) => void
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  let done = 0;
+
+  async function worker() {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i], i);
+      done++;
+      onProgress?.(done, items.length);
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}

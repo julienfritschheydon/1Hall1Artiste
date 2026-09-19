@@ -1,8 +1,11 @@
 import { describe, it, expect } from "vitest";
 import {
+  appendFailedToursNote,
   buildAttendanceSheetsHtml,
+  buildFullRegistrationsCsv,
   buildRegistrationsCsv,
   formatCompanions,
+  mapWithLimit,
 } from "./guideExport";
 import { Tour } from "../types/visitTypes";
 
@@ -155,5 +158,85 @@ describe("buildAttendanceSheetsHtml — plusieurs visites", () => {
 describe("formatCompanions", () => {
   it("rend « - » sans accompagnant", () => {
     expect(formatCompanions(reg())).toBe("-");
+  });
+});
+
+describe("buildFullRegistrationsCsv", () => {
+  const t1 = tour({ id: "a", title: "Matin", date: "2026-09-19T09:00:00.000Z" });
+  const t2 = tour({ id: "b", title: "Après-midi", date: "2026-09-19T15:00:00.000Z" });
+
+  it("trie les visites par date et reprend l'en-tête complet", () => {
+    const csv = buildFullRegistrationsCsv([
+      { tour: t2, registrations: [reg({ lastName: "Zoé" })] },
+      { tour: t1, registrations: [reg({ lastName: "Abel" })] },
+    ]);
+    const lines = csv.split("\n");
+
+    expect(lines[0]).toBe(
+      '"Visite","Date","Heure","Nom","Prénom","Email","Accompagnants","Places","Statut","Inscrit le"'
+    );
+    expect(lines[1]).toContain('"Matin"');
+    expect(lines[2]).toContain('"Après-midi"');
+  });
+
+  it("n'ajoute la file d'attente que sur demande, avec un statut parlant", () => {
+    const entries = [
+      {
+        tour: t1,
+        registrations: [reg()],
+        waitlist: [
+          { firstName: "Nina", lastName: "Roux", email: "n@x.fr", places: 2, position: 3 },
+          { firstName: "Sam", lastName: "Gil", email: "s@x.fr", places: 1, position: 1, hasOffer: true },
+          { firstName: "Eve", lastName: "Pic", email: "e@x.fr", places: 1, position: 2, rejectedAt: "2026-09-01" },
+        ],
+      },
+    ];
+
+    expect(buildFullRegistrationsCsv(entries)).not.toContain("Roux");
+
+    const withWl = buildFullRegistrationsCsv(entries, { includeWaitlist: true });
+    expect(withWl).toContain('"file d\'attente (position 3)"');
+    expect(withWl).toContain('"file d\'attente (offre envoyée)"');
+    expect(withWl).toContain('"file d\'attente (offre expirée)"');
+  });
+
+  it("laisse « Inscrit le » vide quand la date manque", () => {
+    const csv = buildFullRegistrationsCsv([{ tour: t1, registrations: [reg({ createdAt: undefined })] }]);
+    expect(csv.split("\n")[1].endsWith(',""')).toBe(true);
+  });
+});
+
+describe("appendFailedToursNote", () => {
+  it("ne touche à rien sans échec", () => {
+    expect(appendFailedToursNote("a", [])).toBe("a");
+  });
+
+  it("ajoute une ligne de commentaire finale", () => {
+    expect(appendFailedToursNote("a", ["Matin", "Soir"])).toContain("Visites non exportées");
+  });
+});
+
+describe("mapWithLimit", () => {
+  it("ne dépasse jamais la concurrence demandée et garde l'ordre", async () => {
+    let running = 0;
+    let peak = 0;
+    const items = [1, 2, 3, 4, 5, 6, 7];
+
+    const out = await mapWithLimit(items, 3, async (n) => {
+      running++;
+      peak = Math.max(peak, running);
+      await new Promise((r) => setTimeout(r, 1));
+      running--;
+      return n * 2;
+    });
+
+    expect(out).toEqual([2, 4, 6, 8, 10, 12, 14]);
+    expect(peak).toBeLessThanOrEqual(3);
+  });
+
+  it("rapporte la progression une fois par élément", async () => {
+    const seen: number[] = [];
+    await mapWithLimit([1, 2, 3], 2, async (n) => n, (done) => seen.push(done));
+    expect(seen).toEqual([1, 2, 3]);
   });
 });
