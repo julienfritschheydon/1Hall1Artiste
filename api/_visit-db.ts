@@ -246,6 +246,56 @@ export async function rtdbRegistrationsListByDateRange(
   return result;
 }
 
+/**
+ * Jour calendaire en heure de Paris, au format YYYY-MM-DD.
+ * Les fonctions Vercel tournent en UTC : comparer des `Date` bruts fait
+ * basculer de jour une visite en soirée (23h30 à Paris = 21h30 UTC la veille en
+ * hiver, et le 8 août à 00h30 à Paris est encore le 7 en UTC).
+ */
+export function parisDayKey(d: Date): string {
+  // en-CA formate en YYYY-MM-DD, ce qui rend la comparaison de jours triviale.
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Paris",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
+}
+
+/**
+ * Inscriptions confirmées dont la visite tombe le JOUR de `targetDay` (heure de
+ * Paris), quelle que soit l'heure de départ.
+ *
+ * Remplace une fenêtre de ±1h autour d'un instant pour les rappels J-7 et J-1.
+ * Cette fenêtre ne pouvait pas fonctionner : le cron ne tourne qu'une fois par
+ * jour (04:00 UTC), donc elle ne couvrait que les visites démarrant entre 03:00
+ * et 05:00 UTC — 05h-07h à Paris l'été. Une visite l'après-midi n'était jamais
+ * sélectionnée, et AUCUN rappel ne partait. Par ricochet `validation1dSent`
+ * n'était jamais posé, donc l'auto-annulation des non-répondants ne se
+ * déclenchait jamais et les places des absents n'étaient jamais rendues à la
+ * file d'attente.
+ *
+ * NB : `rtdbRegistrationsListByDateRange` reste utilisée telle quelle par les
+ * jobs qui ont réellement besoin d'une précision horaire (rappel 3h avant) et
+ * par le balayage de l'auto-annulation, qui porte sur une plage de 8 jours.
+ */
+export async function rtdbRegistrationsListByTourDay(targetDay: Date): Promise<Registration[]> {
+  const wanted = parisDayKey(targetDay);
+  const allTours = await rtdbToursListAll();
+  const toursOnDay = allTours.filter((t) => {
+    const d = new Date(t.date);
+    if (isNaN(d.getTime())) return false; // date corrompue : ignorée, jamais un crash du cron
+    return parisDayKey(d) === wanted;
+  });
+
+  const result: Registration[] = [];
+  for (const tour of toursOnDay) {
+    const regs = await rtdbRegistrationsListByTour(tour.id);
+    result.push(...regs.filter((r) => r.status === "confirmé" && !r.deletedAt));
+  }
+  return result;
+}
+
 export async function rtdbRegistrationsListByCancelledSince(since: Date): Promise<Registration[]> {
   const allRegs = await rtdbGet<Record<string, Registration>>("registrations");
   if (!allRegs) return [];
