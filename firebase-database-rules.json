@@ -11,6 +11,14 @@
     "test-connection": {
       ".read": false,
       ".write": false
+    },
+    "user-favorites": {
+      ".read": false,
+      ".write": false
+    },
+    "favorites-email-index": {
+      ".read": false,
+      ".write": false
     }
   }
 }
