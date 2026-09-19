@@ -195,10 +195,15 @@ Bouton `📥 Exporter la file (CSV)` dans la modale globale (et dans l'onglet vi
 visite). Généré **côté client** à partir des données déjà chargées, pas d'endpoint dédié.
 
 Colonnes : `visite, date, position, prénom, nom, email, places, accompagnants, état, offre envoyée le, expire le`.
-Séparateur `;` et BOM UTF-8 (ouverture directe dans Excel FR). Nom de fichier :
-`file-attente-YYYY-MM-DD.csv`. Respecte les filtres actifs.
+Conventions reprises **à l'identique** de l'export existant `exportCSV`
+([src/pages/GuidePortal.tsx:1074](../src/pages/GuidePortal.tsx#L1074)) : BOM UTF-8, séparateur `,`,
+échappement par [`escapeCsvCell`](../src/utils/csv.ts) puis doublement des guillemets — pas de
+second dialecte CSV dans le produit. Nom de fichier : `file-attente-YYYY-MM-DD.csv`. Respecte les
+filtres actifs.
 
-Indépendant du bouton « Exporter inscriptions » du dashboard, qui garde sa propre spec (§9).
+Mutualisation : la génération passe par `buildCsv` de `src/utils/guideExport.ts`, introduit par
+[SPECS-appel-du-jour-et-export.md](SPECS-appel-du-jour-et-export.md). Si cette spec-là est
+implémentée en premier, réutiliser l'utilitaire ; sinon le créer ici et l'y raccorder ensuite.
 
 ## 7. Impacts
 
@@ -246,4 +251,5 @@ composant.
 ## 9. Hors périmètre
 
 Les deux autres boutons « à implémenter » du même bloc — `📋 Voir appels du jour` et
-`📥 Exporter inscriptions` — ne sont pas couverts ici ; ils méritent leur propre spec.
+`📥 Exporter inscriptions` — sont spécifiés à part dans
+[SPECS-appel-du-jour-et-export.md](SPECS-appel-du-jour-et-export.md).
