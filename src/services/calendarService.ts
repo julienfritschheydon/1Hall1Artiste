@@ -136,6 +136,26 @@ const formatEventForCalendar = (event: Event): string => {
 };
 
 /**
+ * Ouvre une URL externe via le clic sur une ancre (et non window.open, que
+ * Chrome Android bloque en mode PWA standalone). Renvoie false si le document
+ * n'est pas disponible, pour permettre un repli.
+ */
+const openExternalUrl = (url: string): boolean => {
+  if (!document.body || !document.contains(document.body)) {
+    return false;
+  }
+  const link = document.createElement('a');
+  link.href = url;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  link.style.display = 'none';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  return true;
+};
+
+/**
  * Ajoute un événement au calendrier de l'appareil
  * Utilise différentes approches selon la plateforme
  */
@@ -169,12 +189,17 @@ export const addToCalendar = async (event: Event): Promise<CalendarResult> => {
     // pré-rempli, ce que gère l'application native comme le web.
     if (isAndroid) {
       const googleUrl = buildGoogleCalendarUrl(event);
-      const opened = window.open(googleUrl, '_blank', 'noopener,noreferrer');
-      if (opened) {
+      // On passe par le clic sur une ancre plutôt que window.open : dans une PWA
+      // installée (mode standalone), Chrome Android traite window.open comme une
+      // popup — elle est bloquée ou ouverte hors écran, tout en renvoyant un
+      // objet fenêtre, donc on rapportait un succès sans rien afficher. Un clic
+      // sur une ancre est une navigation utilisateur, qui ouvre bien
+      // l'application Google Agenda (ou l'onglet web).
+      if (openExternalUrl(googleUrl)) {
         logger.info("Google Agenda ouvert pour ajout au calendrier Android", { eventId: event.id });
         return { success: true };
       }
-      logger.warn("Ouverture de Google Agenda bloquée, repli sur le partage/téléchargement", { eventId: event.id });
+      logger.warn("Ouverture de Google Agenda impossible, repli sur le partage/téléchargement", { eventId: event.id });
     }
 
     // Essayer le partage de fichier (pour les appareils mobiles qui le supportent)

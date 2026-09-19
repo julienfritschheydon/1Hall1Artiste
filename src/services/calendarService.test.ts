@@ -44,21 +44,27 @@ describe("calendarService", () => {
       setUserAgent("Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36");
     });
 
-    it("ouvre Google Agenda au lieu de partager un simple lien vers la page", async () => {
-      const open = vi.spyOn(window, "open").mockReturnValue({} as Window);
+    it("ouvre Google Agenda via une ancre, pas via window.open (bloqué en PWA)", async () => {
+      const open = vi.spyOn(window, "open");
       const share = vi.fn();
       Object.defineProperty(navigator, "share", { value: share, configurable: true });
+      const clicked: HTMLAnchorElement[] = [];
+      vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+        clicked.push(this);
+      });
 
       const result = await addToCalendar(event);
 
       expect(result.success).toBe(true);
-      expect(open).toHaveBeenCalledTimes(1);
-      expect(open.mock.calls[0][0]).toBe(buildGoogleCalendarUrl(event));
+      expect(open).not.toHaveBeenCalled();
+      expect(clicked).toHaveLength(1);
+      expect(clicked[0].href).toBe(buildGoogleCalendarUrl(event));
+      expect(clicked[0].target).toBe("_blank");
       expect(share).not.toHaveBeenCalled();
     });
 
-    it("retombe sur le partage de fichier .ics si l'ouverture est bloquée", async () => {
-      vi.spyOn(window, "open").mockReturnValue(null);
+    it("retombe sur le partage de fichier .ics si le document est indisponible", async () => {
+      vi.spyOn(document, "contains").mockReturnValue(false);
       const share = vi.fn().mockResolvedValue(undefined);
       Object.defineProperty(navigator, "share", { value: share, configurable: true });
       Object.defineProperty(navigator, "canShare", { value: () => true, configurable: true });
