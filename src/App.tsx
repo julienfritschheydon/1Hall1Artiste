@@ -37,7 +37,6 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const Admin = lazy(() => import("./pages/Admin"));
 const SavedEvents = lazy(() => import("./pages/SavedEvents"));
 const LocationHistory = lazy(() => import("@/pages/LocationHistory").then(m => ({ default: m.LocationHistory })));
-const Analytics = lazy(() => import("./pages/Analytics"));
 const Gallery = lazy(() => import("./pages/Gallery"));
 const AnalyticsDebugger = lazy(() => import("./debug/AnalyticsDebugger"));
 const About = lazy(() => import("./pages/About"));
@@ -136,7 +135,6 @@ const AnimatedRoutes: React.FC = () => {
     { path: '/admin', component: Admin },
     { path: '/coordinates', component: CoordinatesPicker },
     { path: '/location-history', component: LocationHistory },
-    { path: '/analytics', component: Analytics },
     { path: '/artiste', component: ArtistLogin },
     { path: '/artiste/edit', component: ArtistEdit },
     { path: '/qr', component: QRCodePage },

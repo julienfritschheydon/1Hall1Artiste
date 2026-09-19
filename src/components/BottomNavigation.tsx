@@ -11,7 +11,6 @@ import Camera from "lucide-react/dist/esm/icons/camera";
 import Twitter from "lucide-react/dist/esm/icons/twitter";
 import MoreHorizontal from "lucide-react/dist/esm/icons/more-horizontal";
 import History from "lucide-react/dist/esm/icons/history";
-import BarChart from "lucide-react/dist/esm/icons/bar-chart";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
@@ -140,13 +139,6 @@ export function BottomNavigation() {
                 <Link to="/historical" className="flex items-center gap-2 w-full cursor-pointer">
                   <History className="h-4 w-4" />
                   <span>Photos historiques</span>
-                </Link>
-              </DropdownMenuItem>
-
-              <DropdownMenuItem asChild>
-                <Link to="/analytics" className="flex items-center gap-2 w-full cursor-pointer">
-                  <BarChart className="h-4 w-4" />
-                  <span>Statistiques</span>
                 </Link>
               </DropdownMenuItem>
             </DropdownMenuContent>
