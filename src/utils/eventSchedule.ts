@@ -17,7 +17,8 @@ import type { Day } from "@/utils/programFilters";
 export type EventTimeStatus =
   | "upcoming" // aujourd'hui, pas encore commencé
   | "ongoing" // en cours
-  | "past" // terminé aujourd'hui
+  | "past" // terminé aujourd'hui, et ne revient pas
+  | "tomorrow" // pas (ou plus) aujourd'hui, mais a lieu demain
   | "other-day" // a lieu l'autre jour du week-end
   | "unknown"; // hors festival, ou horaire illisible
 
@@ -25,6 +26,7 @@ export const EVENT_STATUS_LABELS: Record<Exclude<EventTimeStatus, "unknown" | "o
   upcoming: "Bientôt",
   ongoing: "En cours",
   past: "Terminé",
+  tomorrow: "Demain",
 };
 
 /**
@@ -90,7 +92,15 @@ export function eventStatus(event: Event, day: Day, now: Date = new Date()): Eve
 export function eventStatusToday(event: Event, now: Date = new Date()): EventTimeStatus {
   const today = currentFestivalDay(now);
   if (!today) return "unknown";
-  return eventStatus(event, today, now);
+
+  const status = eventStatus(event, today, now);
+  // Hors section de jour, « Terminé » ferait croire que l'artiste est parti :
+  // une exposition ouverte samedi et dimanche rouvre demain. On le dit.
+  const tomorrow: Day | null = today === "samedi" ? "dimanche" : null;
+  if (tomorrow && event.days?.includes(tomorrow) && (status === "past" || status === "other-day")) {
+    return "tomorrow";
+  }
+  return status;
 }
 
 /** Les jours du week-end où l'artiste n'est pas présent, pour le dire clairement. */

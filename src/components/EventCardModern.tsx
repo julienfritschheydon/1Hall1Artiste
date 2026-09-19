@@ -77,13 +77,16 @@ export const EventCardModern: React.FC<EventCardModernProps> = ({
   // son intérêt une fois le concert fini — mais s'efface visuellement.
   const isPast = timeStatus === "past";
   const statusLabel =
-    timeStatus === "ongoing" || timeStatus === "upcoming" || timeStatus === "past"
+    timeStatus === "ongoing" ||
+    timeStatus === "upcoming" ||
+    timeStatus === "past" ||
+    timeStatus === "tomorrow"
       ? EVENT_STATUS_LABELS[timeStatus]
       : null;
   const statusClass =
     timeStatus === "ongoing"
       ? "bg-green-100 text-green-700"
-      : timeStatus === "upcoming"
+      : timeStatus === "upcoming" || timeStatus === "tomorrow"
       ? "bg-amber-100 text-amber-800"
       : "bg-gray-200 text-gray-600";
 
