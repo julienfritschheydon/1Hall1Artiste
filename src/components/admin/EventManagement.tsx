@@ -11,7 +11,7 @@ import { createLogger } from "@/utils/logger";
 const logger = createLogger('EventManagement');
 
 export function EventManagement() {
-  const { events } = useEvents();
+  const { events, removeEvent } = useEvents();
   const { updateEvent } = useData();
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -32,12 +32,17 @@ export function EventManagement() {
   };
 
   const handleDelete = (event: Event) => {
-    // Note: La suppression d'événements n'est pas encore implémentée dans useData
-    // Pour l'instant, on affiche juste un message
+    const confirmed = window.confirm(
+      `Supprimer "${event.title}" de la programmation ?\n\nL'événement n'apparaîtra plus dans l'application.`
+    );
+    if (!confirmed) return;
+
+    logger.info(`Suppression de l'événement ${event.id}: ${event.title}`);
+    removeEvent(event.id);
+
     toast({
-      title: "Fonctionnalité à venir",
-      description: "La suppression d'événements sera bientôt disponible.",
-      variant: "default"
+      title: "Événement supprimé",
+      description: `"${event.title}" a été retiré de la programmation.`,
     });
   };
 
