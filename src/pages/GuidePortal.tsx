@@ -2,7 +2,7 @@
 // Fonctions: créer/modifier visite, voir inscrits + file d'attente,
 // inscription manuelle sur place, appel présences, export CSV + impression.
 import { useState, useEffect } from "react";
-import { Tour, Registration } from "../types/visitTypes";
+import { Tour, Registration, placesOf } from "../types/visitTypes";
 import GuideCodeLogin from "../components/GuideCodeLogin";
 import GuideToursList from "../components/GuideToursList";
 import GuideDashboard from "../components/GuideDashboard";
@@ -31,12 +31,6 @@ function mergeNames(...lists: string[][]): string[] {
     out.push(n.trim());
   }
   return out;
-}
-
-function placesCountHelper(r: any): number {
-  if (Array.isArray(r.companions) && r.companions.length > 0) return 1 + r.companions.length;
-  if (r.companionFirstName) return 2;
-  return 1;
 }
 
 export default function GuidePortal() {
@@ -592,6 +586,11 @@ function TourDetails({
   // Les entrées refusées (offre expirée/déclinée) ont rendu leur rang : les
   // compter gonflait la file affichée au guide de personnes fantômes.
   const activeWaitlist = waitlist.filter((w: any) => !w.rejectedAt);
+  // Les onglets affichent des PERSONNES (titulaire + accompagnants), comme les
+  // compteurs au-dessus : afficher le nombre de lignes d'inscription donnait un
+  // total plus faible que la jauge de places.
+  const totalRegisteredPeople = registrations.reduce((s: number, r: any) => s + placesOf(r), 0);
+  const totalWaitlistPeople = activeWaitlist.reduce((s: number, w: any) => s + (w.places ?? 1), 0);
 
   return (
     <VisitLayout
@@ -649,7 +648,7 @@ function TourDetails({
             <>
               {data?.counts && (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-                  <Stat label="Confirmés" value={data.counts.confirmed} color="bg-[#f3f0e6]" />
+                  <Stat label="Inscrits" value={data.counts.totalPeople} color="bg-[#f3f0e6]" />
                   <Stat label="Présents" value={data.counts.present} color="bg-green-100" />
                   <Stat label="Absents" value={data.counts.absent} color="bg-red-100" />
                   <Stat
@@ -664,10 +663,10 @@ function TourDetails({
 
               <div className="mb-4 flex flex-wrap gap-2">
                 <TabBtn active={tab === "registrations"} onClick={() => setTab("registrations")}>
-                  Inscrits ({registrations.length})
+                  Inscrits ({totalRegisteredPeople})
                 </TabBtn>
                 <TabBtn active={tab === "waitlist"} onClick={() => setTab("waitlist")}>
-                  File d'attente ({activeWaitlist.length})
+                  File d'attente ({totalWaitlistPeople})
                 </TabBtn>
                 <TabBtn active={tab === "attendance"} onClick={() => setTab("attendance")}>
                   Appel
@@ -763,12 +762,6 @@ function formatCompanions(r: any): string {
   return "-";
 }
 
-function placesCount(r: any): number {
-  if (Array.isArray(r.companions) && r.companions.length > 0) return 1 + r.companions.length;
-  if (r.companionFirstName) return 2;
-  return 1;
-}
-
 function tableCls() {
   return "w-full border-collapse text-sm";
 }
@@ -825,7 +818,7 @@ function RegistrationsList({
   if (registrations.length === 0) return <p className="text-gray-600">Aucun inscrit.</p>;
   const totalPlaces = registrations
     .filter((r) => r.status === "confirmé" || r.status === "présent")
-    .reduce((s, r) => s + placesCount(r), 0);
+    .reduce((s, r) => s + placesOf(r), 0);
   return (
     <div className="overflow-x-auto">
       <p className="text-sm text-gray-600 mb-2">Total places confirmées : {totalPlaces}</p>
@@ -863,7 +856,7 @@ function RegistrationsList({
                 <td className={tdCls()}>{reg.firstName}</td>
                 <td className={`${tdCls()} text-xs`}>{reg.email}</td>
                 <td className={tdCls()}>{formatCompanions(reg)}</td>
-                <td className={`${tdCls()} text-center`}>{placesCount(reg)}</td>
+                <td className={`${tdCls()} text-center`}>{placesOf(reg)}</td>
               <td className={tdCls()}>
                 <span
                   className={`text-xs px-2 py-1 rounded-full ${
@@ -1005,6 +998,7 @@ function toLocalInput(iso: string): string {
 
 function printAttendance(tour: Tour, registrations: any[]) {
   const dateStr = new Date(tour.date).toLocaleString("fr-FR");
+  const totalPeople = registrations.reduce((s: number, r: any) => s + placesOf(r), 0);
   const rows = registrations
     .map(
       (r) => `<tr>
@@ -1021,7 +1015,7 @@ function printAttendance(tour: Tour, registrations: any[]) {
     tour.title
   )}</title></head><body style="font-family:sans-serif;padding:20px">
     <h1 style="font-size:18px">Feuille d'appel — ${escapeHtml(tour.title)}</h1>
-    <p style="color:#555">${dateStr} • ${registrations.length} inscrit(s)${
+    <p style="color:#555">${dateStr} • ${totalPeople} personne(s) attendue(s)${
       tour.guides && tour.guides.length > 0 ? ` • Animé par ${escapeHtml(tour.guides.join(", "))}` : ""
     }</p>
     <table style="border-collapse:collapse;width:100%;font-size:14px">
@@ -1054,7 +1048,7 @@ function exportCSV(tour: Tour, registrations: any[]) {
     ...registrations.map((r) => [
       r.lastName, r.firstName, r.email,
       formatCompanions(r) === "-" ? "" : formatCompanions(r),
-      String(placesCount(r)), r.status,
+      String(placesOf(r)), r.status,
     ]),
   ];
   const csv = rows
