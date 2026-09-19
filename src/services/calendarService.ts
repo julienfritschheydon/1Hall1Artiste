@@ -55,38 +55,99 @@ export const isCalendarSupported = (): boolean => {
 };
 
 /**
- * Formate un événement pour l'export vers le calendrier
+ * Analyse un horaire saisi librement dans le Google Sheet.
+ * Accepte « 14h30 », « 14h », « 14:30 », « 14 », et tolère du texte autour
+ * (« 19h, samedi et dimanche »). Renvoie null si aucune heure n'est lisible.
+ *
+ * L'ancien parsing faisait `time.split('h')` : sur un horaire sans « h »
+ * (« 14:00 »), le tableau n'avait qu'un élément, les minutes valaient
+ * `undefined`, et `setHours(14, undefined)` produisait une date invalide —
+ * `toISOString()` levait alors « Invalid time value » et l'ajout au calendrier
+ * échouait entièrement.
  */
-const formatEventForCalendar = (event: Event): string => {
+const parseTimeOfDay = (raw: string): { hours: number; minutes: number } | null => {
+  const match = /(\d{1,2})\s*[h:]\s*(\d{1,2})?|(\d{1,2})\s*h/i.exec(raw ?? '');
+  if (!match) return null;
+
+  const hours = parseInt(match[1] ?? match[3], 10);
+  const minutes = match[2] ? parseInt(match[2], 10) : 0;
+
+  if (!Number.isFinite(hours) || hours > 23 || minutes > 59) return null;
+  return { hours, minutes };
+};
+
+/**
+ * Calcule les dates de début et de fin réelles d'un événement du festival.
+ * Renvoie null si l'horaire de l'événement est illisible : mieux vaut une
+ * erreur explicite qu'un événement placé à une date absurde.
+ */
+const getEventDates = (event: Event): { startDate: Date; endDate: Date } | null => {
   // Date réelle du week-end du festival — l'ancien calcul « prochain samedi
   // après aujourd'hui » créait l'événement le mauvais week-end (voire une date
   // fictive après le festival).
   const festivalDates = getFestivalDates();
-  const dayKey = event.days.includes('samedi') ? 'samedi' : 'dimanche';
+  const dayKey = event.days?.includes('samedi') ? 'samedi' : 'dimanche';
   const eventDate = new Date(`${festivalDates[dayKey]}T00:00:00`);
-  
-  // Extraire les heures de début et de fin
-  const startTime = event.time.split(' - ')[0];
-  const endTime = event.time.split(' - ')[1] || (parseInt(startTime.split('h')[0]) + 1) + 'h00';
-  
-  // Formater les dates de début et de fin au format iCalendar
+
+  const [rawStart, rawEnd] = (event.time ?? '').split(/\s*[-–]\s*/);
+  const start = parseTimeOfDay(rawStart);
+  if (!start) return null;
+
+  // Sans heure de fin lisible, on prévoit une heure par défaut.
+  const end = parseTimeOfDay(rawEnd ?? '') ?? { hours: start.hours + 1, minutes: start.minutes };
+
   const startDate = new Date(eventDate);
-  const [startHour, startMinute] = startTime.split('h').map(part => parseInt(part) || 0);
-  startDate.setHours(startHour, startMinute, 0);
-  
+  startDate.setHours(start.hours, start.minutes, 0, 0);
+
   const endDate = new Date(eventDate);
-  const [endHour, endMinute] = endTime.split('h').map(part => parseInt(part) || 0);
-  endDate.setHours(endHour, endMinute, 0);
-  
-  // Formater au format iCalendar (RFC 5545)
-  const formatDate = (date: Date): string => {
-    return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-  };
-  
+  endDate.setHours(end.hours, end.minutes, 0, 0);
+
+  // Une fin antérieure au début (horaire mal saisi) décalerait l'événement :
+  // on retombe sur une durée d'une heure.
+  if (endDate <= startDate) {
+    endDate.setTime(startDate.getTime() + 60 * 60 * 1000);
+  }
+
+  return { startDate, endDate };
+};
+
+/** Format iCalendar UTC (RFC 5545) : YYYYMMDDTHHMMSSZ */
+const formatCalendarDate = (date: Date): string =>
+  date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+
+const EVENT_LOCATION = 'Île Feydeau, Nantes';
+
+/**
+ * Construit une URL « Google Agenda » pour l'événement.
+ * C'est la méthode fiable sur Android : le lien ouvre directement
+ * l'application Google Agenda (ou le web) avec l'événement pré-rempli.
+ */
+export const buildGoogleCalendarUrl = (event: Event): string | null => {
+  const dates = getEventDates(event);
+  if (!dates) return null;
+  const { startDate, endDate } = dates;
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: event.title,
+    dates: `${formatCalendarDate(startDate)}/${formatCalendarDate(endDate)}`,
+    details: event.artistName || '',
+    location: EVENT_LOCATION,
+  });
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+};
+
+/**
+ * Formate un événement pour l'export vers le calendrier
+ */
+const formatEventForCalendar = (event: Event): string | null => {
+  const dates = getEventDates(event);
+  if (!dates) return null;
+  const { startDate, endDate } = dates;
+
   const formatText = (text: string): string => {
     return text.replace(/\n/g, '\\n').replace(/,/g, '\\,');
   };
-  
+
   // Créer l'événement au format iCalendar
   const icalEvent = [
     'BEGIN:VCALENDAR',
@@ -96,17 +157,37 @@ const formatEventForCalendar = (event: Event): string => {
     'METHOD:PUBLISH',
     'BEGIN:VEVENT',
     `UID:${event.id}@collectif-feydeau.app`,
-    `DTSTAMP:${formatDate(new Date())}`,
-    `DTSTART:${formatDate(startDate)}`,
-    `DTEND:${formatDate(endDate)}`,
+    `DTSTAMP:${formatCalendarDate(new Date())}`,
+    `DTSTART:${formatCalendarDate(startDate)}`,
+    `DTEND:${formatCalendarDate(endDate)}`,
     `SUMMARY:${formatText(event.title)}`,
     `DESCRIPTION:${formatText(event.artistName || '')}`,
-    `LOCATION:${formatText('Île Feydeau, Nantes')}`,
+    `LOCATION:${formatText(EVENT_LOCATION)}`,
     'END:VEVENT',
     'END:VCALENDAR'
   ].join('\r\n');
-  
+
   return icalEvent;
+};
+
+/**
+ * Ouvre une URL externe via le clic sur une ancre (et non window.open, que
+ * Chrome Android bloque en mode PWA standalone). Renvoie false si le document
+ * n'est pas disponible, pour permettre un repli.
+ */
+const openExternalUrl = (url: string): boolean => {
+  if (!document.body || !document.contains(document.body)) {
+    return false;
+  }
+  const link = document.createElement('a');
+  link.href = url;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  link.style.display = 'none';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  return true;
 };
 
 /**
@@ -120,6 +201,17 @@ export const addToCalendar = async (event: Event): Promise<CalendarResult> => {
     
     // Formater l'événement au format iCalendar
     const icalEvent = formatEventForCalendar(event);
+
+    // Horaire illisible : on s'arrête ici avec un message explicite plutôt que
+    // de laisser une date invalide faire échouer l'ensemble.
+    if (!icalEvent) {
+      logger.warn("Horaire illisible, ajout au calendrier impossible", { eventId: event.id, time: event.time });
+      return {
+        success: false,
+        errorType: CalendarErrorType.GENERAL_ERROR,
+        errorMessage: `Horaire de l'événement illisible : « ${event.time} »`
+      };
+    }
     
     // Détecter les plateformes
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
@@ -137,30 +229,25 @@ export const addToCalendar = async (event: Event): Promise<CalendarResult> => {
     // (navigator.share ci-dessous, qui propose Calendrier) ou le téléchargement
     // .ics, que Safari sait ouvrir dans Calendrier.
 
-    // Approche spécifique pour Android
+    // Android : le partage d'un simple texte + URL de la page n'ajoutait rien au
+    // calendrier (aucune appli calendrier n'accepte ce type de partage), tout en
+    // rapportant un succès. On ouvre désormais Google Agenda avec l'événement
+    // pré-rempli, ce que gère l'application native comme le web.
     if (isAndroid) {
-      try {
-        // Sur Android, essayer d'abord le partage simple
-        if (navigator.share) {
-          // Créer une URL temporaire pour le fichier .ics
-          const url = URL.createObjectURL(blob);
-          
-          // Partager un lien et des informations
-          await navigator.share({
-            title: `Ajouter "${event.title}" à votre calendrier`,
-            text: `Événement: ${event.title} - ${event.days.join(' et ')} à ${event.time}\nLieu: Île Feydeau, Nantes`,
-            url: window.location.href // Utiliser l'URL actuelle comme fallback
-          });
-          
-          setTimeout(() => URL.revokeObjectURL(url), 100);
-          logger.info("Informations partagées pour ajout au calendrier Android", { eventId: event.id });
-          return { success: true };
-        }
-      } catch (androidError) {
-        // Échec silencieux : on tente la méthode de partage suivante.
+      const googleUrl = buildGoogleCalendarUrl(event);
+      // On passe par le clic sur une ancre plutôt que window.open : dans une PWA
+      // installée (mode standalone), Chrome Android traite window.open comme une
+      // popup — elle est bloquée ou ouverte hors écran, tout en renvoyant un
+      // objet fenêtre, donc on rapportait un succès sans rien afficher. Un clic
+      // sur une ancre est une navigation utilisateur, qui ouvre bien
+      // l'application Google Agenda (ou l'onglet web).
+      if (googleUrl && openExternalUrl(googleUrl)) {
+        logger.info("Google Agenda ouvert pour ajout au calendrier Android", { eventId: event.id });
+        return { success: true };
       }
+      logger.warn("Ouverture de Google Agenda impossible, repli sur le partage/téléchargement", { eventId: event.id });
     }
-    
+
     // Essayer le partage de fichier (pour les appareils mobiles qui le supportent)
     if (isMobile && navigator.share) {
       try {
@@ -229,7 +316,10 @@ export const addToCalendar = async (event: Event): Promise<CalendarResult> => {
     logger.info("Fichier .ics téléchargé", { eventId: event.id, platform: isAndroid ? 'Android' : isIOS ? 'iOS' : 'Desktop' });
     return { success: true };
   } catch (error) {
-    logger.error("Erreur lors de l'ajout au calendrier", { error });
+    // Le détail est mis dans le message : passé en donnée, il se perd à la copie
+    // depuis un téléphone (un Error se sérialise en « {} »).
+    const detail = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+    logger.error(`Erreur lors de l'ajout au calendrier — ${detail}`, { error });
     return {
       success: false,
       errorType: CalendarErrorType.GENERAL_ERROR,
