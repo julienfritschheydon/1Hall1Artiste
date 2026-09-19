@@ -244,3 +244,34 @@ describe("non-régression", () => {
     expect(res.body.sent).toBe(1);
   });
 });
+
+describe("observabilité du cron", () => {
+  it("chaque job de rappel rapporte le nombre d'inscriptions examinées", async () => {
+    // Sans `examined`, un `sent: 0` dans les logs est ininterprétable : on ne
+    // sait pas distinguer « aucune visite ce jour-là » d'un envoi cassé.
+    const tourId = makeTour(5, `tour_obs_${tourCounter}`, "2026-08-08T15:00:00.000Z");
+    await registerConfirmed(tourId, "obs@t.fr");
+
+    // Jour sans visite concernée : 0 examiné, 0 envoyé.
+    vi.setSystemTime(new Date("2026-08-05T04:00:00.000Z"));
+    const vide = await runCron("send-1d-validation");
+    expect(vide.body.examined).toBe(0);
+    expect(vide.body.sent).toBe(0);
+
+    // Veille de la visite : 1 examiné, 1 envoyé.
+    vi.setSystemTime(new Date("2026-08-07T04:00:00.000Z"));
+    const plein = await runCron("send-1d-validation");
+    expect(plein.body.examined).toBe(1);
+    expect(plein.body.sent).toBe(1);
+  });
+
+  it("le job J-7 rapporte aussi les inscriptions examinées", async () => {
+    const tourId = makeTour(5, `tour_obs7_${tourCounter}`, "2026-08-08T15:00:00.000Z");
+    await registerConfirmed(tourId, "obs7@t.fr");
+
+    vi.setSystemTime(new Date("2026-08-01T04:00:00.000Z"));
+    const res = await runCron("send-7d-reminder");
+    expect(res.body.examined).toBe(1);
+    expect(res.body.sent).toBe(1);
+  });
+});
