@@ -1,5 +1,7 @@
 // Doodates Waitlist API — File d'attente + activation
 // POST /api/visit-waitlist/activate — accepter offre place libérée (public)
+// POST /api/visit-waitlist?action=register — le guide inscrit directement une
+//   personne de la file (portail guide, x-guide-code requis)
 // DELETE /api/visit-waitlist/{id} — annuler file attente (public)
 
 import { VercelRequest, VercelResponse } from "@vercel/node";
@@ -13,7 +15,11 @@ import {
   rtdbRegistrationsListByTour,
   rtdbTourGet,
   rtdbGuideCodeValidate,
+  rtdbRegistrationUpdate,
+  rtdbCountRegisteredByTour,
+  rtdbAuditLog,
 } from "./_visit-db.js";
+import { placesOf, bookableCapacity } from "../src/types/visitTypes.js";
 import { verifyRegistrationToken } from "./_token.js";
 import { promoteWaitlist, sendRegistrationEmail } from "./visit-register.js";
 import { googleCalendarUrl } from "./_ics.js";
@@ -21,6 +27,46 @@ import { withTourLock } from "./_tour-lock.js";
 
 const SITE_URL = process.env.PUBLIC_SITE_URL || "https://www.1hall1artiste.fr";
 const MEETING_ADDRESS = "17 allée Duguay Trouin, Île Feydeau, 44000 Nantes";
+
+// Email « vous êtes inscrit » envoyé quand une entrée de file devient une
+// inscription — que ce soit la personne qui accepte l'offre ou le guide qui
+// l'inscrit depuis le portail. Ne jamais faire échouer l'inscription pour un
+// email : la place est déjà attribuée en base.
+async function sendWaitlistAcceptedEmail(
+  tourId: string,
+  registration: { id: string; email: string; firstName: string }
+): Promise<void> {
+  try {
+    const tour = await rtdbTourGet(tourId);
+    const location = tour
+      ? tour.startLocationName
+        ? `${tour.startLocationName}, ${MEETING_ADDRESS}`
+        : MEETING_ADDRESS
+      : undefined;
+    await sendRegistrationEmail("waitlist_accepted", {
+      to: registration.email,
+      firstName: registration.firstName,
+      tourTitle: tour?.title || "",
+      tourDate: tour?.date || "",
+      location,
+      icsUrl: `${SITE_URL.replace(/\/$/, "")}/api/visit-register?action=ics&id=${registration.id}`,
+      googleCalUrl: tour
+        ? googleCalendarUrl({
+            uid: registration.id,
+            title: tour.title,
+            description: tour.description,
+            location: location!,
+            startIso: tour.date,
+            durationMinutes: tour.durationMinutes,
+          })
+        : undefined,
+      cancelLink: `${SITE_URL}/#/reservations/cancel?id=${registration.id}`,
+      idempotencyKey: `${registration.id}_waitlist_accepted`,
+    });
+  } catch (e) {
+    console.error("[visit-waitlist] accepted email failed:", e);
+  }
+}
 
 // POST /api/visit-waitlist/activate — accepter offre (Q4: sequential, 1 per sec)
 async function handleActivateWaitlist(req: VercelRequest, res: VercelResponse) {
@@ -93,36 +139,7 @@ async function handleActivateWaitlist(req: VercelRequest, res: VercelResponse) {
     // Log: Offer accepted
     console.log(`[waitlist] Offer accepted: waitlist_${waitlistId} → registration_${registration.id}`);
 
-    try {
-      const tour = await rtdbTourGet(waitlist.tourId);
-      const location = tour
-        ? tour.startLocationName
-          ? `${tour.startLocationName}, ${MEETING_ADDRESS}`
-          : MEETING_ADDRESS
-        : undefined;
-      await sendRegistrationEmail("waitlist_accepted", {
-        to: registration.email,
-        firstName: registration.firstName,
-        tourTitle: tour?.title || "",
-        tourDate: tour?.date || "",
-        location,
-        icsUrl: `${SITE_URL.replace(/\/$/, "")}/api/visit-register?action=ics&id=${registration.id}`,
-        googleCalUrl: tour
-          ? googleCalendarUrl({
-              uid: registration.id,
-              title: tour.title,
-              description: tour.description,
-              location: location!,
-              startIso: tour.date,
-              durationMinutes: tour.durationMinutes,
-            })
-          : undefined,
-        cancelLink: `${SITE_URL}/#/reservations/cancel?id=${registration.id}`,
-        idempotencyKey: `${registration.id}_waitlist_accepted`,
-      });
-    } catch (e) {
-      console.error("[visit-waitlist] accepted email failed:", e);
-    }
+    await sendWaitlistAcceptedEmail(waitlist.tourId, registration);
 
     return res.json({
       ok: true,
@@ -132,6 +149,114 @@ async function handleActivateWaitlist(req: VercelRequest, res: VercelResponse) {
   } catch (e) {
     console.error("[visit-waitlist activate]", e);
     return res.status(500).json({ error: "activation failed" });
+  }
+}
+
+// POST /api/visit-waitlist?action=register — le guide inscrit une personne de
+// la file depuis le portail (bouton « Inscrire »).
+//
+// Pourquoi un endpoint dédié : passer par l'inscription manuelle du guide
+// échouait en « already in waitlist for this tour », et supprimer l'entrée
+// d'abord envoyait à la personne un email « vous avez quitté la file » alors
+// qu'on vient justement de l'inscrire. Ici la suppression de la file et la
+// création de l'inscription sont une seule opération, sous le verrou de visite.
+//
+// Comme l'inscription manuelle sur place, la capacité est contournée (le guide
+// décide), mais le dépassement est signalé pour qu'il le voie.
+async function handleRegisterFromWaitlist(req: VercelRequest, res: VercelResponse) {
+  const guideCode = req.headers["x-guide-code"] as string | undefined;
+  if (!guideCode || !(await rtdbGuideCodeValidate(guideCode))) {
+    return res.status(401).json({ error: "invalid guide code" });
+  }
+
+  const { waitlistId } = req.body || {};
+  if (!waitlistId || typeof waitlistId !== "string") {
+    return res.status(400).json({ error: "waitlistId: string required" });
+  }
+
+  try {
+    const waitlist = await rtdbWaitlistGet(waitlistId);
+    if (!waitlist) {
+      return res.status(404).json({ error: "waitlist entry not found" });
+    }
+
+    // Entrée déjà consommée : si la personne a accepté l'offre entre-temps,
+    // répondre succès plutôt que de créer un doublon (même idempotence que
+    // l'activation par lien email).
+    const existingRegs = await rtdbRegistrationsListByTour(waitlist.tourId);
+    const already = existingRegs.find(
+      (r) =>
+        r.email.toLowerCase() === waitlist.email.toLowerCase() &&
+        (r.status === "confirmé" || r.status === "présent")
+    );
+    if (already) {
+      if (!waitlist.deletedAt) await rtdbWaitlistSoftDelete(waitlistId);
+      return res.json({ ok: true, registrationId: already.id, message: "Inscription déjà confirmée" });
+    }
+    if (waitlist.deletedAt) {
+      return res.status(410).json({ error: "waitlist entry no longer active" });
+    }
+
+    const tour = await rtdbTourGet(waitlist.tourId);
+    if (!tour || tour.deletedAt) {
+      return res.status(404).json({ error: "tour not found" });
+    }
+    // Même règle que l'inscription manuelle sur place : autorisée tant que la
+    // visite n'est pas terminée (les retardataires sont inscrits pendant).
+    const tourEnd = new Date(tour.date).getTime() + (tour.durationMinutes || 0) * 60 * 1000;
+    if (tourEnd < Date.now()) {
+      return res.status(400).json({ error: "tour already ended" });
+    }
+
+    const groupSize = placesOf(waitlist);
+
+    const outcome = await withTourLock(waitlist.tourId, async () => {
+      const registeredPlaces = await rtdbCountRegisteredByTour(waitlist.tourId);
+      const overCapacity = registeredPlaces + groupSize > bookableCapacity(tour);
+
+      const created = await rtdbRegistrationCreate({
+        tourId: waitlist.tourId,
+        email: waitlist.email,
+        firstName: waitlist.firstName,
+        lastName: waitlist.lastName,
+        companions: waitlist.companions,
+        companionFirstName: waitlist.companionFirstName,
+        companionLastName: waitlist.companionLastName,
+        status: "confirmé",
+      });
+      await rtdbRegistrationUpdate(created.id, { confirmedAt: new Date().toISOString() });
+      await rtdbWaitlistSoftDelete(waitlistId);
+      return { registration: created, overCapacity };
+    });
+
+    // Hors verrou : réordonner la file et prévenir la personne ne consomment
+    // aucune place, inutile de retenir les autres inscriptions pendant ce temps.
+    await rtdbWaitlistReorderAfter(waitlist.tourId, waitlist.position);
+
+    console.log(
+      `[waitlist] Guide registration: waitlist_${waitlistId} → registration_${outcome.registration.id}`
+    );
+    await rtdbAuditLog("waitlist_registered_by_guide", {
+      waitlistId,
+      tourId: waitlist.tourId,
+      registrationId: outcome.registration.id,
+      email: waitlist.email,
+      overCapacity: outcome.overCapacity,
+    });
+
+    await sendWaitlistAcceptedEmail(waitlist.tourId, outcome.registration);
+
+    return res.status(201).json({
+      ok: true,
+      registrationId: outcome.registration.id,
+      overCapacity: outcome.overCapacity,
+      message: outcome.overCapacity
+        ? "Inscription confirmée — capacité dépassée"
+        : "Inscription confirmée",
+    });
+  } catch (e) {
+    console.error("[visit-waitlist register]", e);
+    return res.status(500).json({ error: "registration failed" });
   }
 }
 
@@ -267,6 +392,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === "POST") {
     if (req.query.action === "activate" || path?.endsWith("/activate")) {
       return handleActivateWaitlist(req, res);
+    }
+    if (req.query.action === "register" || path?.endsWith("/register")) {
+      return handleRegisterFromWaitlist(req, res);
     }
     return res.status(405).json({ error: "invalid POST path" });
   } else if (req.method === "DELETE") {

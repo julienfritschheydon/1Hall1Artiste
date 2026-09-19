@@ -755,7 +755,14 @@ function TourDetails({
                   />
                 </div>
               )}
-              {tab === "waitlist" && <WaitlistList waitlist={waitlist} />}
+              {tab === "waitlist" && (
+                <WaitlistList
+                  waitlist={waitlist}
+                  guideCode={guideCode}
+                  onRegistered={refresh}
+                  onAuthError={onAuthError}
+                />
+              )}
               {tab === "attendance" && (
                 <TourAttendanceSheet
                   tour={tour}
@@ -938,10 +945,57 @@ function RegistrationsList({
   );
 }
 
-function WaitlistList({ waitlist }: { waitlist: any[] }) {
+function WaitlistList({
+  waitlist,
+  guideCode,
+  onRegistered,
+  onAuthError,
+}: {
+  waitlist: any[];
+  guideCode: string;
+  onRegistered: () => void;
+  onAuthError: () => void;
+}) {
+  // Un seul verrou pour toute la liste : deux inscriptions lancées en même
+  // temps depuis deux lignes se doubleraient sur les places restantes.
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleRegister(w: any) {
+    const places = w.places ?? 1;
+    const qui = `${w.firstName} ${w.lastName}`.trim() || w.email;
+    if (!window.confirm(`Inscrire ${qui}${places > 1 ? ` et ses ${places - 1} accompagnant(s)` : ""} ?`)) {
+      return;
+    }
+    setBusyId(w.id);
+    setError(null);
+    try {
+      const res = await fetch("/api/visit-waitlist?action=register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-guide-code": guideCode },
+        body: JSON.stringify({ waitlistId: w.id }),
+      });
+      if (res.status === 401) {
+        onAuthError();
+        return;
+      }
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || "Échec de l'inscription");
+      if (body.overCapacity) {
+        window.alert("Inscription confirmée, mais la visite dépasse maintenant sa capacité.");
+      }
+      onRegistered();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   if (waitlist.length === 0) return <p className="text-gray-600">File d'attente vide.</p>;
   return (
     <div className="overflow-x-auto">
+      {error && <p className="text-sm text-red-600 mb-2">{error}</p>}
       <table className={tableCls()}>
         <thead>
           <tr>
@@ -951,6 +1005,7 @@ function WaitlistList({ waitlist }: { waitlist: any[] }) {
             <th className={thCls()}>Email</th>
             <th className={thCls()}>Places</th>
             <th className={thCls()}>Offre envoyée</th>
+            <th className={thCls()}>Action</th>
           </tr>
         </thead>
         <tbody>
@@ -962,6 +1017,17 @@ function WaitlistList({ waitlist }: { waitlist: any[] }) {
               <td className={`${tdCls()} text-xs`}>{w.email}</td>
               <td className={`${tdCls()} text-center`}>{w.places ?? 1}</td>
               <td className={tdCls()}>{w.rejectedAt ? "Refusée" : w.hasOffer ? "Oui (en attente)" : "Non"}</td>
+              <td className={tdCls()}>
+                <Button
+                  size="sm"
+                  className="text-white"
+                  style={orangeBtn}
+                  disabled={busyId !== null}
+                  onClick={() => handleRegister(w)}
+                >
+                  {busyId === w.id ? "..." : "Inscrire"}
+                </Button>
+              </td>
             </tr>
           ))}
         </tbody>
