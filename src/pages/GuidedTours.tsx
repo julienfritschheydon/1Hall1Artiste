@@ -44,11 +44,15 @@ export default function GuidedTours() {
     >
       {loading ? (
         <Card className="bg-white/90 backdrop-blur-sm border-2 border-amber-300 shadow-lg">
-          <CardContent className="p-6 text-gray-600">Chargement...</CardContent>
+          <CardContent className="p-6 text-gray-600" role="status" aria-live="polite">
+            Chargement des visites…
+          </CardContent>
         </Card>
       ) : error ? (
         <Card className="bg-white/90 backdrop-blur-sm border-2 border-amber-300 shadow-lg">
-          <CardContent className="p-6 text-red-600">Impossible de charger les visites. Vérifiez que l'API est disponible.</CardContent>
+          <CardContent className="p-6 text-red-600" role="alert">
+            Impossible de charger les visites. Vérifiez que l'API est disponible.
+          </CardContent>
         </Card>
       ) : selectedTour ? (
         <TourDetail
@@ -116,11 +120,26 @@ function TourCard({ tour, onClick }: { tour: Tour; onClick: () => void }) {
   // plus personne : annoncer « Places : 11/15 » serait un faux espoir.
   const started = tourStatus(tour) !== "upcoming";
   const isFull = !started && placesLeft <= 0;
+  const dateStr = new Date(tour.date).toLocaleDateString("fr-FR", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+  const timeStr = new Date(tour.date).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+
+  // La carte était un simple <div> cliquable : inatteignable au clavier et
+  // invisible pour un lecteur d'écran. Un vrai <button> apporte le focus, la
+  // touche Entrée et l'annonce du rôle sans rien coder de plus.
   return (
-    <Card
-      onClick={onClick}
-      className="bg-white/90 backdrop-blur-sm border-2 border-amber-300 shadow-lg cursor-pointer transition hover:-translate-y-0.5 hover:shadow-xl"
-    >
+    <Card className="bg-white/90 backdrop-blur-sm border-2 border-amber-300 shadow-lg cursor-pointer transition hover:-translate-y-0.5 hover:shadow-xl focus-within:ring-2 focus-within:ring-[#ff7a45] overflow-hidden">
+      <button
+        type="button"
+        onClick={onClick}
+        className="w-full text-left"
+        aria-label={`${tour.title}, ${dateStr} à ${timeStr}. ${
+          started ? "Départ donné, inscriptions closes" : isFull ? "Complet, liste d'attente" : `${placesLeft} places restantes`
+        }`}
+      >
       <CardContent className="p-5">
         <div className="flex items-start justify-between gap-2 mb-1">
           <h3 className={`font-bold text-lg ${isFull ? "text-gray-400 line-through" : started ? "text-gray-500" : "text-[#1a2138]"}`}>
@@ -162,11 +181,12 @@ function TourCard({ tour, onClick }: { tour: Tour; onClick: () => void }) {
           </div>
         )}
         <div className="flex items-center justify-end mt-3">
-          <span className="text-sm font-bold" style={{ color: isFull ? "#b45309" : ORANGE }}>
+          <span className="text-sm font-bold" aria-hidden="true" style={{ color: isFull ? "#b45309" : ORANGE }}>
             {isFull ? "Liste d'attente ›" : "S'inscrire ›"}
           </span>
         </div>
       </CardContent>
+      </button>
     </Card>
   );
 }
