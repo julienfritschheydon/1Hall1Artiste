@@ -108,15 +108,15 @@ function makeTour(capacity: number, id: string, date: string) {
   return id;
 }
 
-// Inscrit puis confirme : seules les inscriptions « confirmé » sont rappelées.
+// Seules les inscriptions « confirmé » sont rappelées. Depuis « confirmer
+// l'inscription sans étape de validation par email », une inscription publique
+// est créée directement dans cet état.
 async function registerConfirmed(tourId: string, email: string) {
   const res = mockRes();
   await registerHandler(mockReq({ body: { tourId, email, firstName: "F", lastName: "L" } }), res);
+  expect(statusOf(res)).toBe(201);
   const registrationId = jsonOf(res).registrationId;
-  const reg = getAtPath(`registrations/${registrationId}`);
-  const res2 = mockRes();
-  await registerHandler(mockReq({ query: { action: "confirm" }, body: { token: reg.validationToken } }), res2);
-  expect(statusOf(res2)).toBe(200);
+  expect(getAtPath(`registrations/${registrationId}`).status).toBe("confirmé");
   return registrationId;
 }
 
