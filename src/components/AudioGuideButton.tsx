@@ -18,7 +18,7 @@ interface AudioGuideButtonProps {
   className?: string;
 }
 
-// Composant pour le feedback visuel (similaire au LikeButton)
+// Composant pour le feedback visuel
 const FeedbackIcon: React.FC<{ isLoading: boolean; error: string | null; isPlaying: boolean }> = ({ 
   isLoading, 
   error, 
@@ -191,7 +191,7 @@ export const AudioGuideButton: React.FC<AudioGuideButtonProps> = ({
   }
 
   if (variant === 'compact') {
-    // Version compacte pour la grille (style identique au LikeButton)
+    // Version compacte pour la grille
     return (
       <motion.button
         onClick={handleClick}
@@ -340,7 +340,7 @@ export const AudioGuideButton: React.FC<AudioGuideButtonProps> = ({
     );
   }
 
-  // Version complète pour les modals/détails (style identique au LikeButton)
+  // Version complète pour les modals/détails
   return (
     <motion.button
       onClick={handleClick}

@@ -92,7 +92,7 @@
 
 #### Règles d'utilisation
 - ✅ **BackButton** : Toujours utiliser `<BackButton />` pour la navigation retour
-- ✅ Utiliser les composants partagés (`LikeButton`, `ShareButton`)
+- ✅ Utiliser les composants partagés (`ShareButton`)
 - ❌ Ne pas créer de boutons personnalisés sans validation
 - 🎨 Couleur de survol : `hover:border-amber-500 hover:text-amber-500`
 - ⚡ Transition : `transition-colors duration-200`
@@ -221,7 +221,6 @@
     <Title>Nom du bâtiment</Title>
     <Subtitle>Adresse</Subtitle>
     <ButtonGroup>
-      <LikeButton />
       <ShareButton />
       <CloseButton />
     </ButtonGroup>

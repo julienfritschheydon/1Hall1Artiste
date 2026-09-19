@@ -6,8 +6,8 @@
 // DELETE ?deviceId=xxx → dissocie l'email de l'appareil → { success }
 //
 // Modèle de menace assumé : écriture non authentifiée mais deviceId = UUID jamais
-// publié (contrairement au sessionId des likes, exposé dans likedBy) ; pour la
-// récupération, « le secret est l'email ». Voir plan de conception.
+// publié en lecture publique ; pour la récupération, « le secret est l'email ».
+// Voir plan de conception.
 //
 // RTDB : un tableau vide est stocké comme null → la clé disparaît. Toujours
 // coercer avec Array.isArray côté lecture, jamais brancher sur « nœud absent ».

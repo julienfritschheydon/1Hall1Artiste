@@ -1,13 +1,5 @@
 {
   "rules": {
-    "likes-data": {
-      ".read": true,
-      ".write": false
-    },
-    "likes-stats": {
-      ".read": true,
-      ".write": false
-    },
     "community-photos": {
       ".read": true,
       ".write": false
