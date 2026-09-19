@@ -1,6 +1,7 @@
-// Doodates Registration API — Inscription visites + validation email
+// Doodates Registration API — Inscription visites
 // POST /api/visit-register — créer inscription (public)
-// POST /api/visit-register/confirm — valider lien email (public)
+// POST /api/visit-register/confirm — valider un ancien lien email (public, rétrocompat :
+//   l'inscription est désormais confirmée directement à la création)
 
 import { VercelRequest, VercelResponse } from "@vercel/node";
 import {
@@ -147,6 +148,45 @@ export async function sendRegistrationEmail(
   }
 }
 
+// Email « c'est confirmé » : détails complets + liens calendrier.
+// Best-effort — un échec d'envoi ne doit jamais faire échouer l'inscription.
+async function sendConfirmedEmail(reg: {
+  id: string;
+  tourId: string;
+  email: string;
+  firstName?: string;
+}): Promise<void> {
+  try {
+    const tour = await rtdbTourGet(reg.tourId);
+    if (!tour) return;
+    const location = tour.startLocationName
+      ? `${tour.startLocationName}, ${MEETING_ADDRESS}`
+      : MEETING_ADDRESS;
+    await sendRegistrationEmail("registration_confirmed", {
+      to: reg.email,
+      firstName: reg.firstName,
+      tourTitle: tour.title,
+      tourDate: tour.date,
+      durationMinutes: tour.durationMinutes,
+      location,
+      icsUrl: `${SITE_URL.replace(/\/$/, "")}/api/visit-register?action=ics&id=${reg.id}`,
+      googleCalUrl: googleCalendarUrl({
+        uid: reg.id,
+        title: tour.title,
+        description: tour.description,
+        location,
+        startIso: tour.date,
+        durationMinutes: tour.durationMinutes,
+      }),
+      cancelLink: `${SITE_URL}/#/reservations/cancel?id=${reg.id}`,
+      registrationId: reg.id,
+      idempotencyKey: `${reg.id}_registration_confirmed`,
+    });
+  } catch (e) {
+    console.error("[visit-register] Failed to send registration_confirmed email:", e);
+  }
+}
+
 // POST /api/visit-register — créer inscription
 async function handleCreateRegistration(req: VercelRequest, res: VercelResponse) {
   const { tourId, email, firstName, lastName, companionFirstName, companionLastName } = req.body;
@@ -274,43 +314,31 @@ async function handleCreateRegistration(req: VercelRequest, res: VercelResponse)
     }
 
     if (hasSpace) {
-      // Registration: attente_validation — create first to get ID, then generate token with real ID
+      // Inscription confirmée immédiatement : le double opt-in par email
+      // (lien à cliquer sous 24h) faisait abandonner des inscrits et laissait
+      // des places bloquées en « attente_validation ». On crée directement en
+      // « confirmé » et l'email récapitule la visite (horaire, lieu, calendrier).
       const registration = await rtdbRegistrationCreate({
         tourId,
         email,
         firstName: sanitizedFirstName,
         lastName: sanitizedLastName,
         companions: companionsField,
-        status: "attente_validation",
+        status: "confirmé",
       });
+      await rtdbRegistrationUpdate(registration.id, { confirmedAt: new Date().toISOString() });
 
-      const token = createRegistrationToken(registration.id, email);
-      await rtdbRegistrationUpdate(registration.id, {
-        validationToken: token.token,
-        validationExpiresAt: token.expiresAt,
+      await sendConfirmedEmail({
+        id: registration.id,
+        tourId,
+        email,
+        firstName: sanitizedFirstName,
       });
-
-      // Send confirmation email
-      try {
-        await sendRegistrationEmail("confirmation", {
-          to: email,
-          firstName: sanitizedFirstName,
-          tourTitle: tour.title,
-          tourDate: tour.date,
-          validationLink: `${SITE_URL}/#/reservations/confirm?token=${token.token}`,
-          cancelLink: `${SITE_URL}/#/reservations/cancel?id=${registration.id}`,
-          registrationId: registration.id,
-          idempotencyKey: `${registration.id}_confirmation`,
-        });
-      } catch (e) {
-        console.error("[visit-register] Failed to send confirmation email:", e);
-        // Continue anyway, user can check their email
-      }
 
       return res.status(201).json({
-        status: "attente_validation",
+        status: "confirmé",
         registrationId: registration.id,
-        message: "Vérifiez votre email pour valider votre inscription.",
+        message: "Inscription confirmée ! Un email récapitulatif vient de vous être envoyé.",
       });
     } else {
       // Waitlist — token not needed for waitlist (no email validation step)
@@ -458,38 +486,12 @@ async function handleConfirmRegistration(req: VercelRequest, res: VercelResponse
       confirmedAt: new Date().toISOString(),
     });
 
-    // Send final email with full details (title, date, location, calendar links).
-    // Best-effort: a failure here must not block the confirmation itself.
-    try {
-      const tour = await rtdbTourGet(registration.tourId);
-      if (tour) {
-        const location = tour.startLocationName
-          ? `${tour.startLocationName}, ${MEETING_ADDRESS}`
-          : MEETING_ADDRESS;
-        await sendRegistrationEmail("registration_confirmed", {
-          to: registration.email,
-          firstName: registration.firstName,
-          tourTitle: tour.title,
-          tourDate: tour.date,
-          durationMinutes: tour.durationMinutes,
-          location,
-          icsUrl: `${SITE_URL.replace(/\/$/, "")}/api/visit-register?action=ics&id=${registrationId}`,
-          googleCalUrl: googleCalendarUrl({
-            uid: registrationId,
-            title: tour.title,
-            description: tour.description,
-            location,
-            startIso: tour.date,
-            durationMinutes: tour.durationMinutes,
-          }),
-          cancelLink: `${SITE_URL}/#/reservations/cancel?id=${registrationId}`,
-          registrationId,
-          idempotencyKey: `${registrationId}_registration_confirmed`,
-        });
-      }
-    } catch (e) {
-      console.error("[visit-register] Failed to send registration_confirmed email:", e);
-    }
+    await sendConfirmedEmail({
+      id: registrationId,
+      tourId: registration.tourId,
+      email: registration.email,
+      firstName: registration.firstName,
+    });
 
     return res.json({ ok: true, status: "confirmé", message: "Inscription confirmée" });
   } catch (e) {
