@@ -33,8 +33,12 @@ export function computeVisitAggregation(
   // 1. Process active registrations per tour
   for (const tour of tours) {
     const list = registrationsByTour[tour.id] || [];
+    // Mêmes statuts que le décompte serveur (rtdbCountRegisteredByTour) qui
+    // produit `placesLeft` : une inscription en attente de validation e-mail
+    // occupe sa place, un absent l'a rendue. Compter autrement affichait
+    // « 2/15 » à côté de « 11 places restantes ».
     const activeList = list.filter(
-      (r) => r.status === "confirmé" || r.status === "présent"
+      (r) => r.status === "confirmé" || r.status === "présent" || r.status === "attente_validation"
     );
 
     const tourPlaces = activeList.reduce((sum, r) => sum + placesOf(r), 0);

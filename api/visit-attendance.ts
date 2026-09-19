@@ -163,6 +163,13 @@ async function handleListAttendance(req: VercelRequest, res: VercelResponse) {
     const sumPlaces = (arr: typeof enriched) => arr.reduce((s, r) => s + placesOf(r), 0);
     const counts = {
       total: enriched.length, // nb d'inscriptions occupant une place (lignes)
+      // Toutes les personnes de la liste renvoyée, quel que soit leur statut :
+      // c'est ce que le guide a sous les yeux, et donc ce qu'affichent la carte
+      // « Inscrits » et l'onglet du portail.
+      seatsTaken: sumPlaces(enriched),
+      // Places réservées le temps de la confirmation par e-mail : elles comptent
+      // dans la jauge de capacité, d'où l'écart avec les confirmés.
+      awaitingValidation: sumPlaces(enriched.filter((r) => r.status === "attente_validation")),
       totalPeople: sumPlaces(enriched.filter((r) => r.status === "confirmé" || r.status === "présent")),
       confirmed: sumPlaces(enriched.filter((r) => r.status === "confirmé")),
       present: sumPlaces(enriched.filter((r) => r.markedPresent === true)),

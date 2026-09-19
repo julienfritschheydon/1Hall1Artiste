@@ -1,7 +1,7 @@
 // Page guide: /guide — Dashboard pour guides (code accès protégé)
 // Fonctions: créer/modifier visite, voir inscrits + file d'attente,
 // inscription manuelle sur place, appel présences, export CSV + impression.
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Tour, Registration, placesOf } from "../types/visitTypes";
 import GuideCodeLogin from "../components/GuideCodeLogin";
 import GuideToursList from "../components/GuideToursList";
@@ -42,9 +42,10 @@ export default function GuidePortal() {
   const [selectedTourId, setSelectedTourId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [showDashboard, setShowDashboard] = useState(true);
-  const [registrationCounts, setRegistrationCounts] = useState<Record<string, number>>({});
   const [waitlistCounts, setWaitlistCounts] = useState<Record<string, number>>({});
-  const [aggregationStats, setAggregationStats] = useState<VisitAggregationStats | null>(null);
+  // Inscriptions brutes conservées pour pouvoir recalculer les statistiques sur
+  // le périmètre du filtre « Animé par » plutôt que sur tout le programme.
+  const [registrationsByTour, setRegistrationsByTour] = useState<Record<string, Registration[]>>({});
   const [guideNames, setGuideNames] = useState<string[]>([]);
   // Filtre « Animé par » mémorisé par navigateur : chaque guide retrouve ses visites.
   const [guideFilter, setGuideFilterState] = useState<string>(() => {
@@ -149,9 +150,7 @@ export default function GuidePortal() {
       console.error("Error fetching registration stats:", e);
     }
 
-    const agg = computeVisitAggregation(toursData, registrationsByTour);
-    setAggregationStats(agg);
-    setRegistrationCounts(agg.registrationCounts);
+    setRegistrationsByTour(registrationsByTour);
     setWaitlistCounts(waitlists);
   }
 
@@ -166,9 +165,34 @@ export default function GuidePortal() {
     setGuideCode(null);
     setAuthenticated(false);
     setTours([]);
-    setAggregationStats(null);
+    setRegistrationsByTour({});
     sessionStorage.removeItem("guideCode");
   }
+
+  // Sur tout le programme : sert au nombre de visites suivies par une personne,
+  // qui ne doit pas dépendre du filtre affiché.
+  const globalAggregation = useMemo(
+    () => computeVisitAggregation(tours, registrationsByTour),
+    [tours, registrationsByTour]
+  );
+  const registrationCounts = globalAggregation.registrationCounts;
+
+  // Noms proposés au filtre : liste admin + noms saisis via « Autre » sur les visites.
+  const filterNames = mergeNames(guideNames, tours.flatMap((t) => t.guides || []));
+  const visibleTours = useMemo(
+    () =>
+      guideFilter
+        ? tours.filter((t) => (t.guides || []).some((g) => g.toLowerCase() === guideFilter.toLowerCase()))
+        : tours,
+    [tours, guideFilter]
+  );
+
+  // Sur les seules visites affichées : sinon « 19 personnes à 2+ visites »
+  // parlait de tout le programme sous un tableau filtré sur un seul guide.
+  const aggregationStats = useMemo(
+    () => computeVisitAggregation(visibleTours, registrationsByTour),
+    [visibleTours, registrationsByTour]
+  );
 
   if (!authenticated) {
     return <GuideCodeLogin onSubmit={handleCodeSubmit} />;
@@ -192,18 +216,12 @@ export default function GuidePortal() {
         onBack={() => setSelectedTourId(null)}
         onTourChanged={() => fetchTours(guideCode!)}
         onAuthError={handleLogout}
-        userTourCounts={aggregationStats?.userTourCounts}
+        userTourCounts={globalAggregation.userTourCounts}
         guideNames={guideNames}
         onGuideNamesLoaded={setGuideNames}
       />
     );
   }
-
-  // Noms proposés au filtre : liste admin + noms saisis via « Autre » sur les visites.
-  const filterNames = mergeNames(guideNames, tours.flatMap((t) => t.guides || []));
-  const visibleTours = guideFilter
-    ? tours.filter((t) => (t.guides || []).some((g) => g.toLowerCase() === guideFilter.toLowerCase()))
-    : tours;
 
   return (
     <VisitLayout
@@ -624,10 +642,15 @@ function TourDetails({
             <span>
               {new Date(tour.date).toLocaleDateString("fr-FR")} •{" "}
               {new Date(tour.date).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
-              {" • "}Durée : {tour.durationMinutes} min • Places :{" "}
+              {" • "}Durée : {tour.durationMinutes} min • Places libres :{" "}
               <span className={(tour.placesLeft ?? tour.capacity) <= 0 ? "font-bold text-red-600" : undefined}>
                 {tour.placesLeft ?? tour.capacity}/{tour.capacity}
               </span>
+              {/* placesLeft déduit aussi la file d'attente : sans cette mention,
+                  « inscrits + places libres < capacité » passait pour une erreur. */}
+              {totalWaitlistPeople > 0 && (
+                <span className="text-gray-500"> (file d'attente déduite)</span>
+              )}
             </span>
             {(tour.placesLeft ?? tour.capacity) <= 0 && (
               <span className="text-xs px-2 py-1 rounded-full whitespace-nowrap bg-red-100 text-red-700 font-bold uppercase">
@@ -648,9 +671,12 @@ function TourDetails({
             <>
               {data?.counts && (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-                  <Stat label="Inscrits" value={data.counts.totalPeople} color="bg-[#f3f0e6]" />
+                  <Stat label="Inscrits" value={data.counts.seatsTaken ?? totalRegisteredPeople} color="bg-[#f3f0e6]" />
                   <Stat label="Présents" value={data.counts.present} color="bg-green-100" />
                   <Stat label="Absents" value={data.counts.absent} color="bg-red-100" />
+                  {data.counts.awaitingValidation > 0 && (
+                    <Stat label="À confirmer" value={data.counts.awaitingValidation} color="bg-orange-100" />
+                  )}
                   <Stat
                     label="File d'attente"
                     value={activeWaitlist.reduce((s: number, w: any) => s + (w.places ?? 1), 0)}
@@ -659,7 +685,7 @@ function TourDetails({
                   />
                 </div>
               )}
-              <p className="text-xs text-gray-500 mb-4 -mt-3">Compteurs en nombre de personnes (accompagnants inclus).</p>
+              <p className="text-xs text-gray-500 mb-4 -mt-3">Compteurs en nombre de personnes (accompagnants inclus). « À confirmer » = places réservées tant que l'inscrit n'a pas validé son e-mail.</p>
 
               <div className="mb-4 flex flex-wrap gap-2">
                 <TabBtn active={tab === "registrations"} onClick={() => setTab("registrations")}>
@@ -816,12 +842,15 @@ function RegistrationsList({
   }
 
   if (registrations.length === 0) return <p className="text-gray-600">Aucun inscrit.</p>;
-  const totalPlaces = registrations
+  // Deux chiffres différents sur le même écran sans explication passaient pour un
+  // bug : on dit ce que chacun recouvre.
+  const totalPlaces = registrations.reduce((s, r) => s + placesOf(r), 0);
+  const confirmedPlaces = registrations
     .filter((r) => r.status === "confirmé" || r.status === "présent")
     .reduce((s, r) => s + placesOf(r), 0);
   return (
     <div className="overflow-x-auto">
-      <p className="text-sm text-gray-600 mb-2">Total places confirmées : {totalPlaces}</p>
+      <p className="text-sm text-gray-600 mb-2">{totalPlaces} place(s) occupée(s), dont {confirmedPlaces} confirmée(s)</p>
       <table className={tableCls()}>
         <thead>
           <tr>
