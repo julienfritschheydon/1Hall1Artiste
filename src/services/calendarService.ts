@@ -55,38 +55,64 @@ export const isCalendarSupported = (): boolean => {
 };
 
 /**
- * Formate un événement pour l'export vers le calendrier
+ * Calcule les dates de début et de fin réelles d'un événement du festival.
  */
-const formatEventForCalendar = (event: Event): string => {
+const getEventDates = (event: Event): { startDate: Date; endDate: Date } => {
   // Date réelle du week-end du festival — l'ancien calcul « prochain samedi
   // après aujourd'hui » créait l'événement le mauvais week-end (voire une date
   // fictive après le festival).
   const festivalDates = getFestivalDates();
   const dayKey = event.days.includes('samedi') ? 'samedi' : 'dimanche';
   const eventDate = new Date(`${festivalDates[dayKey]}T00:00:00`);
-  
+
   // Extraire les heures de début et de fin
   const startTime = event.time.split(' - ')[0];
   const endTime = event.time.split(' - ')[1] || (parseInt(startTime.split('h')[0]) + 1) + 'h00';
-  
-  // Formater les dates de début et de fin au format iCalendar
+
   const startDate = new Date(eventDate);
   const [startHour, startMinute] = startTime.split('h').map(part => parseInt(part) || 0);
-  startDate.setHours(startHour, startMinute, 0);
-  
+  startDate.setHours(startHour, startMinute, 0, 0);
+
   const endDate = new Date(eventDate);
   const [endHour, endMinute] = endTime.split('h').map(part => parseInt(part) || 0);
-  endDate.setHours(endHour, endMinute, 0);
-  
-  // Formater au format iCalendar (RFC 5545)
-  const formatDate = (date: Date): string => {
-    return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-  };
-  
+  endDate.setHours(endHour, endMinute, 0, 0);
+
+  return { startDate, endDate };
+};
+
+/** Format iCalendar UTC (RFC 5545) : YYYYMMDDTHHMMSSZ */
+const formatCalendarDate = (date: Date): string =>
+  date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+
+const EVENT_LOCATION = 'Île Feydeau, Nantes';
+
+/**
+ * Construit une URL « Google Agenda » pour l'événement.
+ * C'est la méthode fiable sur Android : le lien ouvre directement
+ * l'application Google Agenda (ou le web) avec l'événement pré-rempli.
+ */
+export const buildGoogleCalendarUrl = (event: Event): string => {
+  const { startDate, endDate } = getEventDates(event);
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: event.title,
+    dates: `${formatCalendarDate(startDate)}/${formatCalendarDate(endDate)}`,
+    details: event.artistName || '',
+    location: EVENT_LOCATION,
+  });
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+};
+
+/**
+ * Formate un événement pour l'export vers le calendrier
+ */
+const formatEventForCalendar = (event: Event): string => {
+  const { startDate, endDate } = getEventDates(event);
+
   const formatText = (text: string): string => {
     return text.replace(/\n/g, '\\n').replace(/,/g, '\\,');
   };
-  
+
   // Créer l'événement au format iCalendar
   const icalEvent = [
     'BEGIN:VCALENDAR',
@@ -96,16 +122,16 @@ const formatEventForCalendar = (event: Event): string => {
     'METHOD:PUBLISH',
     'BEGIN:VEVENT',
     `UID:${event.id}@collectif-feydeau.app`,
-    `DTSTAMP:${formatDate(new Date())}`,
-    `DTSTART:${formatDate(startDate)}`,
-    `DTEND:${formatDate(endDate)}`,
+    `DTSTAMP:${formatCalendarDate(new Date())}`,
+    `DTSTART:${formatCalendarDate(startDate)}`,
+    `DTEND:${formatCalendarDate(endDate)}`,
     `SUMMARY:${formatText(event.title)}`,
     `DESCRIPTION:${formatText(event.artistName || '')}`,
-    `LOCATION:${formatText('Île Feydeau, Nantes')}`,
+    `LOCATION:${formatText(EVENT_LOCATION)}`,
     'END:VEVENT',
     'END:VCALENDAR'
   ].join('\r\n');
-  
+
   return icalEvent;
 };
 
@@ -137,30 +163,20 @@ export const addToCalendar = async (event: Event): Promise<CalendarResult> => {
     // (navigator.share ci-dessous, qui propose Calendrier) ou le téléchargement
     // .ics, que Safari sait ouvrir dans Calendrier.
 
-    // Approche spécifique pour Android
+    // Android : le partage d'un simple texte + URL de la page n'ajoutait rien au
+    // calendrier (aucune appli calendrier n'accepte ce type de partage), tout en
+    // rapportant un succès. On ouvre désormais Google Agenda avec l'événement
+    // pré-rempli, ce que gère l'application native comme le web.
     if (isAndroid) {
-      try {
-        // Sur Android, essayer d'abord le partage simple
-        if (navigator.share) {
-          // Créer une URL temporaire pour le fichier .ics
-          const url = URL.createObjectURL(blob);
-          
-          // Partager un lien et des informations
-          await navigator.share({
-            title: `Ajouter "${event.title}" à votre calendrier`,
-            text: `Événement: ${event.title} - ${event.days.join(' et ')} à ${event.time}\nLieu: Île Feydeau, Nantes`,
-            url: window.location.href // Utiliser l'URL actuelle comme fallback
-          });
-          
-          setTimeout(() => URL.revokeObjectURL(url), 100);
-          logger.info("Informations partagées pour ajout au calendrier Android", { eventId: event.id });
-          return { success: true };
-        }
-      } catch (androidError) {
-        // Échec silencieux : on tente la méthode de partage suivante.
+      const googleUrl = buildGoogleCalendarUrl(event);
+      const opened = window.open(googleUrl, '_blank', 'noopener,noreferrer');
+      if (opened) {
+        logger.info("Google Agenda ouvert pour ajout au calendrier Android", { eventId: event.id });
+        return { success: true };
       }
+      logger.warn("Ouverture de Google Agenda bloquée, repli sur le partage/téléchargement", { eventId: event.id });
     }
-    
+
     // Essayer le partage de fichier (pour les appareils mobiles qui le supportent)
     if (isMobile && navigator.share) {
       try {

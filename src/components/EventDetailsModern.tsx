@@ -296,7 +296,21 @@ export const EventDetailsNew = ({
     if (!event) return;
     
     try {
-      await addToCalendar(event);
+      // addToCalendar ne lève pas d'exception : il faut vérifier son résultat,
+      // sinon un échec affichait quand même « Événement ajouté ».
+      const result = await addToCalendar(event);
+
+      if (!result.success) {
+        toast({
+          title: "Erreur",
+          description: result.errorType === CalendarErrorType.NOT_SUPPORTED
+            ? "Votre navigateur ne supporte pas cette fonctionnalité."
+            : "Impossible d'ajouter l'événement au calendrier.",
+          variant: "destructive"
+        });
+        return;
+      }
+
       toast({
         title: "Événement ajouté",
         description: "L'événement a été ajouté à votre calendrier.",
