@@ -277,23 +277,20 @@ describe("C5 — réinscription possible après annulation", () => {
 
     const second = await register(tourId, "again@t.fr");
     expect(second.status).toBe(201);
-    expect(second.body.status).toBe("attente_validation");
+    expect(second.body.status).toBe("confirmé");
   });
 });
 
 describe("H1 — re-validation J-1", () => {
   it("cliquer le lien de re-validation efface la deadline ; seul le non-cliqueur est auto-annulé", async () => {
-    // Visite le 8 août à 15:00Z. Les deux inscrits confirment leur inscription initiale.
+    // Visite le 8 août à 15:00Z. Les deux inscriptions sont confirmées d'emblée.
     const tourId = makeTour(5, `tour_h1_${tourCounter}`, "2026-08-08T15:00:00.000Z");
     const { createRegistrationToken } = await import("../../api/_token.js");
 
     const clicker = await register(tourId, "clicker@t.fr");
     const ghost = await register(tourId, "ghost@t.fr");
     for (const r of [clicker, ghost]) {
-      const reg = getAtPath(`registrations/${r.body.registrationId}`);
-      const res = mockRes();
-      await registerHandler(mockReq({ query: { action: "confirm" }, body: { token: reg.validationToken } }), res);
-      expect(jsonOf(res).ok).toBe(true);
+      expect(r.body.status).toBe("confirmé");
     }
 
     // J-1 : le cron envoie les demandes de re-validation (fenêtre +24h ±1h).
@@ -343,7 +340,7 @@ describe("M4 — visite déjà commencée", () => {
 describe("M1 — placesLeft cohérent avec la règle d'inscription", () => {
   it("les places réservées par la file d'attente ne sont pas affichées comme libres", async () => {
     const tourId = makeTour(2);
-    await register(tourId, "solo@t.fr"); // 1/2 pris (attente_validation active)
+    await register(tourId, "solo@t.fr"); // 1/2 pris (inscription confirmée)
     const group = await register(tourId, "group@t.fr", { companions: [{ firstName: "C1" }] }); // groupe 2 → file
     expect(group.body.status).toBe("waitlist");
 

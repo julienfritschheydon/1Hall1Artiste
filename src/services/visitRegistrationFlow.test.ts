@@ -124,8 +124,14 @@ async function register(tourId: string, email: string, opts: Record<string, unkn
   return { status: statusOf(res), body: jsonOf(res) };
 }
 
+// Les inscriptions publiques sont confirmées dès la création (plus de double
+// opt-in). Le helper reste pour lire l'état et rejouer un ancien lien de
+// validation quand il en reste un (rétrocompatibilité).
 async function confirm(registrationId: string) {
   const reg = getAtPath(`registrations/${registrationId}`);
+  if (!reg?.validationToken) {
+    return { status: 200, body: { ok: true, status: reg?.status } };
+  }
   const res = mockRes();
   await registerHandler(mockReq({ query: { action: "confirm" }, body: { token: reg.validationToken } }), res);
   return { status: statusOf(res), body: jsonOf(res) };
@@ -203,6 +209,32 @@ describe("Groupe 1 — groupes / accompagnants (placesOf, équité FIFO)", () =>
   });
 });
 
+describe("Groupe 1bis — inscription sans double opt-in", () => {
+  it("une inscription publique est confirmée d'emblée et reçoit le récapitulatif", async () => {
+    (fetch as any).mockClear();
+    const tourId = makeTour(5);
+    const r = await register(tourId, "direct@t.fr");
+
+    expect(r.status).toBe(201);
+    expect(r.body.status).toBe("confirmé");
+
+    const reg = getAtPath(`registrations/${r.body.registrationId}`);
+    expect(reg.status).toBe("confirmé");
+    expect(reg.confirmedAt).toBeTruthy();
+    // Aucun lien de validation à cliquer, donc rien qui puisse expirer.
+    expect(reg.validationToken).toBeFalsy();
+    expect(reg.validationExpiresAt).toBeFalsy();
+
+    // L'email envoyé est le récapitulatif (détails + calendrier), pas la demande de validation.
+    const sent = (fetch as any).mock.calls
+      .map((c: any[]) => JSON.parse(String(c[1]?.body || "{}")).template_params)
+      .filter(Boolean);
+    expect(sent.length).toBe(1);
+    expect(sent[0].subject).toMatch(/C'est confirmé/);
+    expect(sent[0].message).not.toMatch(/Valider mon inscription/);
+  });
+});
+
 describe("Groupe 2 — contournement guide (surbooking volontaire)", () => {
   it("le guide peut inscrire manuellement même un tour complet", async () => {
     const tourId = makeTour(1);
@@ -232,9 +264,8 @@ describe("Groupe 3 — auto-annulation d'une offre active (bug corrigé)", () =>
     expect(b.body.status).toBe("waitlist");
     expect(c.body.status).toBe("waitlist");
 
-    // A expire sans être confirmé, 24h plus tard un déclencheur lazy (l'inscription de D) promeut B.
-    vi.setSystemTime(new Date("2026-08-02T11:00:00.000Z"));
-    await register(tourId, "d@t.fr"); // déclenche le sweep lazy → A expiré, B promu (offre envoyée)
+    // A annule : sa place est libérée et offerte à B (tête de file).
+    await cancelRegistration(a.body.registrationId, "a@t.fr");
 
     const bWait = allWaitlistForTour(tourId).find((w) => w.email === "b@t.fr");
     expect(bWait?.invitationSentAt).toBeTruthy();
@@ -266,12 +297,11 @@ describe("Groupe 4 — RGPD vs capacité", () => {
 
   it("supprimer les données de quelqu'un en file d'attente avec une offre active libère aussi la place", async () => {
     const tourId = makeTour(1);
-    await register(tourId, "a@t.fr");
-    const b = await register(tourId, "b@t.fr");
-    const c = await register(tourId, "c@t.fr");
+    const a = await register(tourId, "a@t.fr");
+    await register(tourId, "b@t.fr");
+    await register(tourId, "c@t.fr");
 
-    vi.setSystemTime(new Date("2026-08-02T11:00:00.000Z"));
-    await register(tourId, "d@t.fr"); // expire A (lazy), promeut B
+    await cancelRegistration(a.body.registrationId, "a@t.fr"); // libère la place → offre à B
 
     const bWaitBefore = allWaitlistForTour(tourId).find((w) => w.email === "b@t.fr");
     expect(bWaitBefore?.invitationSentAt).toBeTruthy();
@@ -315,7 +345,7 @@ describe("Groupe 5 — anti-abus / doublons", () => {
     expect(r5.status).toBe(201);
   });
 
-  it("[constat documenté] la limite de 3 visites ne compte PAS les attente_validation non confirmées", async () => {
+  it("la limite de 3 visites compte les inscriptions publiques dès leur création", async () => {
     const t1 = makeTour(5, "tourE");
     const t2 = makeTour(5, "tourF");
     const t3 = makeTour(5, "tourG");
@@ -323,9 +353,11 @@ describe("Groupe 5 — anti-abus / doublons", () => {
     await register(t1, "pending@t.fr");
     await register(t2, "pending@t.fr");
     await register(t3, "pending@t.fr");
-    // 3 attente_validation jamais confirmées — rtdbCountUserTours ne compte que confirmé/présent.
+    // Plus de double opt-in : ces 3 inscriptions sont « confirmé » d'emblée, donc
+    // comptées par rtdbCountUserTours — la 4e est refusée.
     const r4 = await register(t4, "pending@t.fr");
-    expect(r4.status).toBe(201); // documente le comportement actuel, pas forcément un bug
+    expect(r4.status).toBe(400);
+    expect(r4.body.error).toMatch(/max 3 visites/);
   });
 });
 
