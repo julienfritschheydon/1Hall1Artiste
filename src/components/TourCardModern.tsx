@@ -1,4 +1,5 @@
 import { IMAGE_PATHS } from '../constants/imagePaths';
+import { tourStatus } from "@/utils/tourStatus";
 import React from 'react';
 import { Card } from "@/components/ui/card";
 import { Tour } from "@/types/visitTypes";
@@ -13,7 +14,8 @@ export interface TourCardModernProps {
 export const TourCardModern: React.FC<TourCardModernProps> = ({ tour, onTourClick, cardIndex }) => {
   const timeStr = new Date(tour.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
   const placesLeft = tour.placesLeft ?? tour.capacity;
-  const isFull = placesLeft <= 0;
+  const started = tourStatus(tour) !== "upcoming";
+  const isFull = !started && placesLeft <= 0;
 
   const getEventBackgroundPseudoElementStyle = (index?: number): React.CSSProperties => {
     const intensity = index !== undefined ? index % 4 : 0;
@@ -50,10 +52,16 @@ export const TourCardModern: React.FC<TourCardModernProps> = ({ tour, onTourClic
               {tour.title}
             </h3>
           </div>
-          {isFull && (
-            <span className="flex-shrink-0 text-xs font-bold uppercase px-2 py-1 rounded-full bg-gray-200 text-gray-600">
-              Complet
+          {started ? (
+            <span className="flex-shrink-0 text-xs font-bold uppercase px-2 py-1 rounded-full bg-green-100 text-green-700">
+              En cours
             </span>
+          ) : (
+            isFull && (
+              <span className="flex-shrink-0 text-xs font-bold uppercase px-2 py-1 rounded-full bg-gray-200 text-gray-600">
+                Complet
+              </span>
+            )
           )}
         </div>
 
@@ -63,9 +71,13 @@ export const TourCardModern: React.FC<TourCardModernProps> = ({ tour, onTourClic
           <div className="text-gray-500 text-sm space-y-1">
             <p>{timeStr}</p>
             {tour.startLocationName && <p>{tour.startLocationName}</p>}
-            <p className={isFull ? "font-semibold text-red-600" : undefined}>
-              Places : {placesLeft}/{tour.capacity}
-            </p>
+            {started ? (
+              <p className="font-semibold text-green-700">Départ donné — inscription close</p>
+            ) : (
+              <p className={isFull ? "font-semibold text-red-600" : undefined}>
+                Places : {placesLeft}/{tour.capacity}
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-2 mt-2">
             <div className="w-3 h-3 bg-gray-400 rounded-full"></div>

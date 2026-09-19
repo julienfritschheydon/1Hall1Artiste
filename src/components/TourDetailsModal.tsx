@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Tour } from "@/types/visitTypes";
 import { findLocationForTour } from "@/utils/tourLocation";
 import { TourRegistrationForm } from "@/components/TourRegistrationForm";
+import { isTourOpenForRegistration } from "@/utils/tourStatus";
 import { buildShareUrl } from "@/utils/url";
 import { useSwipeNavigation } from "@/hooks/useSwipeNavigation";
 import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
@@ -148,17 +149,27 @@ export function TourDetailsModal({
             </div>
           )}
 
-          {placesLeft <= 0 ? (
-            <div className="mb-6 p-3 rounded-lg bg-amber-100 border-2 border-amber-400 font-bold text-amber-900">
-              Visite complète ({tour.capacity}/{tour.capacity}) — rejoignez la liste d'attente ci-dessous
+          {/* Départ donné : l'API refuse toute inscription, le formulaire n'a
+              plus lieu d'être. */}
+          {!isTourOpenForRegistration(tour) ? (
+            <div className="mb-6 p-3 rounded-lg bg-green-50 border-2 border-green-300 font-bold text-green-800">
+              Visite en cours — le départ a été donné, les inscriptions sont closes.
             </div>
           ) : (
-            <div className="mb-6 p-3 rounded-lg bg-[#fff6ef] border border-[#ffd9c4] font-bold text-[#e8693a]">
-              Places restantes : {placesLeft}/{tour.capacity}
-            </div>
-          )}
+            <>
+              {placesLeft <= 0 ? (
+                <div className="mb-6 p-3 rounded-lg bg-amber-100 border-2 border-amber-400 font-bold text-amber-900">
+                  Visite complète ({tour.capacity}/{tour.capacity}) — rejoignez la liste d'attente ci-dessous
+                </div>
+              ) : (
+                <div className="mb-6 p-3 rounded-lg bg-[#fff6ef] border border-[#ffd9c4] font-bold text-[#e8693a]">
+                  Places restantes : {placesLeft}/{tour.capacity}
+                </div>
+              )}
 
-          <TourRegistrationForm tour={tour} placesLeft={placesLeft} />
+              <TourRegistrationForm tour={tour} placesLeft={placesLeft} />
+            </>
+          )}
         </div>
       </div>
     </div>
