@@ -94,7 +94,7 @@ export function computeVisitAggregation(
   for (const tour of tours) {
     const list = registrationsByTour[tour.id] || [];
     const activeList = list.filter(
-      (r) => r.status === "confirmé" || r.status === "présent"
+      (r) => r.status === "confirmé" || r.status === "présent" || r.status === "attente_validation"
     );
     let count = 0;
     for (const r of activeList) {

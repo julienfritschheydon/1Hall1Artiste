@@ -15,13 +15,17 @@ Fichiers clés :
 ## 1. Statuts d'une inscription (`Registration.status`)
 
 ```
-attente_validation → confirmé → présent
-                   ↘         ↘ absent
-                     annulé
+confirmé → présent
+         ↘ absent
+   ↘ annulé
 ```
 
-- `attente_validation` — vient de s'inscrire, email de confirmation envoyé, lien valide 24H
-- `confirmé` — a cliqué le lien de validation
+- `confirmé` — inscription enregistrée. **Depuis la suppression du double opt-in, c'est l'état
+  d'une inscription publique dès sa création** : plus de lien à cliquer, l'email envoyé est le
+  récapitulatif (horaire, lieu, calendrier, lien d'annulation).
+- `attente_validation` — **legacy**. Plus produit par le code ; seules d'anciennes inscriptions
+  peuvent encore porter ce statut, et `POST /api/visit-register?action=confirm` continue
+  d'accepter les liens de validation déjà envoyés (rétrocompatibilité).
 - `présent` / `absent` — pointage par le guide le jour J
 - `annulé` — annulation user, expiration non confirmée, ou surnombre
 
@@ -37,8 +41,9 @@ Une entrée `waitlist` a un cycle séparé : `position` (en attente, pas encore 
 places occupées. Compte une place si :
 
 - `status === "confirmé"` ou `"présent"` — toujours
-- `status === "attente_validation"` **ET** `validationExpiresAt > maintenant` — la place est
-  réservée pendant les 24H de délai de confirmation email
+- `status === "attente_validation"` **ET** `validationExpiresAt > maintenant` — legacy : réserve
+  la place pendant les 24H de l'ancien délai de confirmation email (plus aucune inscription
+  nouvelle n'entre dans ce cas)
 
 Une fois `validationExpiresAt` dépassé, la place n'est **plus comptée** (même si le statut DB
 dit encore `attente_validation` — voir §4, le ménage DB peut être en retard sur le calcul).
@@ -53,7 +58,7 @@ réservées par TOUTE la file d'attente non rejetée — offre envoyée ou pas (
 hasSpace = registeredPlaces + waitlistedPlaces + groupSize(nouvelle inscription) <= capacity
 ```
 
-Si `hasSpace` → inscription directe (`attente_validation`). Sinon → file d'attente.
+Si `hasSpace` → inscription directe en `confirmé` (+ email récapitulatif). Sinon → file d'attente.
 
 `rtdbCountPendingWaitlistOffers(tourId)` ([api/_visit-db.ts:284](../api/_visit-db.ts:284)) reste
 utilisée ailleurs, uniquement par l'algorithme de **promotion** (`promoteWaitlist` /

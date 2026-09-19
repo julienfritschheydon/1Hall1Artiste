@@ -177,7 +177,8 @@ export function TourRegistrationForm({ tour, placesLeft }: { tour: Tour; placesL
       </Button>
 
       <p className="text-xs text-gray-600">
-        Un email de confirmation sera envoyé. Vous aurez 24h pour valider votre inscription.
+        Votre inscription est enregistrée immédiatement : un email récapitulatif (horaire, lieu, ajout au
+        calendrier) vous est envoyé dans la foulée. Aucun lien à valider.
       </p>
     </form>
   );
