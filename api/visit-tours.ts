@@ -232,7 +232,10 @@ async function handlePut(req: VercelRequest, res: VercelResponse) {
     }
     // Seuls les champs publics sont gelés à J-1 : un remplacement de guide de
     // dernière minute doit rester possible (les « guides » sont internes).
-    const publicFieldChanged = ALLOWED_FIELDS.some(
+    // L'intitulé reste aussi modifiable : corriger un titre n'impacte pas les
+    // inscrits (horaire, durée, capacité inchangés).
+    const FROZEN_FIELDS = ALLOWED_FIELDS.filter((f) => f !== "title");
+    const publicFieldChanged = FROZEN_FIELDS.some(
       (f) => updates[f] !== undefined && JSON.stringify(updates[f]) !== JSON.stringify((tour as any)[f])
     );
     if (hoursUntilStart < 24 && publicFieldChanged) {
