@@ -1,6 +1,7 @@
 // Doodates Email Batch Jobs (Cron) — Rappels, validation, suppression RGPD, promo file attente
 // POST /api/visit-emails?type=send-7d-reminder — Rappel 7j avant (daily)
 // POST /api/visit-emails?type=send-1d-validation — Validation 1j avant (daily)
+// POST /api/visit-emails?type=send-3h-reminder — Rappel ~3h avant (horaire, GitHub Actions)
 // POST /api/visit-emails?type=batch-delete-post-tour — Suppression RGPD 24H après (daily)
 // POST /api/visit-emails?type=promote-waitlist — Auto-promotion file attente (annule aussi les inscriptions non confirmées après 24H)
 
@@ -190,6 +191,63 @@ async function sendReminderEmails7d(): Promise<{ sent: number; failed: number }>
 
   if (failed > 0) {
     await sendAdminAlert("Doodates 7d Reminder Failures", `${failed} reminders failed to send`);
+  }
+
+  return { sent, failed };
+}
+
+// ==== JOB 1bis: Send 3h reminder (cron horaire — GitHub Actions) ====
+// Complète les rappels J-7/J-1 sans les remplacer : c'est le seul qui atteigne
+// les gens inscrits la veille au soir pour le lendemain, que les jobs quotidiens
+// ratent (ils ne tournent qu'une fois par jour, hors de leur fenêtre).
+// Fenêtre large (±30 min) car GitHub Actions décale parfois les runs planifiés
+// de plusieurs minutes ; reminder3hSent garantit l'absence de doublon.
+async function sendReminderEmails3h(): Promise<{ sent: number; failed: number }> {
+  quotaWarningAlertSent = false; // Reset for this run
+  const now = new Date();
+  const threeHoursLater = new Date(now.getTime() + 3 * 60 * 60 * 1000);
+
+  const startDate = new Date(threeHoursLater.getTime() - 30 * 60 * 1000);
+  const endDate = new Date(threeHoursLater.getTime() + 30 * 60 * 1000);
+
+  const registrations = await rtdbRegistrationsListByDateRange(startDate, endDate);
+
+  let sent = 0,
+    failed = 0;
+
+  for (const reg of registrations) {
+    if (reg.status !== "confirmé" || reg.reminder3hSent) {
+      continue; // Skip if not confirmed or already sent
+    }
+
+    const tour = await rtdbTourGet(reg.tourId);
+    if (!tour) continue;
+
+    const idempotencyKey = `${reg.id}_3h_reminder`;
+    const success = await sendEmailWithRetry(
+      JSON.parse(process.env.VISIT_EMAILJS_TEMPLATE_IDS || "{}").reminder_3h,
+      {
+        to: reg.email,
+        firstName: reg.firstName,
+        tourTitle: tour.title,
+        tourDate: tour.date,
+        startLocationName: tour.startLocationName,
+        type: "reminder_3h",
+      },
+      idempotencyKey
+    );
+
+    if (success) {
+      await rtdbRegistrationUpdate(reg.id, { reminder3hSent: true });
+      sent++;
+    } else {
+      console.error(`[visit-emails] Failed to send 3h reminder to ${reg.email}`);
+      failed++;
+    }
+  }
+
+  if (failed > 0) {
+    await sendAdminAlert("Doodates 3h Reminder Failures", `${failed} reminders failed to send`);
   }
 
   return { sent, failed };
@@ -501,6 +559,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       result = { reminder7d, validation1d, promotion, cleanup };
     } else if (type === "send-7d-reminder") {
       result = await sendReminderEmails7d();
+    } else if (type === "send-3h-reminder") {
+      result = await sendReminderEmails3h();
     } else if (type === "send-1d-validation") {
       result = await sendValidationEmails1d();
     } else if (type === "batch-delete-post-tour") {

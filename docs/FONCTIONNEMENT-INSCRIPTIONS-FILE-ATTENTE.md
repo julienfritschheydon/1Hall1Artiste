@@ -157,6 +157,12 @@ expiré). B en file d'attente position #1, aucune offre envoyée. C tente de s'i
    greffer sur un cron existant (comme `expirePendingRegistrations()` fait dans
    `promoteFromWaitlist()`), soit être déclenchée en lazy depuis un endpoint existant — pas de
    nouveau cron dédié sans vérifier le plan.
+   **Échappatoire quand une granularité infra-journalière est indispensable** : déclencher
+   l'endpoint depuis GitHub Actions (`schedule:`), qui est gratuit et n'ajoute aucune fonction
+   serverless. C'est ce que fait `.github/workflows/visit-reminder-3h.yml` pour le rappel 3h
+   (`?type=send-3h-reminder`), avec le même `CRON_SECRET` que les crons Vercel. GitHub décale
+   parfois les runs planifiés de plusieurs minutes : tout job déclenché ainsi doit donc avoir
+   une fenêtre de sélection tolérante et un flag d'idempotence (ici `reminder3hSent`).
 5. **Le token de validation/invitation porte sa propre expiration** (signée, dans le payload) —
    il expire indépendamment du statut DB. Ne jamais se fier uniquement au statut DB pour rejeter
    un lien expiré ; `verifyRegistrationToken` doit toujours être appelé en premier.

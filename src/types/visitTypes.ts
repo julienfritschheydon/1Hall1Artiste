@@ -56,6 +56,7 @@ export interface Registration {
   attendedAt?: string
   cancelledAt?: string
   reminder7dSent?: boolean // Q2: Idempotency for 7d reminder
+  reminder3hSent?: boolean // Idempotency for 3h reminder (cron horaire)
   validation1dSent?: boolean // Q15: Idempotency for 1d validation
   validationDeadline?: string // Q15: Auto-cancel deadline (effacée quand l'utilisateur re-valide)
   revalidatedAt?: string // Q15: L'utilisateur a re-confirmé sa présence via le lien J-1
