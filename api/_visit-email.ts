@@ -8,6 +8,7 @@ export type VisitEmailType =
   | "registration_confirmed"
   | "reminder_7d"
   | "reminder_1d_validate"
+  | "reminder_3h"
   | "waitlist_confirmation"
   | "waitlist_offer"
   | "waitlist_offer_expired"
@@ -85,6 +86,20 @@ export function buildVisitEmail(
         subject: `Rappel — ${d.tourTitle || "votre visite"}`,
         message: wrap(
           `${hi}<p>Petit rappel : vous êtes inscrit(e) à « ${title} »${date ? ` le ${date}` : ""}.</p><p>À bientôt !</p>`
+        ),
+      };
+
+    case "reminder_3h":
+      return {
+        subject: `C'est aujourd'hui — ${d.tourTitle || "votre visite"}`,
+        message: wrap(
+          `${hi}<p>Votre visite « ${title} » commence dans quelques heures${
+            date ? ` (${date})` : ""
+          }.</p>${
+            d.startLocationName
+              ? `<p>Rendez-vous au <strong>${esc(d.startLocationName)}</strong>.</p>`
+              : ""
+          }<p>À tout à l'heure sur l'Île Feydeau !</p>`
         ),
       };
 

@@ -1,0 +1,35 @@
+name: ⏰ Rappel visite 3h avant
+
+# Le plan Vercel Hobby est limité à 1 cron/jour (voir
+# docs/FONCTIONNEMENT-INSCRIPTIONS-FILE-ATTENTE.md), or ce rappel a besoin d'une
+# granularité horaire. On déclenche donc l'endpoint depuis GitHub Actions, qui
+# reste gratuit. L'endpoint est authentifié par CRON_SECRET, comme pour Vercel.
+on:
+  schedule:
+    # Toutes les heures. GitHub décale parfois les runs planifiés de plusieurs
+    # minutes en période de charge — sans conséquence, le job retient les
+    # visites dans 3h ±30 min et reminder3hSent évite tout doublon.
+    - cron: '0 * * * *'
+  workflow_dispatch:
+
+jobs:
+  send:
+    name: Envoi des rappels
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📮 Déclencher le job
+        env:
+          SITE_URL: ${{ secrets.PUBLIC_SITE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CRON_SECRET}" ]; then
+            echo "::error::CRON_SECRET absent des secrets du dépôt"
+            exit 1
+          fi
+          base="${SITE_URL:-https://www.1hall1artiste.fr}"
+          # --fail-with-body : un 401/500 doit faire échouer le run (et notifier),
+          # pas passer silencieusement comme le ferait un curl nu.
+          curl --fail-with-body --silent --show-error --max-time 60 \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "${base}/api/visit-emails?type=send-3h-reminder"

@@ -127,6 +127,14 @@ Plateforme d'inscription aux visites guidées. Guides gèrent création/inscript
 - **Contenu**: "Confirmez présence ou inscription annulée dans 24H" + lien confirmation
 - **Passé 24H**: Inscription supprimée si pas validation
 
+### Rappel ~3h avant
+- **Envoyé**: le jour même, ~3 heures avant le départ (aux inscrits confirmés)
+- **Contenu**: "votre visite commence dans quelques heures" + point de rendez-vous
+- **Pas d'action requise** — purement informatif, il ne remplace pas la confirmation J-1
+- **Pourquoi**: c'est le seul rappel qui atteigne les personnes inscrites la veille au soir
+  pour le lendemain ; les jobs J-7/J-1 ne tournent qu'une fois par jour et ratent cette fenêtre
+- **Déclenchement**: cron horaire GitHub Actions (le plan Vercel Hobby est limité à 1 cron/jour)
+
 ### Email file d'attente (place libérée)
 - **Envoyé**: Immédiat quand place se libère
 - **Contenu**: "Une place s'est libérée, inscription valide pour 24H" + lien validation

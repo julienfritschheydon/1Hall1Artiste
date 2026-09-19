@@ -162,6 +162,12 @@ expiré). B en file d'attente position #1, aucune offre envoyée. C tente de s'i
    greffer sur un cron existant (comme `expirePendingRegistrations()` fait dans
    `promoteFromWaitlist()`), soit être déclenchée en lazy depuis un endpoint existant — pas de
    nouveau cron dédié sans vérifier le plan.
+   **Échappatoire quand une granularité infra-journalière est indispensable** : déclencher
+   l'endpoint depuis GitHub Actions (`schedule:`), qui est gratuit et n'ajoute aucune fonction
+   serverless. C'est ce que fait `.github/workflows/visit-reminder-3h.yml` pour le rappel 3h
+   (`?type=send-3h-reminder`), avec le même `CRON_SECRET` que les crons Vercel. GitHub décale
+   parfois les runs planifiés de plusieurs minutes : tout job déclenché ainsi doit donc avoir
+   une fenêtre de sélection tolérante et un flag d'idempotence (ici `reminder3hSent`).
 5. **Sélectionner les visites par JOUR, pas par fenêtre horaire, dans un job quotidien.**
    Les rappels J-7 et J-1 cherchaient les visites dans une fenêtre de ±1h autour de l'instant
    J+7 / J+1. Comme le cron ne tourne qu'une fois par jour (04:00 UTC), cette fenêtre ne
@@ -171,9 +177,10 @@ expiré). B en file d'attente position #1, aucune offre envoyée. C tente de s'i
    déclenchait jamais non plus (places d'absents jamais rendues à la file d'attente).
    Ces deux jobs utilisent désormais `rtdbRegistrationsListByTourDay()`, qui compare les jours
    calendaires **en heure de Paris** (`parisDayKey`). Règle générale : la fenêtre de sélection
-   d'un job doit être au moins aussi large que son intervalle d'exécution.
-   `rtdbRegistrationsListByDateRange()` reste réservée aux jobs qui ont vraiment besoin d'une
-   précision horaire et au balayage d'auto-annulation, qui porte sur 8 jours.
+   d'un job doit être au moins aussi large que son intervalle d'exécution — c'est pourquoi le
+   rappel 3h, lui, garde une fenêtre horaire : il tourne toutes les heures (règle 4).
+   `rtdbRegistrationsListByDateRange()` reste réservée à ces jobs-là et au balayage
+   d'auto-annulation, qui porte sur 8 jours.
 6. **Le token de validation/invitation porte sa propre expiration** (signée, dans le payload) —
    il expire indépendamment du statut DB. Ne jamais se fier uniquement au statut DB pour rejeter
    un lien expiré ; `verifyRegistrationToken` doit toujours être appelé en premier.
