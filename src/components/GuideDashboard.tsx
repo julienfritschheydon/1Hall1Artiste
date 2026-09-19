@@ -5,6 +5,8 @@ import { groupToursByStatus, tourStatus, TOUR_STATUS_LABELS } from "@/utils/tour
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import DailyAttendanceModal from "./DailyAttendanceModal";
+import ExportRegistrationsModal from "./ExportRegistrationsModal";
 
 const ORANGE = "#ff7a45";
 
@@ -80,8 +82,10 @@ export default function GuideDashboard({
   waitlistCounts,
   aggregationStats,
   multiVisitTourCounts,
+  guideCode,
   onSelectTour,
   onCreateTour,
+  onAuthError,
 }: {
   tours: Tour[];
   registrationCounts: Record<string, number>;
@@ -89,10 +93,14 @@ export default function GuideDashboard({
   aggregationStats?: VisitAggregationStats | null;
   /** Badge « multi » par visite, calculé sur tout le programme (indépendant du filtre). */
   multiVisitTourCounts?: Record<string, number>;
+  guideCode: string;
   onSelectTour: (tourId: string) => void;
   onCreateTour: () => void;
+  onAuthError?: () => void;
 }) {
   const [showMultiModal, setShowMultiModal] = useState(false);
+  const [showDailyModal, setShowDailyModal] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
   // L'historique s'ouvre à la demande, comme en Vue liste.
   const [showPast, setShowPast] = useState(false);
   const stats = calcStats(tours, registrationCounts, waitlistCounts, aggregationStats);
@@ -396,16 +404,13 @@ export default function GuideDashboard({
                 </button>
               )}
               <button
-                onClick={() => {
-                  const dateStr = new Date().toLocaleDateString("fr-FR");
-                  alert(`Appel du jour (${dateStr}) - à implémenter`);
-                }}
+                onClick={() => setShowDailyModal(true)}
                 style={{ textAlign: "left", background: "transparent", border: "none", color: "#ff7a45", cursor: "pointer", padding: 0, textDecoration: "underline" }}
               >
                 📋 Voir appels du jour
               </button>
               <button
-                onClick={() => alert("Export inscriptions - à implémenter")}
+                onClick={() => setShowExportModal(true)}
                 style={{ textAlign: "left", background: "transparent", border: "none", color: "#ff7a45", cursor: "pointer", padding: 0, textDecoration: "underline" }}
               >
                 📥 Exporter inscriptions
@@ -420,6 +425,22 @@ export default function GuideDashboard({
           </CardContent>
         </Card>
       </div>
+
+      <DailyAttendanceModal
+        open={showDailyModal}
+        onOpenChange={setShowDailyModal}
+        tours={tours}
+        guideCode={guideCode}
+        onAuthError={onAuthError}
+      />
+
+      <ExportRegistrationsModal
+        open={showExportModal}
+        onOpenChange={setShowExportModal}
+        tours={tours}
+        guideCode={guideCode}
+        onAuthError={onAuthError}
+      />
 
       {/* Modal participants inscrits à plusieurs visites */}
       <Dialog open={showMultiModal} onOpenChange={setShowMultiModal}>

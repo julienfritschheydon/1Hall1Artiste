@@ -12,8 +12,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getFestivalDates } from "@/utils/festival";
-import { escapeCsvCell } from "@/utils/csv";
 import { computeVisitAggregation, VisitAggregationStats } from "../utils/visitStats";
+import {
+  exportRegistrationsCsv,
+  formatCompanions,
+  printAttendanceSheets,
+} from "@/utils/guideExport";
 
 const ORANGE = "#ff7a45";
 const orangeBtn = { backgroundColor: ORANGE };
@@ -304,8 +308,10 @@ export default function GuidePortal() {
           waitlistCounts={waitlistCounts}
           aggregationStats={aggregationStats}
           multiVisitTourCounts={globalAggregation.multiVisitTourCounts}
+          guideCode={guideCode!}
           onSelectTour={setSelectedTourId}
           onCreateTour={() => setCreating(true)}
+          onAuthError={handleLogout}
         />
       ) : (
         <GuideToursList
@@ -618,8 +624,8 @@ function TourDetails({
       headerRight={
         <>
           <Button size="sm" variant="outline" onClick={() => setEditing(true)}>Modifier</Button>
-          <Button size="sm" variant="outline" onClick={() => exportCSV(tour, registrations)}>Export CSV</Button>
-          <Button size="sm" variant="outline" onClick={() => printAttendance(tour, registrations)}>Imprimer</Button>
+          <Button size="sm" variant="outline" onClick={() => exportRegistrationsCsv(tour, registrations)}>Export CSV</Button>
+          <Button size="sm" variant="outline" onClick={() => printAttendanceSheets([{ tour, registrations }])}>Imprimer</Button>
         </>
       }
     >
@@ -781,14 +787,6 @@ function TabBtn({ active, onClick, children }: { active: boolean; onClick: () =>
 }
 
 // Formate les accompagnants (array nouveau ou champ legacy) en texte.
-function formatCompanions(r: any): string {
-  if (Array.isArray(r.companions) && r.companions.length > 0) {
-    return r.companions.map((c: any) => `${c.firstName} ${c.lastName || ""}`.trim()).join(", ");
-  }
-  if (r.companionFirstName) return `${r.companionFirstName} ${r.companionLastName || ""}`.trim();
-  return "-";
-}
-
 function tableCls() {
   return "w-full border-collapse text-sm";
 }
@@ -1026,69 +1024,3 @@ function toLocalInput(iso: string): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-function printAttendance(tour: Tour, registrations: any[]) {
-  const dateStr = new Date(tour.date).toLocaleString("fr-FR");
-  const totalPeople = registrations.reduce((s: number, r: any) => s + placesOf(r), 0);
-  const rows = registrations
-    .map(
-      (r) => `<tr>
-        <td style="border:1px solid #999;padding:6px;width:40px;text-align:center">☐</td>
-        <td style="border:1px solid #999;padding:6px">${escapeHtml(r.lastName)}</td>
-        <td style="border:1px solid #999;padding:6px">${escapeHtml(r.firstName)}</td>
-        <td style="border:1px solid #999;padding:6px">${escapeHtml(
-          formatCompanions(r) === "-" ? "" : formatCompanions(r)
-        )}</td>
-      </tr>`
-    )
-    .join("");
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Appel — ${escapeHtml(
-    tour.title
-  )}</title></head><body style="font-family:sans-serif;padding:20px">
-    <h1 style="font-size:18px">Feuille d'appel — ${escapeHtml(tour.title)}</h1>
-    <p style="color:#555">${dateStr} • ${totalPeople} personne(s) attendue(s)${
-      tour.guides && tour.guides.length > 0 ? ` • Animé par ${escapeHtml(tour.guides.join(", "))}` : ""
-    }</p>
-    <table style="border-collapse:collapse;width:100%;font-size:14px">
-      <thead><tr>
-        <th style="border:1px solid #999;padding:6px">Présent</th>
-        <th style="border:1px solid #999;padding:6px;text-align:left">Nom</th>
-        <th style="border:1px solid #999;padding:6px;text-align:left">Prénom</th>
-        <th style="border:1px solid #999;padding:6px;text-align:left">Accompagnant</th>
-      </tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-  </body></html>`;
-  const w = window.open("", "_blank");
-  if (!w) return;
-  w.document.write(html);
-  w.document.close();
-  w.focus();
-  w.print();
-}
-
-function escapeHtml(s: string): string {
-  return String(s).replace(/[&<>"']/g, (c) =>
-    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] || c)
-  );
-}
-
-function exportCSV(tour: Tour, registrations: any[]) {
-  const rows = [
-    ["Nom", "Prénom", "Email", "Accompagnants", "Places", "Statut"],
-    ...registrations.map((r) => [
-      r.lastName, r.firstName, r.email,
-      formatCompanions(r) === "-" ? "" : formatCompanions(r),
-      String(placesOf(r)), r.status,
-    ]),
-  ];
-  const csv = rows
-    .map((row) => row.map((c) => `"${escapeCsvCell(c).replace(/"/g, '""')}"`).join(","))
-    .join("\n");
-  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `inscrits-${tour.title.replace(/[^a-z0-9]/gi, "-")}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
