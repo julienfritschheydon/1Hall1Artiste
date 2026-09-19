@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Tour } from "../types/visitTypes";
 import { VisitAggregationStats } from "../utils/visitStats";
+import { tourStatus } from "./GuideToursList";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -9,6 +10,8 @@ const ORANGE = "#ff7a45";
 
 interface GuideDashboardStats {
   totalTours: number;
+  completedToursCount: number;
+  openCapacity: number;
   totalRegistrations: number;
   averageFillRate: number;
   totalWaitlist: number;
@@ -22,28 +25,37 @@ function calcStats(
   tours: Tour[],
   registrationCounts: Record<string, number>,
   waitlistCounts: Record<string, number>,
-  aggregationStats?: VisitAggregationStats | null
+  aggregationStats?: VisitAggregationStats | null,
+  now: number = Date.now()
 ): GuideDashboardStats {
   const totalTours = tours.length;
+  // Une visite terminée n'a plus de place à remplir : la laisser dans le taux de
+  // remplissage, la file d'attente ou l'alerte « bientôt complète » faisait
+  // parler ces indicateurs du passé au lieu de ce qu'il reste à animer.
+  const openTours = tours.filter((t) => tourStatus(t, now) !== "completed");
+  const completedToursCount = tours.length - openTours.length;
   // Les compteurs sont indexés par visite et couvrent tout le programme, alors
   // que `tours` peut être filtré (bouton « Animé par »). Sommer les Object.values
   // mélangeait les inscrits de toutes les visites avec la capacité des seules
   // visites affichées — d'où un remplissage supérieur à 100 %.
   const totalRegistrations = tours.reduce((s, t) => s + (registrationCounts[t.id] || 0), 0);
-  const totalCapacity = tours.reduce((s, t) => s + t.capacity, 0);
-  const averageFillRate = totalCapacity > 0 ? Math.round((totalRegistrations / totalCapacity) * 100) : 0;
-  const totalWaitlist = tours.reduce((s, t) => s + (waitlistCounts[t.id] || 0), 0);
-  const atRiskCount = tours.filter((t) => {
+  const openCapacity = openTours.reduce((s, t) => s + t.capacity, 0);
+  const openRegistrations = openTours.reduce((s, t) => s + (registrationCounts[t.id] || 0), 0);
+  const averageFillRate = openCapacity > 0 ? Math.round((openRegistrations / openCapacity) * 100) : 0;
+  const totalWaitlist = openTours.reduce((s, t) => s + (waitlistCounts[t.id] || 0), 0);
+  const atRiskCount = openTours.filter((t) => {
     const filled = registrationCounts[t.id] || 0;
     const remaining = t.capacity - filled;
     return remaining <= 1 && filled > 0;
   }).length;
-  const emptyToursCount = tours.filter((t) => (registrationCounts[t.id] || 0) === 0).length;
+  const emptyToursCount = openTours.filter((t) => (registrationCounts[t.id] || 0) === 0).length;
   const uniqueAttendeesCount = aggregationStats?.uniqueAttendeesCount ?? 0;
   const multiVisitAttendeesCount = aggregationStats?.multiVisitAttendeesCount ?? 0;
 
   return {
     totalTours,
+    completedToursCount,
+    openCapacity,
     totalRegistrations,
     averageFillRate,
     totalWaitlist,
@@ -76,7 +88,13 @@ export default function GuideDashboard({
     {
       label: "Visites",
       value: stats.totalTours,
-      subtext: stats.emptyToursCount > 0 ? `${stats.emptyToursCount} sans inscrit` : "Toutes avec inscrits",
+      subtext:
+        stats.completedToursCount > 0
+          ? `${stats.completedToursCount} terminée${stats.completedToursCount > 1 ? "s" : ""}` +
+            (stats.emptyToursCount > 0 ? ` • ${stats.emptyToursCount} sans inscrit` : "")
+          : stats.emptyToursCount > 0
+          ? `${stats.emptyToursCount} sans inscrit`
+          : "Toutes avec inscrits",
       subtextColor: stats.emptyToursCount > 0 ? "#b45309" : "#166534",
       color: "bg-[#f3f0e6]",
     },
@@ -97,7 +115,7 @@ export default function GuideDashboard({
     {
       label: "Remplissage",
       value: `${stats.averageFillRate}%`,
-      subtext: `${tours.reduce((s, t) => s + t.capacity, 0)} places totales`,
+      subtext: `${stats.openCapacity} places à pourvoir`,
       subtextColor: "#7a6f4d",
       color: "bg-[#f3f0e6]",
     },
@@ -110,15 +128,24 @@ export default function GuideDashboard({
     },
   ];
 
-  const toursWithStatus = tours.map((tour) => {
-    const filled = registrationCounts[tour.id] || 0;
-    const remaining = tour.placesLeft ?? (tour.capacity - filled);
-    const waitlist = waitlistCounts[tour.id] || 0;
-    const multiTourCount = aggregationStats?.multiVisitTourCounts[tour.id] || 0;
-    return { tour, filled, remaining, waitlist, multiTourCount };
-  });
+  const now = Date.now();
+  const toursWithStatus = tours
+    .map((tour) => {
+      const filled = registrationCounts[tour.id] || 0;
+      const remaining = tour.placesLeft ?? (tour.capacity - filled);
+      const waitlist = waitlistCounts[tour.id] || 0;
+      const multiTourCount = aggregationStats?.multiVisitTourCounts[tour.id] || 0;
+      const done = tourStatus(tour, now) === "completed";
+      return { tour, filled, remaining, waitlist, multiTourCount, done };
+    })
+    // Terminées en bas, comme en Vue liste : le guide a d'abord besoin de ce
+    // qu'il lui reste à animer.
+    .sort((a, b) => {
+      if (a.done !== b.done) return a.done ? 1 : -1;
+      return new Date(a.tour.date).getTime() - new Date(b.tour.date).getTime();
+    });
 
-  const atRiskTours = toursWithStatus.filter((t) => t.remaining <= 1 && t.filled > 0);
+  const atRiskTours = toursWithStatus.filter((t) => !t.done && t.remaining <= 1 && t.filled > 0);
 
   return (
     <div>
@@ -180,7 +207,7 @@ export default function GuideDashboard({
                   </tr>
                 </thead>
                 <tbody>
-                  {toursWithStatus.map(({ tour, filled, remaining, waitlist, multiTourCount }) => (
+                  {toursWithStatus.map(({ tour, filled, remaining, waitlist, multiTourCount, done }) => (
                     <tr
                       key={tour.id}
                       style={{
@@ -228,7 +255,22 @@ export default function GuideDashboard({
                         )}
                       </td>
                       <td style={{ padding: "8px", textAlign: "center" }}>
-                        {filled === 0 ? (
+                        {done ? (
+                          <span
+                            style={{
+                              display: "inline-block",
+                              backgroundColor: "#f3f0e6",
+                              color: "#7a6f4d",
+                              padding: "3px 8px",
+                              borderRadius: "4px",
+                              fontSize: "11px",
+                              fontWeight: 500,
+                            }}
+                            title="Visite déjà passée : plus d'inscription possible"
+                          >
+                            Terminée
+                          </span>
+                        ) : filled === 0 ? (
                           <span
                             style={{
                               display: "inline-block",

@@ -6,12 +6,17 @@ import { Tour } from "../types/visitTypes";
 import { VisitAggregationStats } from "../utils/visitStats";
 
 describe("GuideDashboard", () => {
+  // Dates relatives : des dates fixes rendaient les badges « Terminée »
+  // dépendants du jour où la suite tourne.
+  const HOUR = 60 * 60 * 1000;
+  const inHours = (h: number) => new Date(Date.now() + h * HOUR).toISOString();
+
   const dummyTours: Tour[] = [
     {
       id: "tour-empty",
       guideId: "all-guides",
       title: "Visite sans inscrits",
-      date: "2026-09-19T14:00:00Z",
+      date: inHours(24),
       durationMinutes: 90,
       startLocationX: 0,
       startLocationY: 0,
@@ -25,7 +30,7 @@ describe("GuideDashboard", () => {
       id: "tour-with-multi",
       guideId: "all-guides",
       title: "Visite avec multi-inscrits",
-      date: "2026-09-19T16:00:00Z",
+      date: inHours(26),
       durationMinutes: 90,
       startLocationX: 0,
       startLocationY: 0,
@@ -84,10 +89,35 @@ describe("GuideDashboard", () => {
 
     // 3 inscrits sur 15 places = 20 %, et non (3 + 176) / 15.
     expect(screen.getByText("20%")).toBeInTheDocument();
-    expect(screen.getByText("15 places totales")).toBeInTheDocument();
+    expect(screen.getByText("15 places à pourvoir")).toBeInTheDocument();
     // Ni les inscrits ni la file d'attente des autres visites n'apparaissent.
     expect(screen.queryByText("179")).not.toBeInTheDocument();
     expect(screen.queryByText("12")).not.toBeInTheDocument();
+  });
+
+  it("marque les visites passées « Terminée » et les sort des indicateurs", () => {
+    // Mêmes visites, mais déjà passées.
+    const pastTours = dummyTours.map((t) => ({ ...t, date: inHours(-24) }));
+
+    render(
+      <GuideDashboard
+        tours={pastTours}
+        registrationCounts={registrationCounts}
+        waitlistCounts={waitlistCounts}
+        aggregationStats={aggregationStats}
+        onSelectTour={vi.fn()}
+        onCreateTour={vi.fn()}
+      />
+    );
+
+    // Les deux visites sont passées : badge « Terminée » sur chaque ligne.
+    expect(screen.getAllByText("Terminée")).toHaveLength(2);
+    expect(screen.queryByText("Aucun inscrit")).not.toBeInTheDocument();
+
+    // Plus rien à remplir : le taux de remplissage ne parle plus du passé.
+    expect(screen.getByText("0%")).toBeInTheDocument();
+    expect(screen.getByText("0 places à pourvoir")).toBeInTheDocument();
+    expect(screen.getByText("2 terminées")).toBeInTheDocument();
   });
 
   it("affiche le badge 'Aucun inscrit' pour la visite sans participants", () => {
