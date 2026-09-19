@@ -6,7 +6,6 @@ import Bookmark from "lucide-react/dist/esm/icons/bookmark";
 import BookmarkCheck from "lucide-react/dist/esm/icons/bookmark-check";
 import Clock from "lucide-react/dist/esm/icons/clock";
 import { TruncatedText } from "@/components/TruncatedText";
-import { LikeButton } from "@/components/community/LikeButton";
 
 import React from "react";
 
@@ -68,14 +67,6 @@ export const EventCard = ({ event, isSaved, onEventClick, onSaveClick }: EventCa
           </div>
           <div className="flex flex-col items-end space-y-1">
             <div className="flex items-center space-x-1">
-              {/* Bouton de like */}
-              <LikeButton 
-                entryId={`event-${event.id}`}
-                variant="compact"
-                showCount={true}
-                className="scale-75 -mr-1"
-              />
-              
               {/* Bouton bookmark */}
               <button
                 className={`w-8 h-8 flex items-center justify-center rounded-full border-2 transition-colors ${

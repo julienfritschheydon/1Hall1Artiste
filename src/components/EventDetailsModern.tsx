@@ -27,7 +27,6 @@ import User from "lucide-react/dist/esm/icons/user";
 import Bookmark from "lucide-react/dist/esm/icons/bookmark";
 import BookmarkCheck from "lucide-react/dist/esm/icons/bookmark-check";
 import X from "lucide-react/dist/esm/icons/x";
-import Heart from "lucide-react/dist/esm/icons/heart";
 import ChevronDown from "lucide-react/dist/esm/icons/chevron-down";
 import ChevronUp from "lucide-react/dist/esm/icons/chevron-up";
 import MessageSquareQuote from "lucide-react/dist/esm/icons/message-square-quote";
@@ -39,8 +38,6 @@ import { addToCalendar, isCalendarSupported, CalendarErrorType } from "@/service
 import { toast } from "@/components/ui/use-toast";
 import { createLogger } from "@/utils/logger";
 import { getBackgroundFallback } from "@/utils/backgroundUtils";
-import { LikeButton } from "@/components/community/LikeButton";
-import { useLikes } from "@/hooks/useLikes";
 import { getSavedEvents, saveEvent, removeSavedEvent } from "@/services/savedEvents";
 import { getEventsByLocation } from "@/data/events";
 import { artists as fallbackArtists } from "@/data/artists";
@@ -59,45 +56,6 @@ interface EventDetailsProps {
   currentIndex?: number;
   onIndexChange?: (index: number) => void;
 }
-
-// Composant Like simple avec logique partagée
-interface LikeButtonSimpleProps {
-  entryId: string;
-}
-
-const LikeButtonSimple = ({ entryId }: LikeButtonSimpleProps) => {
-  const { liked, total, loading, toggleLike } = useLikes(entryId);
-  
-  const handleClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-    if (!loading) {
-      toggleLike();
-    }
-  };
-
-  return (
-    <button
-      onClick={handleClick}
-      disabled={loading}
-      className={`h-10 w-10 flex items-center justify-center relative rounded-full border-2 transition-colors ${
-        liked 
-          ? 'bg-red-50 border-red-500 text-red-500' 
-          : 'bg-white/70 border-gray-300 text-gray-600 hover:border-amber-500 hover:text-amber-500'
-      }`}
-      title={`${liked ? 'Retirer le' : 'Ajouter un'} like${total > 0 ? ` (${total})` : ''}`}
-    >
-      <Heart 
-        className={`h-5 w-5 ${liked ? 'text-red-500 fill-red-500' : 'inherit'}`}
-      />
-      {total > 0 && (
-        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
-          {total}
-        </span>
-      )}
-    </button>
-  );
-};
 
 // Composant pour afficher la description de l'artiste avec un teaser et une option pour développer
 interface ArtistDescriptionProps {
@@ -385,9 +343,6 @@ export const EventDetailsNew = ({
         <div className="relative z-10 p-6">
           {/* Boutons en haut à droite */}
           <div className="flex justify-end items-center gap-2 mb-2">
-            {/* Bouton de like - Logique partagée, UI simple */}
-            <LikeButtonSimple entryId={`event-${event.id}`} />
-
             {/* Bouton enregistrer/retirer des favoris */}
             <button
               onClick={toggleSaveEvent}

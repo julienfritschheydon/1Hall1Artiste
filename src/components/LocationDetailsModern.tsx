@@ -5,10 +5,7 @@ import { ActionButton } from "@/components/ui/ActionButton";
 import { Location } from "@/data/locations";
 import { Event } from "@/data/events";
 import { useNavigate } from "react-router-dom";
-import { LikeButton } from "@/components/community/LikeButton";
-import { useLikes } from "@/hooks/useLikes";
 import X from "lucide-react/dist/esm/icons/x";
-import Heart from "lucide-react/dist/esm/icons/heart";
 import Share2 from "lucide-react/dist/esm/icons/share-2";
 import Calendar from "lucide-react/dist/esm/icons/calendar";
 import Bookmark from "lucide-react/dist/esm/icons/bookmark";
@@ -42,45 +39,6 @@ import { groupToursByDayAndTime } from "@/utils/groupTours";
 import { groupEventsByDay, timeWithoutDays } from "@/utils/groupEventsByDay";
 import { EVENT_STATUS_LABELS, eventStatusToday } from "@/utils/eventSchedule";
 import { Tour } from "@/types/visitTypes";
-
-// Composant Like simple avec logique partagée
-interface LikeButtonSimpleProps {
-  entryId: string;
-}
-
-const LikeButtonSimple = ({ entryId }: LikeButtonSimpleProps) => {
-  const { liked, total, loading, toggleLike } = useLikes(entryId);
-  
-  const handleClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-    if (!loading) {
-      toggleLike();
-    }
-  };
-
-  return (
-    <button
-      onClick={handleClick}
-      disabled={loading}
-      className={`h-10 w-10 flex items-center justify-center relative rounded-full border-2 transition-colors ${
-        liked 
-          ? 'bg-red-50 border-red-500 text-red-500' 
-          : 'bg-white/70 border-gray-300 text-gray-600 hover:border-amber-500 hover:text-amber-500'
-      }`}
-      title={`${liked ? 'Retirer le' : 'Ajouter un'} like${total > 0 ? ` (${total})` : ''}`}
-    >
-      <Heart 
-        className={`h-5 w-5 ${liked ? 'text-red-500 fill-red-500' : 'inherit'}`}
-      />
-      {total > 0 && (
-        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
-          {total}
-        </span>
-      )}
-    </button>
-  );
-};
 
 interface LocationDetailsModernProps {
   location: Location;
@@ -236,9 +194,6 @@ export const LocationDetailsModern: React.FC<LocationDetailsModernProps> = ({
             <div className="flex justify-end items-center gap-2 mb-2">
               {/* Boutons à droite */}
               <div className="flex items-center gap-2">
-              {/* Bouton de like */}
-              <LikeButtonSimple entryId={`building-${location.id}`} />
-              
               {/* Bouton Marquer visité */}
               <button
                 onClick={() => onMarkVisited(!isVisited)}

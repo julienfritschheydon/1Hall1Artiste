@@ -29,7 +29,6 @@ import { type Event } from "@/data/events";
 import { toast } from "@/components/ui/use-toast";
 import { useData, useEvents, useLocations } from "@/hooks/useData";
 import { saveEvent, removeSavedEvent, getSavedEvents } from "../services/savedEvents";
-import { LikeButton } from "@/components/community/LikeButton";
 import { unlockAchievement, AchievementType } from "../services/achievements";
 import { AudioGuideButton } from "@/components/AudioGuideButton";
 import { AudioGuidePlayer } from "@/components/AudioGuidePlayer";

@@ -9,7 +9,6 @@ import { getBackgroundFallback } from "@/utils/backgroundUtils";
 export interface EventCardSimpleProps {
   event: Event;
   isSaved: boolean;
-  isLiked: boolean;
   isSelected: boolean;
   onEventClick: () => void;
   showImage?: boolean;
@@ -19,8 +18,7 @@ export interface EventCardSimpleProps {
 
 export const EventCardSimple: React.FC<EventCardSimpleProps> = ({ 
   event, 
-  isSaved, 
-  isLiked,
+  isSaved,
   isSelected,
   onEventClick,
   showImage = true,
@@ -96,9 +94,6 @@ export const EventCardSimple: React.FC<EventCardSimpleProps> = ({
           </div>
           {/* Indicateurs d'état */}
           <div className="flex items-center gap-1 ml-2 flex-shrink-0">
-            {isLiked && (
-              <div className="w-2 h-2 bg-red-500 rounded-full" title="Aimé"></div>
-            )}
             {isSaved && (
               <div className="w-2 h-2 bg-[#ff7a45] rounded-full" title="Sauvegardé"></div>
             )}

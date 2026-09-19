@@ -4,7 +4,6 @@ import React from 'react';
 import { ActionButton } from "@/components/ui/ActionButton";
 import { Card } from "@/components/ui/card";
 import { Event } from "@/data/events";
-import Heart from "lucide-react/dist/esm/icons/heart";
 import Bookmark from "lucide-react/dist/esm/icons/bookmark";
 import BookmarkCheck from "lucide-react/dist/esm/icons/bookmark-check";
 import { EventImage } from "@/components/EventImage";
@@ -36,9 +35,6 @@ export const EventCardModern: React.FC<EventCardModernProps> = ({
   timeStatus = "unknown",
   absentDayLabel = null,
 }) => {
-  // Les hooks doivent être appelés avant tout return conditionnel.
-  const [isLiked, setIsLiked] = React.useState(false);
-
   if (!event || !event.id) return null;
 
   const handleActionClick = (e: React.MouseEvent, action: (e: React.MouseEvent) => void) => {
@@ -141,13 +137,6 @@ export const EventCardModern: React.FC<EventCardModernProps> = ({
             )}
           </div>
           <div className="flex items-center gap-2 ml-2 flex-shrink-0">
-            <ActionButton 
-              variant="like" 
-              active={isLiked}
-              icon={<Heart className={`h-5 w-5 ${isLiked ? "fill-current" : ""}`} />}
-              onClick={(e) => handleActionClick(e, () => setIsLiked(!isLiked))}
-              tooltip="J'aime cet événement"
-            />
             <ActionButton 
               variant="save" 
               active={isSaved}

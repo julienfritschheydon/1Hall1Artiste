@@ -22,7 +22,6 @@ import { addToCalendar, isCalendarSupported, CalendarErrorType } from "@/service
 import { toast } from "@/components/ui/use-toast";
 import { createLogger } from "@/utils/logger";
 import { getBackgroundFallback } from "@/utils/backgroundUtils";
-import { LikeButton } from "@/components/community/LikeButton";
 import { getSavedEvents, saveEvent, removeSavedEvent } from "@/services/savedEvents";
 import { artists as fallbackArtists } from "@/data/artists";
 import { dataService } from "@/services/dataService";
@@ -269,14 +268,6 @@ export const EventDetails = ({ event, isOpen, onClose, source }: EventDetailsPro
             </div>
             
             <div className="flex items-center gap-2 ml-4">
-              {/* Bouton de like */}
-              <LikeButton 
-                entryId={`event-${event.id}`}
-                variant="icon"
-                showCount={true}
-                className="bg-white/80 backdrop-blur-sm hover:bg-white/90 rounded-full shadow-md"
-              />
-              
               {/* Bouton save */}
               <ActionButton
                 variant="save"
