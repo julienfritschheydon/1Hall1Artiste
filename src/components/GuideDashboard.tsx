@@ -336,7 +336,7 @@ export default function GuideDashboard({
             </DialogTitle>
           </DialogHeader>
           <DialogDescription className="text-xs text-gray-500">
-            {stats.multiVisitAttendeesCount} participant{stats.multiVisitAttendeesCount > 1 ? "s sont inscrits" : " est inscrit"} à au moins 2 visites différentes (sur {stats.uniqueAttendeesCount} personnes uniques au total).
+            {stats.multiVisitAttendeesCount} participant{stats.multiVisitAttendeesCount > 1 ? "s sont inscrits" : " est inscrit"} à au moins 2 visites différentes (sur {stats.uniqueAttendeesCount} inscrit(s) distinct(s)).
           </DialogDescription>
           <div className="max-h-[60vh] overflow-y-auto space-y-3 mt-2 pr-1">
             {aggregationStats?.multiVisitAttendees.map((attendee) => {

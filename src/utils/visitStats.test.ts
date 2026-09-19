@@ -42,6 +42,25 @@ describe("visitStats - computeVisitAggregation", () => {
     expect(res.multiVisitAttendees).toEqual([]);
   });
 
+  it("compte les places comme le serveur : attente de validation incluse, absent exclu", () => {
+    const base = { tourId: "tour-1", createdAt: "" };
+    const registrations: Registration[] = [
+      { ...base, id: "r1", email: "a@x.fr", firstName: "A", lastName: "A", status: "confirmé" },
+      // Occupe sa place tant que le délai de confirmation court : le serveur la
+      // déduit de placesLeft, le tableau de bord doit la compter aussi.
+      { ...base, id: "r2", email: "b@x.fr", firstName: "B", lastName: "B", status: "attente_validation" },
+      // A rendu sa place côté serveur.
+      { ...base, id: "r3", email: "c@x.fr", firstName: "C", lastName: "C", status: "absent" },
+      { ...base, id: "r4", email: "d@x.fr", firstName: "D", lastName: "D", status: "annulé" },
+    ];
+
+    const res = computeVisitAggregation([dummyTour1], { "tour-1": registrations });
+
+    expect(res.registrationCounts["tour-1"]).toBe(2);
+    expect(res.uniqueAttendeesCount).toBe(2);
+    expect(res.emptyToursCount).toBe(0);
+  });
+
   it("identifie les inscrits multi-visites et les places", () => {
     const reg1: Registration = {
       id: "reg-1",

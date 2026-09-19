@@ -642,10 +642,15 @@ function TourDetails({
             <span>
               {new Date(tour.date).toLocaleDateString("fr-FR")} •{" "}
               {new Date(tour.date).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
-              {" • "}Durée : {tour.durationMinutes} min • Places :{" "}
+              {" • "}Durée : {tour.durationMinutes} min • Places libres :{" "}
               <span className={(tour.placesLeft ?? tour.capacity) <= 0 ? "font-bold text-red-600" : undefined}>
                 {tour.placesLeft ?? tour.capacity}/{tour.capacity}
               </span>
+              {/* placesLeft déduit aussi la file d'attente : sans cette mention,
+                  « inscrits + places libres < capacité » passait pour une erreur. */}
+              {totalWaitlistPeople > 0 && (
+                <span className="text-gray-500"> (file d'attente déduite)</span>
+              )}
             </span>
             {(tour.placesLeft ?? tour.capacity) <= 0 && (
               <span className="text-xs px-2 py-1 rounded-full whitespace-nowrap bg-red-100 text-red-700 font-bold uppercase">
