@@ -5,6 +5,7 @@ import { tourStatus } from "./GuideToursList";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import DailyAttendanceModal from "./DailyAttendanceModal";
 
 const ORANGE = "#ff7a45";
 
@@ -71,17 +72,22 @@ export default function GuideDashboard({
   registrationCounts,
   waitlistCounts,
   aggregationStats,
+  guideCode,
   onSelectTour,
   onCreateTour,
+  onAuthError,
 }: {
   tours: Tour[];
   registrationCounts: Record<string, number>;
   waitlistCounts: Record<string, number>;
   aggregationStats?: VisitAggregationStats | null;
+  guideCode: string;
   onSelectTour: (tourId: string) => void;
   onCreateTour: () => void;
+  onAuthError?: () => void;
 }) {
   const [showMultiModal, setShowMultiModal] = useState(false);
+  const [showDailyModal, setShowDailyModal] = useState(false);
   const stats = calcStats(tours, registrationCounts, waitlistCounts, aggregationStats);
 
   const statCards = [
@@ -343,10 +349,7 @@ export default function GuideDashboard({
                 </button>
               )}
               <button
-                onClick={() => {
-                  const dateStr = new Date().toLocaleDateString("fr-FR");
-                  alert(`Appel du jour (${dateStr}) - à implémenter`);
-                }}
+                onClick={() => setShowDailyModal(true)}
                 style={{ textAlign: "left", background: "transparent", border: "none", color: "#ff7a45", cursor: "pointer", padding: 0, textDecoration: "underline" }}
               >
                 📋 Voir appels du jour
@@ -367,6 +370,14 @@ export default function GuideDashboard({
           </CardContent>
         </Card>
       </div>
+
+      <DailyAttendanceModal
+        open={showDailyModal}
+        onOpenChange={setShowDailyModal}
+        tours={tours}
+        guideCode={guideCode}
+        onAuthError={onAuthError}
+      />
 
       {/* Modal participants inscrits à plusieurs visites */}
       <Dialog open={showMultiModal} onOpenChange={setShowMultiModal}>

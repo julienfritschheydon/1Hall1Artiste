@@ -84,6 +84,7 @@ describe("GuideDashboard", () => {
         aggregationStats={aggregationStats}
         onSelectTour={vi.fn()}
         onCreateTour={vi.fn()}
+        guideCode="CODE"
       />
     );
 
@@ -107,6 +108,7 @@ describe("GuideDashboard", () => {
         aggregationStats={aggregationStats}
         onSelectTour={vi.fn()}
         onCreateTour={vi.fn()}
+        guideCode="CODE"
       />
     );
 
@@ -129,6 +131,7 @@ describe("GuideDashboard", () => {
         aggregationStats={aggregationStats}
         onSelectTour={vi.fn()}
         onCreateTour={vi.fn()}
+        guideCode="CODE"
       />
     );
 
@@ -149,6 +152,7 @@ describe("GuideDashboard", () => {
         aggregationStats={aggregationStats}
         onSelectTour={vi.fn()}
         onCreateTour={vi.fn()}
+        guideCode="CODE"
       />
     );
 
@@ -172,6 +176,7 @@ describe("GuideDashboard", () => {
         aggregationStats={aggregationStats}
         onSelectTour={vi.fn()}
         onCreateTour={vi.fn()}
+        guideCode="CODE"
       />
     );
 
