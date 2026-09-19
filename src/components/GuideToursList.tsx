@@ -1,5 +1,10 @@
 // Liste des visites pour guide
+import { useState } from "react";
 import { Tour } from "../types/visitTypes";
+import { groupToursByStatus, tourStatus, TOUR_STATUS_LABELS } from "@/utils/tourStatus";
+
+// Réexport historique : plusieurs écrans importaient tourStatus ici.
+export { tourStatus } from "@/utils/tourStatus";
 
 interface GuideTourListProps {
   tours: Tour[];
@@ -7,31 +12,35 @@ interface GuideTourListProps {
   onSelectTour: (tourId: string) => void;
 }
 
-// « En cours » = entre le départ et la fin (départ + durée). L'ancien calcul
-// exigeait une égalité à la milliseconde : une visite en train de se dérouler —
-// le moment précis où le guide fait l'appel — s'affichait « Terminée ».
-export function tourStatus(tour: Tour, now: number): "upcoming" | "ongoing" | "completed" {
-  const start = new Date(tour.date).getTime();
-  const end = start + (tour.durationMinutes || 0) * 60 * 1000;
-  return now < start ? "upcoming" : now <= end ? "ongoing" : "completed";
-}
-
 export default function GuideToursList({ tours, registrationCounts, onSelectTour }: GuideTourListProps) {
   const now = Date.now();
-  // Visites à venir/en cours d'abord (chronologique), les terminées à la fin.
-  const sortedTours = [...tours].sort((a, b) => {
-    const aDone = tourStatus(a, now) === "completed" ? 1 : 0;
-    const bDone = tourStatus(b, now) === "completed" ? 1 : 0;
-    if (aDone !== bDone) return aDone - bDone;
-    return new Date(a.date).getTime() - new Date(b.date).getTime();
-  });
+  // Pendant le festival, l'historique n'est pas ce qu'on vient chercher : la
+  // section « Passées » s'ouvre à la demande.
+  const [showPast, setShowPast] = useState(false);
+  const sections = groupToursByStatus(tours, now);
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {sortedTours.map((tour) => {
+    <div className="space-y-6">
+      {sections.map((section) => (
+        <section key={section.status}>
+          <div className="flex items-center gap-2 mb-3">
+            <h2 className="text-sm font-bold uppercase tracking-wide text-[#5b5340]">
+              {section.title} ({section.tours.length})
+            </h2>
+            {section.status === "completed" && (
+              <button
+                onClick={() => setShowPast((v) => !v)}
+                className="text-xs font-semibold text-[#ff7a45]"
+              >
+                {showPast ? "Masquer" : "Afficher"}
+              </button>
+            )}
+          </div>
+          {section.status === "completed" && !showPast ? null : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {section.tours.map((tour) => {
         const status = tourStatus(tour, now);
-        const statusLabel =
-          status === "upcoming" ? "À venir" : status === "completed" ? "Terminée" : "En cours";
+        const statusLabel = TOUR_STATUS_LABELS[status];
         const statusColor =
           status === "upcoming" ? "bg-amber-100 text-amber-800" : status === "completed" ? "bg-[#f3f0e6] text-[#7a6f4d]" : "bg-green-100 text-green-700";
         const placesLeft = tour.placesLeft ?? tour.capacity;
@@ -48,7 +57,7 @@ export default function GuideToursList({ tours, registrationCounts, onSelectTour
             className="bg-white/90 backdrop-blur-sm border-2 border-amber-300 rounded-xl p-4 cursor-pointer transition hover:-translate-y-0.5 hover:shadow-xl shadow-lg"
           >
             <div className="flex justify-between items-start mb-2 gap-2">
-              <h3 className={`font-bold text-lg ${isFull ? "text-gray-400 line-through" : "text-[#1a2138]"}`}>
+              <h3 className={`font-bold text-lg ${isFull && status === "upcoming" ? "text-gray-400 line-through" : "text-[#1a2138]"}`}>
                 {tour.title}
               </h3>
               <div className="flex flex-col items-end gap-1">
@@ -58,7 +67,7 @@ export default function GuideToursList({ tours, registrationCounts, onSelectTour
                     Aucun inscrit
                   </span>
                 )}
-                {isFull && (
+                {isFull && status === "upcoming" && (
                   <span className="text-xs px-2 py-1 rounded-full whitespace-nowrap bg-red-100 text-red-700 font-bold uppercase">
                     Complet
                   </span>
@@ -76,13 +85,22 @@ export default function GuideToursList({ tours, registrationCounts, onSelectTour
 
             <p className="text-sm text-gray-600 mb-2">Durée : {tour.durationMinutes} min</p>
 
-            <p className={`text-sm font-semibold ${isFull ? "text-red-600" : isEmpty ? "text-slate-600" : "text-[#1a2138]"}`}>
-              Places : {placesLeft}/{tour.capacity} {isEmpty && <span className="font-normal text-xs text-slate-500">(aucun inscrit)</span>}
-            </p>
-
-            {isFull && (
-              <p className="mt-1 text-xs font-semibold text-amber-800 bg-amber-100 border border-amber-300 rounded-full px-2 py-1 inline-block">
-                Voir la liste d'attente
+            {/* Une visite commencée n'accepte plus personne (l'API refuse) :
+                annoncer des places libres induisait le guide en erreur. */}
+            {status === "upcoming" ? (
+              <>
+                <p className={`text-sm font-semibold ${isFull ? "text-red-600" : isEmpty ? "text-slate-600" : "text-[#1a2138]"}`}>
+                  Places libres : {placesLeft}/{tour.capacity} {isEmpty && <span className="font-normal text-xs text-slate-500">(aucun inscrit)</span>}
+                </p>
+                {isFull && (
+                  <p className="mt-1 text-xs font-semibold text-amber-800 bg-amber-100 border border-amber-300 rounded-full px-2 py-1 inline-block">
+                    Voir la liste d'attente
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="text-sm font-semibold text-[#1a2138]">
+                Inscrits : {filled}/{tour.capacity}
               </p>
             )}
 
@@ -91,7 +109,11 @@ export default function GuideToursList({ tours, registrationCounts, onSelectTour
             </div>
           </div>
         );
-      })}
+              })}
+            </div>
+          )}
+        </section>
+      ))}
     </div>
   );
 }

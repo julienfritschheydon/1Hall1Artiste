@@ -73,6 +73,24 @@ describe("GuideDashboard", () => {
     emptyToursCount: 1,
   };
 
+  it("badge « En cours » une visite commencée, sans annoncer de places", async () => {
+    const ongoing = dummyTours.map((t) => ({ ...t, date: inHours(-0.5), placesLeft: 11 }));
+    render(
+      <GuideDashboard
+        tours={ongoing}
+        registrationCounts={registrationCounts}
+        waitlistCounts={waitlistCounts}
+        aggregationStats={aggregationStats}
+        onSelectTour={vi.fn()}
+        onCreateTour={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("En cours (2)")).toBeInTheDocument();
+    expect(screen.getAllByText("En cours")).toHaveLength(2);
+    expect(screen.queryByText("11 places")).not.toBeInTheDocument();
+  });
+
   it("n'additionne que les visites affichées quand le filtre « Animé par » est actif", () => {
     // Les compteurs couvrent tout le programme ; seule la première visite est
     // affichée. Sommer toutes les valeurs donnait un remplissage > 100 %.
@@ -95,7 +113,7 @@ describe("GuideDashboard", () => {
     expect(screen.queryByText("12")).not.toBeInTheDocument();
   });
 
-  it("marque les visites passées « Terminée » et les sort des indicateurs", () => {
+  it("marque les visites passées « Terminée » et les sort des indicateurs", async () => {
     // Mêmes visites, mais déjà passées.
     const pastTours = dummyTours.map((t) => ({ ...t, date: inHours(-24) }));
 
@@ -110,9 +128,14 @@ describe("GuideDashboard", () => {
       />
     );
 
-    // Les deux visites sont passées : badge « Terminée » sur chaque ligne.
-    expect(screen.getAllByText("Terminée")).toHaveLength(2);
+    // Les deux visites sont passées : elles tiennent dans une section repliée.
+    const user = userEvent.setup();
+    expect(screen.getByText("Passées (2)")).toBeInTheDocument();
+    expect(screen.queryByText("Terminée")).not.toBeInTheDocument();
     expect(screen.queryByText("Aucun inscrit")).not.toBeInTheDocument();
+
+    await user.click(screen.getByText("Afficher"));
+    expect(screen.getAllByText("Terminée")).toHaveLength(2);
 
     // Plus rien à remplir : le taux de remplissage ne parle plus du passé.
     expect(screen.getByText("0%")).toBeInTheDocument();
