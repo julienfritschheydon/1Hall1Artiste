@@ -171,7 +171,6 @@ export function LocationHistory() {
   const swipe = useSwipeNavigation({
     items: locationsWithHistory,
     currentIndex: historySwipeIndex,
-    threshold: 100, // Seuil augmenté pour éviter les faux positifs (clic interprété comme swipe)
     onIndexChange: (newIndex) => {
       const newLocation = locationsWithHistory[newIndex];
       if (newLocation) {
@@ -185,7 +184,6 @@ export function LocationHistory() {
         });
       }
     },
-    enabled: locationsWithHistory.length > 1
   });
   
   // Hook de navigation clavier
@@ -193,7 +191,6 @@ export function LocationHistory() {
     onPrevious: swipe.goPrevious,
     onNext: swipe.goNext,
     onClose: () => navigate('/map'),
-    enabled: locationsWithHistory.length > 1
   });
   
   // Synchroniser l'index avec le lieu sélectionné (pour le dropdown)
@@ -264,7 +261,6 @@ export function LocationHistory() {
         backgroundPosition: 'center',
         backgroundAttachment: 'scroll'
       }}
-      {...swipe.handlers}
     >
       {/* Overlay pour améliorer la lisibilité */}
       <div className="absolute inset-0 bg-white/10" />

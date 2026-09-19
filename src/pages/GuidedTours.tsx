@@ -210,19 +210,16 @@ function TourDetail({
   const swipe = useSwipeNavigation({
     items: navigableTours,
     currentIndex,
-    onIndexChange: onIndexChange || (() => {}),
-    threshold: 100,
-    enabled: navigableTours.length > 1,
+    onIndexChange: onIndexChange || (() => {})
   });
 
   useKeyboardNavigation({
     onPrevious: swipe.goPrevious,
     onNext: swipe.goNext,
-    enabled: navigableTours.length > 1,
   });
 
   return (
-    <Card className="bg-white/90 backdrop-blur-sm border-2 border-amber-300 shadow-lg" {...swipe.handlers}>
+    <Card className="bg-white/90 backdrop-blur-sm border-2 border-amber-300 shadow-lg">
       <CardContent className="p-6">
         {navigableTours.length > 1 && (
           <div className="flex justify-center mb-3">
