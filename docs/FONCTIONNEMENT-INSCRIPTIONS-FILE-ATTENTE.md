@@ -181,10 +181,21 @@ expiré). B en file d'attente position #1, aucune offre envoyée. C tente de s'i
    rappel 3h, lui, garde une fenêtre horaire : il tourne toutes les heures (règle 4).
    `rtdbRegistrationsListByDateRange()` reste réservée à ces jobs-là et au balayage
    d'auto-annulation, qui porte sur 8 jours.
-6. **Le token de validation/invitation porte sa propre expiration** (signée, dans le payload) —
+6. **Les templates EmailJS sont interchangeables — ne pas bloquer un nouveau type d'email
+   sur une config.** Tous les types envoient les mêmes `template_params` (`to_email`,
+   `subject`, `message`, `firstName`) : sujet et corps sont construits dans `buildVisitEmail`,
+   le template n'affiche que `{{subject}}` / `{{{message}}}`. `resolveTemplateId()` retombe donc
+   sur n'importe quel autre ID configuré quand la clé demandée manque de
+   `VISIT_EMAILJS_TEMPLATE_IDS`, en le signalant dans les logs. Un nouveau type d'email
+   fonctionne ainsi dès le déploiement, sans créer de template ni éditer la variable
+   d'environnement — ajouter une entrée dédiée reste possible pour distinguer les statistiques
+   EmailJS. Quand AUCUN ID n'est configuré, `sendEmailWithRetry` échoue immédiatement avec un
+   message explicite plutôt que d'envoyer `template_id: undefined` et de récolter une erreur
+   opaque après 3 tentatives.
+7. **Le token de validation/invitation porte sa propre expiration** (signée, dans le payload) —
    il expire indépendamment du statut DB. Ne jamais se fier uniquement au statut DB pour rejeter
    un lien expiré ; `verifyRegistrationToken` doit toujours être appelé en premier.
-7. **La règle 2 (toujours appeler `promoteWaitlist`) s'applique à TOUT point d'entrée qui libère
+8. **La règle 2 (toujours appeler `promoteWaitlist`) s'applique à TOUT point d'entrée qui libère
    une place, pas seulement l'annulation/expiration côté inscription** (bugs corrigés) :
    - `DELETE /api/visit-waitlist` ([api/visit-waitlist.ts](../api/visit-waitlist.ts)) — annuler
      sa propre file d'attente alors qu'on a déjà une offre active libère cette place ; il faut
@@ -193,7 +204,7 @@ expiré). B en file d'attente position #1, aucune offre envoyée. C tente de s'i
      supprimer les données d'une personne qui occupait une place (confirmée, en attente de
      validation non expirée, ou avec une offre active) doit promouvoir la file d'attente du/des
      tour(s) concerné(s), pas juste soft-delete silencieusement.
-8. **Toute entrée en file d'attente, même SANS offre envoyée, réserve sa place — pas de saut de
+9. **Toute entrée en file d'attente, même SANS offre envoyée, réserve sa place — pas de saut de
    rang.** `hasSpace` (inscription d'un nouvel arrivant) compte
    `registeredPlaces + rtdbCountWaitlistedPlaces` où `rtdbCountWaitlistedPlaces`
    ([api/_visit-db.ts](../api/_visit-db.ts)) additionne `placesOf` de TOUTE entrée waitlist non
