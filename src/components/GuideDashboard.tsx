@@ -16,6 +16,7 @@ interface GuideDashboardStats {
   openCapacity: number;
   remainingPlaces: number;
   totalRegistrations: number;
+  pastRegistrations: number;
   averageFillRate: number;
   totalWaitlist: number;
   atRiskCount: number;
@@ -44,6 +45,10 @@ function calcStats(
   const totalRegistrations = tours.reduce((s, t) => s + (registrationCounts[t.id] || 0), 0);
   const openCapacity = openTours.reduce((s, t) => s + t.capacity, 0);
   const openRegistrations = openTours.reduce((s, t) => s + (registrationCounts[t.id] || 0), 0);
+  // « Personnes inscrites » couvre toute la saison alors que le remplissage ne
+  // parle que des visites à venir : sans cette part, un total gonflé par le
+  // passé semblait contredire le pourcentage affiché juste à côté.
+  const pastRegistrations = totalRegistrations - openRegistrations;
   // Places réellement libres (capacité moins inscrits) sur les visites à venir :
   // une visite commencée n'accepte plus d'inscription. Afficher la capacité
   // brute donnait « 180 places à pourvoir » alors que la moitié était prise.
@@ -67,6 +72,7 @@ function calcStats(
     openCapacity,
     remainingPlaces,
     totalRegistrations,
+    pastRegistrations,
     averageFillRate,
     totalWaitlist,
     atRiskCount,
@@ -128,6 +134,10 @@ export default function GuideDashboard({
         ? `${stats.uniqueAttendeesCount} inscrit(s) distinct(s)`
         : undefined,
       subtextColor: stats.multiVisitAttendeesCount > 0 ? "#1d4ed8" : "#7a6f4d",
+      secondarySubtext:
+        stats.pastRegistrations > 0
+          ? `dont ${stats.pastRegistrations} sur visite${stats.pastRegistrations > 1 ? "s" : ""} passée${stats.pastRegistrations > 1 ? "s" : ""}`
+          : undefined,
       color: "bg-[#f3f0e6]",
       onClick: stats.multiVisitAttendeesCount > 0 ? () => setShowMultiModal(true) : undefined,
       clickable: stats.multiVisitAttendeesCount > 0,
@@ -189,6 +199,11 @@ export default function GuideDashboard({
               {card.subtext && (
                 <p style={{ fontSize: "11px", color: card.subtextColor || "#7a6f4d", margin: "4px 0 0 0", fontWeight: 500 }}>
                   {card.subtext}
+                </p>
+              )}
+              {card.secondarySubtext && (
+                <p style={{ fontSize: "11px", color: "#7a6f4d", margin: "2px 0 0 0", fontWeight: 500 }}>
+                  {card.secondarySubtext}
                 </p>
               )}
               {card.buttonLabel && (
