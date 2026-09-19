@@ -17,6 +17,10 @@ export type AudioGuideListener = (state: AudioGuideState) => void;
 
 class AudioGuideService {
   private audio: HTMLAudioElement | null = null;
+  // Un contrôleur par élément audio : l'abandonner retire d'un coup TOUS les
+  // écouteurs posés sur cet élément. C'est le seul moyen de les retirer quand
+  // ils ont été passés en fonctions anonymes.
+  private listenersController: AbortController | null = null;
   private listeners: Set<AudioGuideListener> = new Set();
   private state: AudioGuideState = {
     isPlaying: false,
@@ -221,11 +225,23 @@ class AudioGuideService {
   /**
    * Reprendre la lecture
    */
+  // `play()` retourne une promesse qui REJETTE si le navigateur refuse la
+  // lecture (iOS l'exige déclenchée par un geste utilisateur, et l'invalide dès
+  // que l'onglet passe en arrière-plan). Sans ce `catch`, le rejet remontait en
+  // unhandled rejection et l'état restait figé sur « en lecture » alors que rien
+  // ne jouait : le bouton affichait Pause sur un silence.
   resume(): void {
     if (this.audio && !this.state.isPlaying) {
-      this.audio.play();
-      this.updateState({ isPlaying: true });
-      logger.info('Lecture audio reprise');
+      this.audio.play().then(
+        () => {
+          this.updateState({ isPlaying: true, error: null });
+          logger.info('Lecture audio reprise');
+        },
+        (error) => {
+          logger.warn('Reprise de lecture refusée par le navigateur', { error });
+          this.updateState({ isPlaying: false, error: 'Lecture impossible, appuyez à nouveau' });
+        }
+      );
     }
   }
 
@@ -282,6 +298,10 @@ class AudioGuideService {
   private setupAudioEventListeners(): void {
     if (!this.audio) return;
 
+    this.listenersController?.abort();
+    this.listenersController = new AbortController();
+    const { signal } = this.listenersController;
+
     this.audio.addEventListener('loadedmetadata', () => {
       if (this.audio && this.audio.duration && !isNaN(this.audio.duration)) {
         this.updateState({ 
@@ -289,13 +309,13 @@ class AudioGuideService {
           isLoading: false 
         });
       }
-    });
+    }, { signal });
 
     this.audio.addEventListener('timeupdate', () => {
       if (this.audio && !isNaN(this.audio.currentTime)) {
         this.updateState({ currentTime: this.audio.currentTime });
       }
-    });
+    }, { signal });
 
     this.audio.addEventListener('ended', () => {
       this.updateState({ 
@@ -303,7 +323,7 @@ class AudioGuideService {
         currentTime: 0 
       });
       logger.info('Lecture audio terminée');
-    });
+    }, { signal });
 
     this.audio.addEventListener('error', (event) => {
       const audioElement = event.target as HTMLAudioElement;
@@ -354,24 +374,24 @@ class AudioGuideService {
         error: errorMessage,
         currentTrack: null
       });
-    });
+    }, { signal });
 
     this.audio.addEventListener('pause', () => {
       this.updateState({ isPlaying: false });
-    });
+    }, { signal });
 
     this.audio.addEventListener('play', () => {
       this.updateState({ isPlaying: true, error: null });
-    });
+    }, { signal });
 
     // Ajouter des listeners pour détecter les problèmes de chargement
     this.audio.addEventListener('stalled', () => {
       logger.warn('Chargement audio bloqué');
-    });
+    }, { signal });
 
     this.audio.addEventListener('suspend', () => {
       logger.info('Chargement audio suspendu par le navigateur');
-    });
+    }, { signal });
 
     this.audio.addEventListener('abort', () => {
       logger.warn('Chargement audio abandonné');
@@ -379,11 +399,11 @@ class AudioGuideService {
         isLoading: false, 
         error: 'Chargement audio abandonné' 
       });
-    });
+    }, { signal });
 
     this.audio.addEventListener('emptied', () => {
       logger.info('Élément audio vidé');
-    });
+    }, { signal });
   }
 
   /**
@@ -391,10 +411,18 @@ class AudioGuideService {
    */
   private cleanupAudio(): void {
     if (this.audio) {
-      // Retirer tous les event listeners en remplaçant l'élément
       const oldAudio = this.audio;
       this.audio = null;
-      
+
+      // Retire d'un coup tous les écouteurs posés sur cet élément. La boucle
+      // précédente appelait `removeEventListener(type, () => {})` avec une
+      // fonction anonyme NEUVE à chaque tour : `removeEventListener` compare
+      // les références, donc elle ne retirait jamais rien. Chaque lecture
+      // laissait derrière elle un élément audio encore branché sur le service,
+      // qui continuait à pousser des `timeupdate` dans l'état partagé.
+      this.listenersController?.abort();
+      this.listenersController = null;
+
       try {
         // Arrêter la lecture si en cours
         if (!oldAudio.paused) {
@@ -407,20 +435,6 @@ class AudioGuideService {
         
         // Forcer le rechargement pour nettoyer l'état interne
         oldAudio.load();
-        
-        // Supprimer explicitement tous les event listeners possibles
-        const events = ['loadstart', 'loadedmetadata', 'loadeddata', 'canplay', 'canplaythrough', 
-                       'play', 'pause', 'ended', 'error', 'timeupdate', 'progress', 'seeking', 
-                       'seeked', 'volumechange', 'ratechange', 'stalled', 'suspend', 'abort', 'emptied'];
-        
-        events.forEach(eventType => {
-          try {
-            oldAudio.removeEventListener(eventType, () => {});
-          } catch (e) {
-            // Ignorer les erreurs de suppression d'event listeners
-          }
-        });
-        
       } catch (error) {
         logger.warn('Erreur lors du nettoyage audio', { error });
       }

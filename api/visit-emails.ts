@@ -1,6 +1,6 @@
 // Doodates Email Batch Jobs (Cron) — Rappels, validation, suppression RGPD, promo file attente
 // POST /api/visit-emails?type=send-7d-reminder — Rappel 7j avant (daily)
-// POST /api/visit-emails?type=send-1d-validation — Validation 1j avant (daily)
+// POST /api/visit-emails?type=send-1d-reminder — Rappel la veille, avec lien de désistement (daily)
 // POST /api/visit-emails?type=send-3h-reminder — Rappel ~3h avant (horaire, GitHub Actions)
 // POST /api/visit-emails?type=batch-delete-post-tour — Suppression RGPD 24H après (daily)
 // POST /api/visit-emails?type=promote-waitlist — Auto-promotion file attente (annule aussi les inscriptions non confirmées après 24H)
@@ -30,6 +30,10 @@ import { createRegistrationToken } from "./_token.js";
 const SITE_URL = process.env.PUBLIC_SITE_URL || "https://www.1hall1artiste.fr";
 const MAX_RETRIES = 3;
 const QUOTA_WARNING_THRESHOLD = 50;
+// Horizon de rattrapage du rappel « quelques heures avant ». Assez large pour
+// absorber plusieurs runs horaires manqués, assez court pour que l'email reste
+// un rappel du jour même et non un second J-1.
+const REMINDER_3H_HORIZON_MS = 4 * 60 * 60 * 1000;
 
 let quotaWarningAlertSent = false;
 
@@ -256,17 +260,22 @@ async function sendReminderEmails7d(): Promise<{ sent: number; failed: number; e
 // Complète les rappels J-7/J-1 sans les remplacer : c'est le seul qui atteigne
 // les gens inscrits la veille au soir pour le lendemain, que les jobs quotidiens
 // ratent (ils ne tournent qu'une fois par jour, hors de leur fenêtre).
-// Fenêtre large (±30 min) car GitHub Actions décale parfois les runs planifiés
-// de plusieurs minutes ; reminder3hSent garantit l'absence de doublon.
+//
+// Fenêtre de RATTRAPAGE et non de ciblage : on prend tout ce qui part entre
+// maintenant et H+4, et `reminder3hSent` fait le tri. L'ancienne fenêtre
+// glissante (3h ±30 min) ratait DÉFINITIVEMENT un rappel dès qu'un run sautait :
+// GitHub Actions décale les runs planifiés en période de charge, et surtout
+// désactive un workflow planifié après 60 jours sans activité sur le dépôt —
+// entre deux éditions du festival, c'est la situation normale. Le run suivant
+// retrouvait la visite hors fenêtre et n'envoyait plus rien, sans la moindre
+// trace. Ici, n'importe quel run dans les 4h précédant la visite rattrape le
+// rappel, donc un ou plusieurs runs manqués sont sans conséquence.
 async function sendReminderEmails3h(): Promise<{ sent: number; failed: number; examined: number }> {
   quotaWarningAlertSent = false; // Reset for this run
   const now = new Date();
-  const threeHoursLater = new Date(now.getTime() + 3 * 60 * 60 * 1000);
+  const catchUpHorizon = new Date(now.getTime() + REMINDER_3H_HORIZON_MS);
 
-  const startDate = new Date(threeHoursLater.getTime() - 30 * 60 * 1000);
-  const endDate = new Date(threeHoursLater.getTime() + 30 * 60 * 1000);
-
-  const registrations = await rtdbRegistrationsListByDateRange(startDate, endDate);
+  const registrations = await rtdbRegistrationsListByDateRange(now, catchUpHorizon);
 
   let sent = 0,
     failed = 0;
@@ -309,8 +318,22 @@ async function sendReminderEmails3h(): Promise<{ sent: number; failed: number; e
   return { sent, failed, examined: registrations.length };
 }
 
-// ==== JOB 2: Send 1d validation (Q15: auto-cancel if not confirmed) ====
-async function sendValidationEmails1d(): Promise<{ sent: number; autocancelled: number; examined: number }> {
+// ==== JOB 2: Rappel de la veille (J-1) ====
+//
+// Ce job exigeait auparavant un clic de re-confirmation et ANNULAIT
+// automatiquement, en silence, quiconque n'avait pas cliqué dans les 24h —
+// alors même que le formulaire public promet « votre inscription est
+// enregistrée immédiatement, aucun lien à valider ». Concrètement, une personne
+// qui ne lisait pas ses mails la veille perdait sa place sans aucune
+// notification et se présentait devant un guide qui ne l'avait plus sur sa
+// liste ; la place libérée partait ensuite en offre de file d'attente avec un
+// délai de réponse de 24h… pour une visite qui avait lieu dans moins de 24h.
+//
+// C'est désormais un simple rappel : la place reste acquise, et le seul bouton
+// libère la place volontairement. C'est le levier anti-absentéisme réellement
+// documenté (un désistement rendu facile vaut mieux qu'une place perdue), sans
+// aucun risque d'annuler quelqu'un qui comptait venir.
+async function sendReminderEmails1d(): Promise<{ sent: number; examined: number }> {
   quotaWarningAlertSent = false; // Reset for this run
   const now = new Date();
   const oneDayLater = new Date(now.getTime() + 24 * 60 * 60 * 1000);
@@ -318,10 +341,12 @@ async function sendValidationEmails1d(): Promise<{ sent: number; autocancelled: 
   // Toutes les visites du JOUR J+1 (heure de Paris) — même raison qu'au J-7.
   const registrations = await rtdbRegistrationsListByTourDay(oneDayLater);
 
-  let sent = 0,
-    autocancelled = 0;
+  let sent = 0;
 
   for (const reg of registrations) {
+    // `validation1dSent` garde son nom : c'est le drapeau d'idempotence déjà
+    // posé sur les inscriptions en base. Le renommer imposerait une migration
+    // pour aucun gain fonctionnel.
     if (reg.status !== "confirmé" || reg.validation1dSent) {
       continue;
     }
@@ -329,62 +354,30 @@ async function sendValidationEmails1d(): Promise<{ sent: number; autocancelled: 
     const tour = await rtdbTourGet(reg.tourId);
     if (!tour) continue;
 
-    // Q15: Create validation token + deadline
-    const token = createRegistrationToken(reg.id, reg.email);
-    const deadline = new Date(Date.now() + 24 * 60 * 60 * 1000);
-
-    const idempotencyKey = `${reg.id}_1d_validation`;
+    const idempotencyKey = `${reg.id}_1d_reminder`;
     const success = await sendEmailWithRetry(
-      resolveTemplateId("reminder_1d_validate"),
+      resolveTemplateId("reminder_1d"),
       {
         to: reg.email,
         firstName: reg.firstName,
         tourTitle: tour.title,
-        validationLink: `${SITE_URL}/#/reservations/confirm?token=${token.token}`,
-        deadline: deadline.toISOString(),
-        type: "reminder_1d_validate",
+        tourDate: tour.date,
+        location: tour.startLocationName,
+        cancelLink: `${SITE_URL}/#/reservations/cancel?id=${reg.id}`,
+        type: "reminder_1d",
       },
       idempotencyKey
     );
 
     if (success) {
-      // Mark as sent + store deadline
-      await rtdbRegistrationUpdate(reg.id, {
-        validation1dSent: true,
-        validationDeadline: token.expiresAt,
-      });
+      await rtdbRegistrationUpdate(reg.id, { validation1dSent: true });
       sent++;
     } else {
-      console.error(`[visit-emails] Failed to send 1d validation to ${reg.email}`);
+      console.error(`[visit-emails] Failed to send 1d reminder to ${reg.email}`);
     }
   }
 
-  // Q15: Auto-cancel registrations past validation deadline.
-  // Uniquement pour des visites PAS ENCORE commencées : l'ancien scan (epoch →
-  // maintenant) ne touchait que des visites passées, annulant après coup des
-  // gens venus à la visite. La deadline est effacée par l'endpoint confirm au
-  // clic (revalidation), donc on n'annule ici que ceux qui n'ont PAS cliqué.
-  const upcomingRegs = await rtdbRegistrationsListByDateRange(now, new Date(now.getTime() + 8 * 24 * 60 * 60 * 1000));
-  for (const reg of upcomingRegs) {
-    if (
-      reg.status === "confirmé" &&
-      reg.validation1dSent &&
-      reg.validationDeadline &&
-      new Date(reg.validationDeadline) < now
-    ) {
-      await rtdbRegistrationUpdate(reg.id, { status: "annulé", cancelledAt: now.toISOString() });
-      autocancelled++;
-    }
-  }
-
-  if (autocancelled > 0) {
-    await rtdbAuditLog("auto_cancel_validation_expired", {
-      count: autocancelled,
-      timestamp: now.toISOString(),
-    });
-  }
-
-  return { sent, autocancelled, examined: registrations.length };
+  return { sent, examined: registrations.length };
 }
 
 // ==== JOB 3: Batch delete 24H after tour (Q3: 01:00 daily) ====
@@ -606,16 +599,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // Job consolidé (plan Hobby : 2 crons max — un seul suffit désormais).
       // Ordre : rappels → validation J-1 → promotion (inclut expirations/rejets) → purge.
       const reminder7d = await sendReminderEmails7d();
-      const validation1d = await sendValidationEmails1d();
+      const reminder1d = await sendReminderEmails1d();
       const promotion = await promoteFromWaitlist();
       const cleanup = await batchDeletePostTour();
-      result = { reminder7d, validation1d, promotion, cleanup };
+      result = { reminder7d, reminder1d, promotion, cleanup };
     } else if (type === "send-7d-reminder") {
       result = await sendReminderEmails7d();
     } else if (type === "send-3h-reminder") {
       result = await sendReminderEmails3h();
-    } else if (type === "send-1d-validation") {
-      result = await sendValidationEmails1d();
+    } else if (type === "send-1d-reminder" || type === "send-1d-validation") {
+      // `send-1d-validation` : ancien nom, conservé pour ne pas casser un
+      // déclenchement manuel ou une doc qui traînerait.
+      result = await sendReminderEmails1d();
     } else if (type === "batch-delete-post-tour") {
       result = await batchDeletePostTour();
     } else if (type === "promote-waitlist") {

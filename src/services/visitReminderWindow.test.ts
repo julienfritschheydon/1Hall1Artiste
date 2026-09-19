@@ -17,7 +17,7 @@ process.env.CRON_SECRET = "test-cron-secret";
 process.env.VISIT_EMAILJS_TEMPLATE_IDS = JSON.stringify({
   confirmation: "tpl_confirmation",
   reminder_7d: "tpl_reminder_7d",
-  reminder_1d_validate: "tpl_reminder_1d_validate",
+  reminder_1d: "tpl_reminder_1d",
 });
 
 // ---- Fake RTDB en mémoire (sémantique Firebase : [] / {} vide ≡ null/absent) ----
@@ -151,7 +151,7 @@ describe("rappels J-7 / J-1 : une visite l'après-midi est bien rappelée", () =
     const regId = await registerConfirmed(tourId, "aprem2@t.fr");
 
     vi.setSystemTime(new Date("2026-08-07T04:00:00.000Z"));
-    const res = await runCron("send-1d-validation");
+    const res = await runCron("send-1d-reminder");
 
     expect(res.body.sent).toBe(1); // valait 0 avant correction
     expect(getAtPath(`registrations/${regId}`).validation1dSent).toBe(true);
@@ -165,7 +165,7 @@ describe("rappels J-7 / J-1 : une visite l'après-midi est bien rappelée", () =
     for (const [i, id] of ids.entries()) await registerConfirmed(id, `h${i}@t.fr`);
 
     vi.setSystemTime(new Date("2026-08-07T04:00:00.000Z"));
-    expect((await runCron("send-1d-validation")).body.sent).toBe(3);
+    expect((await runCron("send-1d-reminder")).body.sent).toBe(3);
   });
 });
 
@@ -179,11 +179,11 @@ describe("le jour est celui de Paris, pas celui d'UTC", () => {
     // Cron du 7 : J+1 = 8 août à Paris → la visite (9 août à Paris) n'est pas
     // encore concernée.
     vi.setSystemTime(new Date("2026-08-07T04:00:00.000Z"));
-    expect((await runCron("send-1d-validation")).body.sent).toBe(0);
+    expect((await runCron("send-1d-reminder")).body.sent).toBe(0);
 
     // Cron du 8 : J+1 = 9 août à Paris → c'est le bon jour.
     vi.setSystemTime(new Date("2026-08-08T04:00:00.000Z"));
-    expect((await runCron("send-1d-validation")).body.sent).toBe(1);
+    expect((await runCron("send-1d-reminder")).body.sent).toBe(1);
   });
 
   it("parisDayKey rend le jour local, y compris en heure d'hiver", async () => {
@@ -206,7 +206,7 @@ describe("non-régression", () => {
 
     // J+1 depuis le 7 = le 8 : aucune des deux visites.
     vi.setSystemTime(new Date("2026-08-07T04:00:00.000Z"));
-    expect((await runCron("send-1d-validation")).body.sent).toBe(0);
+    expect((await runCron("send-1d-reminder")).body.sent).toBe(0);
   });
 
   it("reste idempotent si le cron repasse le même jour", async () => {
@@ -214,23 +214,43 @@ describe("non-régression", () => {
     await registerConfirmed(tourId, "idem@t.fr");
 
     vi.setSystemTime(new Date("2026-08-07T04:00:00.000Z"));
-    expect((await runCron("send-1d-validation")).body.sent).toBe(1);
-    expect((await runCron("send-1d-validation")).body.sent).toBe(0);
+    expect((await runCron("send-1d-reminder")).body.sent).toBe(1);
+    expect((await runCron("send-1d-reminder")).body.sent).toBe(0);
   });
 
-  it("l'auto-annulation des non-répondants fonctionne toujours", async () => {
-    // Elle dépend de validation1dSent, que seul le job J-1 pose — donc elle ne
-    // pouvait pas se déclencher tant que la sélection était cassée.
+  it("ne pose aucune échéance d'annulation et n'annule personne", async () => {
+    // Le rappel de la veille annulait auparavant, en silence, quiconque n'avait
+    // pas recliqué sous 24h. Une place perdue sans notification est bien pire
+    // qu'une absence : on garde la place et on se contente de proposer le
+    // désistement.
     const tourId = makeTour(5, `tour_f_${tourCounter}`, "2026-08-08T15:00:00.000Z");
     const regId = await registerConfirmed(tourId, "ghost@t.fr");
 
     vi.setSystemTime(new Date("2026-08-07T04:00:00.000Z"));
-    expect((await runCron("send-1d-validation")).body.sent).toBe(1);
+    expect((await runCron("send-1d-reminder")).body.sent).toBe(1);
+    expect(getAtPath(`registrations/${regId}`).validationDeadline).toBeFalsy();
 
-    // Deadline (J-1 + 24h = 08/08 04:00) dépassée, visite pas encore commencée.
+    // Bien au-delà de l'ancienne échéance, visite pas encore commencée.
     vi.setSystemTime(new Date("2026-08-08T05:00:00.000Z"));
-    expect((await runCron("send-1d-validation")).body.autocancelled).toBe(1);
-    expect(getAtPath(`registrations/${regId}`).status).toBe("annulé");
+    expect((await runCron("send-1d-reminder")).body.autocancelled).toBeUndefined();
+    expect(getAtPath(`registrations/${regId}`).status).toBe("confirmé");
+  });
+
+  it("le rappel de la veille porte un lien de désistement, pas de lien de validation", async () => {
+    const tourId = makeTour(5, `tour_g_${tourCounter}`, "2026-08-08T15:00:00.000Z");
+    const regId = await registerConfirmed(tourId, "link@t.fr");
+
+    fetchMock.mockClear();
+    vi.setSystemTime(new Date("2026-08-07T04:00:00.000Z"));
+    expect((await runCron("send-1d-reminder")).body.sent).toBe(1);
+
+    const bodies = fetchMock.mock.calls
+      .filter((c: any[]) => String(c[0]).includes("emailjs"))
+      .map((c: any[]) => String((c[1] as any)?.body ?? ""));
+    const rappel = bodies.find((b) => b.includes("reservations/cancel"));
+    expect(rappel).toBeTruthy();
+    expect(rappel).toContain(`reservations/cancel?id=${regId}`);
+    expect(rappel).not.toContain("reservations/confirm?token=");
   });
 
   it("ignore une visite dont la date est corrompue plutôt que de planter", async () => {
@@ -239,7 +259,7 @@ describe("non-régression", () => {
     await registerConfirmed(bon, "ok@t.fr");
 
     vi.setSystemTime(new Date("2026-08-07T04:00:00.000Z"));
-    const res = await runCron("send-1d-validation");
+    const res = await runCron("send-1d-reminder");
     expect(res.status).toBe(200);
     expect(res.body.sent).toBe(1);
   });
@@ -254,13 +274,13 @@ describe("observabilité du cron", () => {
 
     // Jour sans visite concernée : 0 examiné, 0 envoyé.
     vi.setSystemTime(new Date("2026-08-05T04:00:00.000Z"));
-    const vide = await runCron("send-1d-validation");
+    const vide = await runCron("send-1d-reminder");
     expect(vide.body.examined).toBe(0);
     expect(vide.body.sent).toBe(0);
 
     // Veille de la visite : 1 examiné, 1 envoyé.
     vi.setSystemTime(new Date("2026-08-07T04:00:00.000Z"));
-    const plein = await runCron("send-1d-validation");
+    const plein = await runCron("send-1d-reminder");
     expect(plein.body.examined).toBe(1);
     expect(plein.body.sent).toBe(1);
   });

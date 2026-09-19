@@ -143,16 +143,41 @@ describe("rappel 3h avant la visite", () => {
     expect(getAtPath(`registrations/${regId}`).reminder3hSent).toBe(true);
   });
 
-  it("n'envoie rien trop tôt ni trop tard", async () => {
+  it("n'envoie rien trop tôt, mais rattrape jusqu'au départ", async () => {
     const tourId = makeTour(5, `tour_b_${tourCounter}`, "2026-08-08T15:00:00.000Z");
     await registerConfirmed(tourId, "edge@t.fr");
 
-    // Visite dans 5h : trop tôt.
+    // Visite dans 5h : hors horizon de rattrapage (4h).
     vi.setSystemTime(new Date("2026-08-08T10:00:00.000Z"));
     expect((await runCron("send-3h-reminder")).body.sent).toBe(0);
 
-    // Visite dans 1h : la fenêtre est passée.
+    // Visite dans 1h : l'ancienne fenêtre étroite (3h ±30 min) était passée et
+    // le rappel était perdu pour de bon. L'horizon de rattrapage le récupère.
     vi.setSystemTime(new Date("2026-08-08T14:00:00.000Z"));
+    expect((await runCron("send-3h-reminder")).body.sent).toBe(1);
+  });
+
+  it("rattrape le rappel même après plusieurs runs horaires manqués", async () => {
+    // Cas réel : GitHub Actions désactive un workflow planifié après 60 jours
+    // sans activité sur le dépôt, et décale les runs en période de charge. Avec
+    // l'ancienne fenêtre glissante, un seul run manqué perdait le rappel
+    // définitivement, sans aucune trace.
+    const tourId = makeTour(5, `tour_catchup_${tourCounter}`, "2026-08-08T15:00:00.000Z");
+    const regId = await registerConfirmed(tourId, "catchup@t.fr");
+
+    // Aucun run entre 11:00 et 14:30 : le créneau « 3h avant » est passé.
+    vi.setSystemTime(new Date("2026-08-08T14:30:00.000Z"));
+    const res = await runCron("send-3h-reminder");
+
+    expect(res.body.sent).toBe(1);
+    expect(getAtPath(`registrations/${regId}`).reminder3hSent).toBe(true);
+  });
+
+  it("n'envoie rien pour une visite déjà commencée", async () => {
+    const tourId = makeTour(5, `tour_past_${tourCounter}`, "2026-08-08T15:00:00.000Z");
+    await registerConfirmed(tourId, "late@t.fr");
+
+    vi.setSystemTime(new Date("2026-08-08T15:30:00.000Z"));
     expect((await runCron("send-3h-reminder")).body.sent).toBe(0);
   });
 

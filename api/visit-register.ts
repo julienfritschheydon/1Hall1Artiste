@@ -30,6 +30,7 @@ import { buildVisitEmail, VisitEmailType } from "./_visit-email.js";
 import { createRegistrationToken, verifyRegistrationToken } from "./_token.js";
 import { placesOf } from "../src/types/visitTypes.js";
 import { buildIcs, googleCalendarUrl } from "./_ics.js";
+import { rateLimited, clientIp, REGISTER_RULE, GDPR_RULE } from "./_rate-limit.js";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Public site URL for email links. HashRouter → links use /#/ prefix.
@@ -189,6 +190,13 @@ async function sendConfirmedEmail(reg: {
 
 // POST /api/visit-register — créer inscription
 async function handleCreateRegistration(req: VercelRequest, res: VercelResponse) {
+  // L'inscription manuelle du guide est exemptée : elle est authentifiée par le
+  // code guide, et un guide qui inscrit un groupe sur place enchaîne
+  // légitimement les soumissions depuis une seule adresse.
+  if (req.body?.manual !== true && rateLimited("visit-register", clientIp(req), REGISTER_RULE)) {
+    return res.status(429).json({ error: "Trop de tentatives. Réessayez dans une minute." });
+  }
+
   const { tourId, email, firstName, lastName, companionFirstName, companionLastName } = req.body;
 
   // Q13: Validate email
@@ -650,6 +658,13 @@ async function handleCancelRegistration(req: VercelRequest, res: VercelResponse)
 // On envoie donc un lien de confirmation signé (HMAC, 24h) à l'adresse
 // concernée ; la suppression n'a lieu qu'à l'étape 2 (action=gdpr-confirm).
 async function handleGdprRequest(req: VercelRequest, res: VercelResponse) {
+  // Cet endpoint envoie un email à une adresse que l'appelant choisit
+  // librement : sans limite, il sert à inonder un tiers de messages et à vider
+  // le quota EmailJS du collectif au passage.
+  if (rateLimited("visit-gdpr", clientIp(req), GDPR_RULE)) {
+    return res.status(429).json({ error: "Trop de demandes. Réessayez plus tard." });
+  }
+
   const { email } = req.body;
   if (!email || typeof email !== "string" || !EMAIL_REGEX.test(email)) {
     return res.status(400).json({ error: "email: valid email required" });
