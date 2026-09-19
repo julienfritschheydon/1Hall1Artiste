@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { TourRegistrationForm } from "@/components/TourRegistrationForm";
 import { useTours } from "@/hooks/useTours";
 import { groupToursByDayAndTime } from "@/utils/groupTours";
+import { isTourOpenForRegistration, tourStatus } from "@/utils/tourStatus";
 import { useSwipeNavigation } from "@/hooks/useSwipeNavigation";
 import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
 import { SwipeIndicator } from "@/components/ui/SwipeIndicator";
@@ -111,7 +112,10 @@ export default function GuidedTours() {
 
 function TourCard({ tour, onClick }: { tour: Tour; onClick: () => void }) {
   const placesLeft = tour.placesLeft ?? tour.capacity;
-  const isFull = placesLeft <= 0;
+  // Une visite commencée reste affichée jusqu'à sa fin, mais elle n'accepte
+  // plus personne : annoncer « Places : 11/15 » serait un faux espoir.
+  const started = tourStatus(tour) !== "upcoming";
+  const isFull = !started && placesLeft <= 0;
   return (
     <Card
       onClick={onClick}
@@ -119,20 +123,30 @@ function TourCard({ tour, onClick }: { tour: Tour; onClick: () => void }) {
     >
       <CardContent className="p-5">
         <div className="flex items-start justify-between gap-2 mb-1">
-          <h3 className={`font-bold text-lg ${isFull ? "text-gray-400 line-through" : "text-[#1a2138]"}`}>
+          <h3 className={`font-bold text-lg ${isFull ? "text-gray-400 line-through" : started ? "text-gray-500" : "text-[#1a2138]"}`}>
             {tour.title}
           </h3>
-          {isFull && (
-            <span className="flex-shrink-0 text-xs font-bold uppercase px-2 py-1 rounded-full bg-gray-200 text-gray-600">
-              Complet
+          {started ? (
+            <span className="flex-shrink-0 text-xs font-bold uppercase px-2 py-1 rounded-full bg-green-100 text-green-700">
+              En cours
             </span>
+          ) : (
+            isFull && (
+              <span className="flex-shrink-0 text-xs font-bold uppercase px-2 py-1 rounded-full bg-gray-200 text-gray-600">
+                Complet
+              </span>
+            )
           )}
         </div>
         {tour.description && <p className="text-sm text-gray-600 mb-1 line-clamp-2">{tour.description}</p>}
         <p className="text-sm text-gray-600">Durée : {tour.durationMinutes} min</p>
-        <p className={`text-sm ${isFull ? "font-semibold text-red-600" : "text-gray-600"}`}>
-          Places : {placesLeft}/{tour.capacity}
-        </p>
+        {started ? (
+          <p className="text-sm font-semibold text-green-700">Départ donné — inscription close</p>
+        ) : (
+          <p className={`text-sm ${isFull ? "font-semibold text-red-600" : "text-gray-600"}`}>
+            Places : {placesLeft}/{tour.capacity}
+          </p>
+        )}
         {(tour.labels?.length ?? 0) > 0 && (
           <div className="flex flex-wrap gap-2 my-3">
             {(tour.labels || []).map((label) => (
@@ -218,17 +232,25 @@ function TourDetail({
           </div>
         )}
 
-        {placesLeft <= 0 ? (
-          <div className="mb-6 p-3 rounded-lg bg-amber-100 border-2 border-amber-400 font-bold text-amber-900">
-            Visite complète ({tour.capacity}/{tour.capacity}) — rejoignez la liste d'attente ci-dessous
+        {!isTourOpenForRegistration(tour) ? (
+          <div className="mb-6 p-3 rounded-lg bg-green-50 border-2 border-green-300 font-bold text-green-800">
+            Visite en cours — le départ a été donné, les inscriptions sont closes.
           </div>
+        ) : placesLeft <= 0 ? (
+          <>
+            <div className="mb-6 p-3 rounded-lg bg-amber-100 border-2 border-amber-400 font-bold text-amber-900">
+              Visite complète ({tour.capacity}/{tour.capacity}) — rejoignez la liste d'attente ci-dessous
+            </div>
+            <TourRegistrationForm tour={tour} placesLeft={placesLeft} />
+          </>
         ) : (
-          <div className="mb-6 p-3 rounded-lg bg-[#fff6ef] border border-[#ffd9c4] font-bold text-[#e8693a]">
-            Places restantes : {placesLeft}/{tour.capacity}
-          </div>
+          <>
+            <div className="mb-6 p-3 rounded-lg bg-[#fff6ef] border border-[#ffd9c4] font-bold text-[#e8693a]">
+              Places restantes : {placesLeft}/{tour.capacity}
+            </div>
+            <TourRegistrationForm tour={tour} placesLeft={placesLeft} />
+          </>
         )}
-
-        <TourRegistrationForm tour={tour} placesLeft={placesLeft} />
       </CardContent>
     </Card>
   );

@@ -7,6 +7,7 @@ import { type Event } from "@/data/events";
 import { useEvents } from "@/hooks/useData";
 import { ProgramFilters } from "@/components/ProgramFilters";
 import { ALL_DAYS, ALL_TYPES, daySections, toggleDay, type Day } from "@/utils/programFilters";
+import { absentDayLabel, currentFestivalDay, eventStatus } from "@/utils/eventSchedule";
 import { ShareButton } from "@/components/ShareButton";
 import { BottomNavigation } from "@/components/BottomNavigation";
 import { EventDetailsNew as EventDetails } from "@/components/EventDetailsModern";
@@ -33,8 +34,14 @@ const Program = () => {
     allRemoteEvents.filter(e => e.days.includes(day));
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [selectedTour, setSelectedTour] = useState<Tour | null>(null);
-  // Jour : les deux cochés par défaut, on peut en décocher un (jamais les deux).
-  const [selectedDays, setSelectedDays] = useState<Day[]>(ALL_DAYS);
+  // Jour : pendant le week-end, on ouvre sur le jour courant — c'est ce qu'un
+  // visiteur sur place vient chercher ; il peut recocher l'autre d'un clic.
+  // Hors festival, les deux jours, le programme restant un catalogue.
+  const festivalToday = currentFestivalDay();
+  const [selectedDays, setSelectedDays] = useState<Day[]>(() => {
+    const today = currentFestivalDay();
+    return today ? [today] : ALL_DAYS;
+  });
   // Type : « Tout » par défaut, sinon une seule catégorie.
   const [currentFilter, setCurrentFilter] = useState<string>(ALL_TYPES);
   // Le header est fixe : on mesure sa hauteur réelle pour décaler la liste,
@@ -238,6 +245,23 @@ const Program = () => {
 
       {/* Contenu décalé de la hauteur mesurée du header */}
       <div className="container mx-auto px-4 max-w-4xl relative z-10" style={{ paddingTop: headerHeight + 16 }}>
+        {/* Le filtre s'est positionné tout seul sur aujourd'hui : le dire, et
+            offrir le retour au week-end entier, sinon on croit à un programme
+            amputé. */}
+        {festivalToday && selectedDays.length === 1 && selectedDays[0] === festivalToday && (
+          <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-amber-300 bg-[#fbf7ec] px-3 py-2">
+            <p className="text-sm text-[#5b5340]">
+              Programme d'aujourd'hui ({festivalToday}).
+            </p>
+            <button
+              onClick={() => setSelectedDays(ALL_DAYS)}
+              className="text-sm font-semibold whitespace-nowrap"
+              style={{ color: "#ff7a45" }}
+            >
+              Tout le week-end
+            </button>
+          </div>
+        )}
         {daySections(selectedDays).map(({ day, title }) => {
           const showEvents = currentFilter !== 'Visites guidées';
           const showTours = currentFilter === ALL_TYPES || currentFilter === 'Visites guidées';
@@ -258,6 +282,8 @@ const Program = () => {
                     event={event}
                     isSaved={savedEventIds.includes(event.id)}
                     cardIndex={index}
+                    timeStatus={eventStatus(event, day)}
+                    absentDayLabel={absentDayLabel(event)}
                     onEventClick={() => setSelectedEvent(event)}
                     onSaveClick={(e) => handleSaveEvent(event, e)}
                   />

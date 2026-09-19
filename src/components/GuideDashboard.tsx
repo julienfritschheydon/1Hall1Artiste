@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Tour } from "../types/visitTypes";
 import { VisitAggregationStats } from "../utils/visitStats";
-import { tourStatus } from "./GuideToursList";
+import { groupToursByStatus, tourStatus, TOUR_STATUS_LABELS } from "@/utils/tourStatus";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -90,6 +90,8 @@ export default function GuideDashboard({
   const [showMultiModal, setShowMultiModal] = useState(false);
   const [showDailyModal, setShowDailyModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
+  // L'historique s'ouvre à la demande, comme en Vue liste.
+  const [showPast, setShowPast] = useState(false);
   const stats = calcStats(tours, registrationCounts, waitlistCounts, aggregationStats);
 
   const statCards = [
@@ -137,23 +139,25 @@ export default function GuideDashboard({
   ];
 
   const now = Date.now();
-  const toursWithStatus = tours
-    .map((tour) => {
-      const filled = registrationCounts[tour.id] || 0;
-      const remaining = tour.placesLeft ?? (tour.capacity - filled);
-      const waitlist = waitlistCounts[tour.id] || 0;
-      const multiTourCount = aggregationStats?.multiVisitTourCounts[tour.id] || 0;
-      const done = tourStatus(tour, now) === "completed";
-      return { tour, filled, remaining, waitlist, multiTourCount, done };
-    })
-    // Terminées en bas, comme en Vue liste : le guide a d'abord besoin de ce
-    // qu'il lui reste à animer.
-    .sort((a, b) => {
-      if (a.done !== b.done) return a.done ? 1 : -1;
-      return new Date(a.tour.date).getTime() - new Date(b.tour.date).getTime();
-    });
+  const decorate = (tour: Tour) => {
+    const filled = registrationCounts[tour.id] || 0;
+    const remaining = tour.placesLeft ?? (tour.capacity - filled);
+    const waitlist = waitlistCounts[tour.id] || 0;
+    const multiTourCount = aggregationStats?.multiVisitTourCounts[tour.id] || 0;
+    const status = tourStatus(tour, now);
+    return { tour, filled, remaining, waitlist, multiTourCount, status };
+  };
 
-  const atRiskTours = toursWithStatus.filter((t) => !t.done && t.remaining <= 1 && t.filled > 0);
+  // Mêmes sections qu'en Vue liste : en cours, à venir, passées.
+  const sections = groupToursByStatus(tours, now).map((section) => ({
+    ...section,
+    rows: section.tours.map(decorate),
+  }));
+
+  const atRiskTours = sections
+    .filter((section) => section.status === "upcoming")
+    .flatMap((section) => section.rows)
+    .filter((t) => t.remaining <= 1 && t.filled > 0);
 
   return (
     <div>
@@ -215,7 +219,36 @@ export default function GuideDashboard({
                   </tr>
                 </thead>
                 <tbody>
-                  {toursWithStatus.map(({ tour, filled, remaining, waitlist, multiTourCount, done }) => (
+                  {sections.map((section) => (
+                    <Fragment key={section.status}>
+                      <tr>
+                        <td
+                          colSpan={5}
+                          style={{
+                            padding: "10px 8px 4px",
+                            fontSize: "11px",
+                            fontWeight: 700,
+                            textTransform: "uppercase",
+                            letterSpacing: "0.04em",
+                            color: "#5b5340",
+                          }}
+                        >
+                          {section.title} ({section.rows.length})
+                          {section.status === "completed" && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setShowPast((v) => !v);
+                              }}
+                              style={{ marginLeft: "8px", color: "#ff7a45", fontWeight: 600, fontSize: "11px" }}
+                            >
+                              {showPast ? "Masquer" : "Afficher"}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                      {(section.status !== "completed" || showPast) &&
+                        section.rows.map(({ tour, filled, remaining, waitlist, multiTourCount, status }) => (
                     <tr
                       key={tour.id}
                       style={{
@@ -263,20 +296,24 @@ export default function GuideDashboard({
                         )}
                       </td>
                       <td style={{ padding: "8px", textAlign: "center" }}>
-                        {done ? (
+                        {status !== "upcoming" ? (
                           <span
                             style={{
                               display: "inline-block",
-                              backgroundColor: "#f3f0e6",
-                              color: "#7a6f4d",
+                              backgroundColor: status === "ongoing" ? "#dcfce7" : "#f3f0e6",
+                              color: status === "ongoing" ? "#166534" : "#7a6f4d",
                               padding: "3px 8px",
                               borderRadius: "4px",
                               fontSize: "11px",
                               fontWeight: 500,
                             }}
-                            title="Visite déjà passée : plus d'inscription possible"
+                            title={
+                              status === "ongoing"
+                                ? "Visite commencée : plus d'inscription possible"
+                                : "Visite déjà passée : plus d'inscription possible"
+                            }
                           >
-                            Terminée
+                            {TOUR_STATUS_LABELS[status]}
                           </span>
                         ) : filled === 0 ? (
                           <span
@@ -312,6 +349,8 @@ export default function GuideDashboard({
                         {waitlist > 0 && `${waitlist} attente`}
                       </td>
                     </tr>
+                        ))}
+                    </Fragment>
                   ))}
                 </tbody>
               </table>

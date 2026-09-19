@@ -70,12 +70,16 @@ export async function rtdbToursListAll(): Promise<Tour[]> {
   return Object.values(tours || {}).filter((t) => !t.deletedAt);
 }
 
+// Visites encore d'actualité pour le public : à venir ET en cours. Une visite
+// disparaissait à la seconde de son départ, au moment précis où un visiteur sur
+// place la cherche ; elle reste visible jusqu'à sa fin, l'inscription étant de
+// toute façon refusée dès le départ (visit-register).
 export async function rtdbToursListFuture(): Promise<Tour[]> {
   const tours = await rtdbToursListAll();
-  const now = new Date();
+  const now = Date.now();
   return tours.filter((t) => {
-    const tourStart = new Date(t.date);
-    return tourStart > now && !t.deletedAt;
+    const end = new Date(t.date).getTime() + (t.durationMinutes || 0) * 60 * 1000;
+    return end > now && !t.deletedAt;
   });
 }
 

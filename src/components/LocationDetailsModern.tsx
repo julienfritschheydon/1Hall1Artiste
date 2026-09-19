@@ -40,6 +40,7 @@ import { useTours } from "@/hooks/useTours";
 import { toursAtLocation } from "@/utils/tourLocation";
 import { groupToursByDayAndTime } from "@/utils/groupTours";
 import { groupEventsByDay, timeWithoutDays } from "@/utils/groupEventsByDay";
+import { EVENT_STATUS_LABELS, eventStatusToday } from "@/utils/eventSchedule";
 import { Tour } from "@/types/visitTypes";
 
 // Composant Like simple avec logique partagée
@@ -441,8 +442,26 @@ export const LocationDetailsModern: React.FC<LocationDetailsModernProps> = ({
                                 {event.artistName && (
                                   <p className="text-xs text-[#1a2138] font-medium mb-0.5">{event.artistName}</p>
                                 )}
-                                <div className="text-gray-500 text-xs">
+                                <div className="text-gray-500 text-xs flex items-center gap-1.5">
                                   <p>{timeWithoutDays(event.time)}</p>
+                                  {(() => {
+                                    // Devant le bâtiment, savoir si c'est en
+                                    // cours ou déjà fini vaut mieux qu'un
+                                    // horaire brut.
+                                    const status = eventStatusToday(event);
+                                    if (status !== "ongoing" && status !== "past") return null;
+                                    return (
+                                      <span
+                                        className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full ${
+                                          status === "ongoing"
+                                            ? "bg-green-100 text-green-700"
+                                            : "bg-gray-200 text-gray-600"
+                                        }`}
+                                      >
+                                        {EVENT_STATUS_LABELS[status]}
+                                      </span>
+                                    );
+                                  })()}
                                 </div>
                                 <div className="flex items-center gap-1 mt-0.5">
                                   <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
