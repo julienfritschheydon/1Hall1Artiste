@@ -61,6 +61,18 @@ vi.mock("../../api/_firebase.js", () => ({
     setAtPath(path, { ...existing, ...JSON.parse(JSON.stringify(value)) });
   }),
   rtdbDelete: vi.fn(async (path: string) => setAtPath(path, null)),
+  // Écriture conditionnelle : l'ETag est ici la valeur sérialisée du nœud, ce
+  // qui reproduit la sémantique compare-and-set dont dépend le verrou par
+  // visite (api/_tour-lock.ts).
+  rtdbGetWithEtag: vi.fn(async (path: string) => {
+    const value = getAtPath(path);
+    return { value, etag: JSON.stringify(value ?? null) };
+  }),
+  rtdbPutIfMatch: vi.fn(async (path: string, value: any, etag: string) => {
+    if (JSON.stringify(getAtPath(path) ?? null) !== etag) return false;
+    setAtPath(path, value === null ? null : JSON.parse(JSON.stringify(value)));
+    return true;
+  }),
 }));
 
 const fetchMock = vi.fn(async () => new Response("{}", { status: 200 }));

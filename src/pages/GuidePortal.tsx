@@ -114,48 +114,25 @@ export default function GuidePortal() {
     }
   }
 
-  async function fetchRegistrationStats(toursData: Tour[], code: string) {
-    const waitlists: Record<string, number> = {};
-    const registrationsByTour: Record<string, Registration[]> = {};
-    const headers = { "x-guide-code": code };
-
+  // Une seule requête pour tout le programme. On lançait auparavant deux appels
+  // PAR VISITE (feuille d'appel + file d'attente), soit une soixantaine de
+  // requêtes HTTP sur un programme d'une trentaine de visites, à chaque
+  // ouverture du portail et à chaque rafraîchissement.
+  async function fetchRegistrationStats(_toursData: Tour[], code: string) {
     try {
-      const results = await Promise.all(
-        toursData.flatMap((tour) => [
-          fetch(`/api/visit-attendance?tourId=${tour.id}`, { headers }).then((res) => ({
-            type: "attendance" as const,
-            tourId: tour.id,
-            res,
-          })),
-          fetch(`/api/visit-waitlist?tourId=${tour.id}`, { headers }).then((res) => ({
-            type: "waitlist" as const,
-            tourId: tour.id,
-            res,
-          })),
-        ])
-      );
+      const res = await fetch("/api/visit-attendance?action=overview", {
+        headers: { "x-guide-code": code },
+      });
+      if (!res.ok) throw new Error(`overview: ${res.status}`);
 
-      for (const result of results) {
-        try {
-          if (!result.res.ok) continue;
-          const data = await result.res.json();
-          if (result.type === "attendance") {
-            registrationsByTour[result.tourId] = data.registrations || [];
-          } else {
-            const active = (data.waitlist || []).filter((w: any) => !w.rejectedAt);
-            const totalWaitlistPlaces = active.reduce((sum: number, w: any) => sum + (w.places ?? 1), 0);
-            waitlists[result.tourId] = totalWaitlistPlaces;
-          }
-        } catch (e) {
-          console.error("Error processing stats for tour", result.tourId, e);
-        }
-      }
+      const data = await res.json();
+      setRegistrationsByTour(data.registrations || {});
+      setWaitlistCounts(data.waitlistPlaces || {});
     } catch (e) {
       console.error("Error fetching registration stats:", e);
+      // Chiffres indisponibles : on n'efface pas ce qui est déjà affiché, une
+      // liste de visites sans compteurs vaut mieux qu'un portail vide.
     }
-
-    setRegistrationsByTour(registrationsByTour);
-    setWaitlistCounts(waitlists);
   }
 
   function handleCodeSubmit(code: string) {
@@ -681,9 +658,6 @@ function TourDetails({
                   <Stat label="Inscrits" value={data.counts.seatsTaken ?? totalRegisteredPeople} color="bg-[#f3f0e6]" />
                   <Stat label="Présents" value={data.counts.present} color="bg-green-100" />
                   <Stat label="Absents" value={data.counts.absent} color="bg-red-100" />
-                  {data.counts.awaitingValidation > 0 && (
-                    <Stat label="À confirmer" value={data.counts.awaitingValidation} color="bg-orange-100" />
-                  )}
                   <Stat
                     label="File d'attente"
                     value={activeWaitlist.reduce((s: number, w: any) => s + (w.places ?? 1), 0)}
@@ -899,7 +873,7 @@ function RegistrationsList({
                 </span>
               </td>
               <td className={tdCls()}>
-                {(reg.status === "confirmé" || reg.status === "attente_validation") && (
+                {reg.status === "confirmé" && (
                   <Button
                     size="sm"
                     variant="outline"

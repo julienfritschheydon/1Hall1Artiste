@@ -3,7 +3,7 @@
 // POST /api/visit-emails?type=send-1d-reminder — Rappel la veille, avec lien de désistement (daily)
 // POST /api/visit-emails?type=send-3h-reminder — Rappel ~3h avant (horaire, GitHub Actions)
 // POST /api/visit-emails?type=batch-delete-post-tour — Suppression RGPD 24H après (daily)
-// POST /api/visit-emails?type=promote-waitlist — Auto-promotion file attente (annule aussi les inscriptions non confirmées après 24H)
+// POST /api/visit-emails?type=promote-waitlist — Auto-promotion file attente
 
 import { VercelRequest, VercelResponse } from "@vercel/node";
 import {
@@ -427,45 +427,10 @@ async function batchDeletePostTour(): Promise<{ deletedRegs: number; deletedWait
   return { deletedRegs, deletedWaitlist };
 }
 
-// ==== JOB: Expire pending validations (spot held during confirmation window) ====
-// Registration "attente_validation" reserves a seat (rtdbCountRegisteredByTour) until
-// the 24h email-confirmation link expires. This job auto-cancels those past deadline
-// so the seat frees up (waitlist promotion picks it up on its own run).
-async function expirePendingRegistrations(): Promise<{ autocancelled: number }> {
-  const now = new Date();
-  let autocancelled = 0;
-
-  for (const tour of await rtdbToursListAll()) {
-    const regs = await rtdbRegistrationsListByTour(tour.id);
-    for (const reg of regs) {
-      if (
-        reg.status === "attente_validation" &&
-        reg.validationExpiresAt &&
-        new Date(reg.validationExpiresAt) < now
-      ) {
-        await rtdbRegistrationUpdate(reg.id, { status: "annulé", cancelledAt: now.toISOString() });
-        autocancelled++;
-      }
-    }
-  }
-
-  if (autocancelled > 0) {
-    await rtdbAuditLog("auto_cancel_pending_validation_expired", {
-      count: autocancelled,
-      timestamp: now.toISOString(),
-    });
-  }
-
-  return { autocancelled };
-}
-
 // ==== JOB 4: Promote from waitlist (Q4, Q5) ====
 // Fills ANY free slot — handles cancellations AND capacity increase (spec §9).
-// Runs expirePendingRegistrations() first (Hobby plan caps cron at 1/day, so this
-// piggybacks on the existing daily slot instead of a dedicated cron entry).
-async function promoteFromWaitlist(): Promise<{ promoted: number; rejected: number; autocancelled: number }> {
+async function promoteFromWaitlist(): Promise<{ promoted: number; rejected: number }> {
   quotaWarningAlertSent = false; // Reset for this run
-  const { autocancelled } = await expirePendingRegistrations();
 
   const now = new Date();
   let promoted = 0,
@@ -573,7 +538,7 @@ async function promoteFromWaitlist(): Promise<{ promoted: number; rejected: numb
     }
   }
 
-  return { promoted, rejected, autocancelled };
+  return { promoted, rejected };
 }
 
 // Main handler.
@@ -597,7 +562,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (type === "daily") {
       // Job consolidé (plan Hobby : 2 crons max — un seul suffit désormais).
-      // Ordre : rappels → validation J-1 → promotion (inclut expirations/rejets) → purge.
+      // Ordre : rappels → rappel J-1 → promotion (inclut les offres expirées) → purge.
       const reminder7d = await sendReminderEmails7d();
       const reminder1d = await sendReminderEmails1d();
       const promotion = await promoteFromWaitlist();

@@ -49,17 +49,21 @@ export interface Registration {
   companions?: Companion[] // Jusqu'à 4 accompagnants (5 places max)
   companionFirstName?: string // Legacy (1 accompagnant) — lecture seule
   companionLastName?: string // Legacy
-  status: 'attente_validation' | 'confirmé' | 'présent' | 'absent' | 'annulé'
-  validationToken?: string
-  validationExpiresAt?: string
+  // Plus de 'attente_validation' : le double opt-in par email a été retiré,
+  // l'inscription est confirmée dès la création. Des documents résiduels
+  // peuvent porter cet ancien statut en base — ils datent d'avant le
+  // changement, leur jeton a expiré depuis longtemps, et ils sont traités
+  // partout comme n'occupant aucune place.
+  status: 'confirmé' | 'présent' | 'absent' | 'annulé'
   confirmedAt?: string
   attendedAt?: string
   cancelledAt?: string
-  reminder7dSent?: boolean // Q2: Idempotency for 7d reminder
-  reminder3hSent?: boolean // Idempotency for 3h reminder (cron horaire)
-  validation1dSent?: boolean // Q15: Idempotency for 1d validation
-  validationDeadline?: string // Q15: Auto-cancel deadline (effacée quand l'utilisateur re-valide)
-  revalidatedAt?: string // Q15: L'utilisateur a re-confirmé sa présence via le lien J-1
+  reminder7dSent?: boolean // Idempotence du rappel J-7
+  reminder3hSent?: boolean // Idempotence du rappel du jour même (cron horaire)
+  // Idempotence du rappel J-1. Le nom date de l'époque où cet email exigeait
+  // une re-validation ; il est conservé tel quel, le renommer imposerait une
+  // migration des documents existants pour aucun gain.
+  validation1dSent?: boolean
   createdAt: string
   deletedAt?: string
 }
@@ -135,8 +139,6 @@ export interface RegistrationCreateInput {
   companionFirstName?: string
   companionLastName?: string
   status?: RegistrationStatus
-  validationToken?: string
-  validationExpiresAt?: string
 }
 
 export interface WaitlistCreateInput {

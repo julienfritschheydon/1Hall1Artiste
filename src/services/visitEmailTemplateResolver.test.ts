@@ -15,6 +15,8 @@ vi.mock("../../api/_firebase.js", () => ({
   rtdbPut: vi.fn(),
   rtdbPatch: vi.fn(),
   rtdbDelete: vi.fn(),
+  rtdbGetWithEtag: vi.fn(async () => ({ value: null, etag: "" })),
+  rtdbPutIfMatch: vi.fn(async () => true),
 }));
 
 const ORIGINAL = process.env.VISIT_EMAILJS_TEMPLATE_IDS;
