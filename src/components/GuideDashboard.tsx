@@ -77,12 +77,12 @@ export default function GuideDashboard({
       color: "bg-[#f3f0e6]",
     },
     {
-      label: "Inscrits",
+      label: "Personnes inscrites",
       value: stats.totalRegistrations,
       subtext: stats.multiVisitAttendeesCount > 0
         ? `dont ${stats.multiVisitAttendeesCount} à 2+ visites`
         : stats.uniqueAttendeesCount > 0
-        ? `${stats.uniqueAttendeesCount} personnes`
+        ? `${stats.uniqueAttendeesCount} inscrit(s) distinct(s)`
         : undefined,
       subtextColor: stats.multiVisitAttendeesCount > 0 ? "#1d4ed8" : "#7a6f4d",
       color: "bg-[#f3f0e6]",
