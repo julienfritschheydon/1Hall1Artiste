@@ -39,6 +39,7 @@ import { buildShareUrl } from "@/utils/url";
 import { useTours } from "@/hooks/useTours";
 import { toursAtLocation } from "@/utils/tourLocation";
 import { groupToursByDayAndTime } from "@/utils/groupTours";
+import { groupEventsByDay, timeWithoutDays } from "@/utils/groupEventsByDay";
 import { Tour } from "@/types/visitTypes";
 
 // Composant Like simple avec logique partagée
@@ -403,64 +404,71 @@ export const LocationDetailsModern: React.FC<LocationDetailsModernProps> = ({
               <h3 className="font-semibold text-[#1a2138] mb-3 font-serif text-lg">
                 Événements à cet endroit
               </h3>
-              <div className="space-y-1 max-h-60 overflow-y-auto">
-                {events.map((event, index) => (
-                  <div 
-                    key={event.id} 
-                    className={`relative p-2 rounded-lg cursor-pointer hover:opacity-90 transition-all overflow-hidden ${
-                      savedEventIds.includes(event.id) ? 'ring-2 ring-amber-400' : ''
-                    }`}
-                    style={{
-                      position: 'relative',
-                      backgroundColor: 'transparent',
-                    }}
-                  >
-                    {/* Fond parchemin comme dans le programme */}
-                    <div 
-                      className="absolute inset-0 opacity-60 z-0"
-                      style={{
-                        backgroundImage: `url('${IMAGE_PATHS.BACKGROUNDS.PARCHMENT}')`,
-                        backgroundSize: 'cover',
-                        backgroundPosition: index % 2 === 0 ? 'top left' : 'top right',
-                        transform: index % 2 === 1 ? 'scaleX(-1)' : 'none',
-                      }}
-                    />
-                    <div className="flex justify-between items-start relative z-10">
-                      <div className="flex-1" onClick={() => {
-                        onClose(); // Fermer LocationDetailsModern d'abord
-                        setTimeout(() => {
-                          onSelectEvent(event); // Puis ouvrir EventDetailsModern après un délai
-                        }, 100);
-                      }}>
-                        <p className="font-bold text-[#1a2138] mb-0.5 text-sm leading-tight">{event.title}</p>
-                        {event.artistName && (
-                          <p className="text-xs text-[#1a2138] font-medium mb-0.5">{event.artistName}</p>
-                        )}
-                        <div className="text-gray-500 text-xs">
-                          <p>{event.time}</p>
-                        </div>
-                        <div className="flex items-center gap-1 mt-0.5">
-                          <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-                          <span className="text-xs text-gray-600 font-medium">
-                            {event.category || (event.type === 'exposition' ? 'Exposition' : 'Concert')}
-                          </span>
-                        </div>
-                      </div>
-                      <button
-                        className={`w-8 h-8 flex items-center justify-center rounded-full border-2 transition-colors relative z-10 ${
-                          savedEventIds.includes(event.id)
-                            ? 'bg-amber-50 border-amber-500 text-amber-500'
-                            : 'bg-white/70 border-gray-300 text-gray-600 hover:border-amber-500 hover:text-amber-500'
-                        }`}
-                        onClick={(e) => onSaveEvent(event, e)}
-                        title={savedEventIds.includes(event.id) ? "Retirer des favoris" : "Ajouter aux favoris"}
-                      >
-                        {savedEventIds.includes(event.id) ? (
-                          <BookmarkCheck className="h-3 w-3" />
-                        ) : (
-                          <Bookmark className="h-3 w-3" />
-                        )}
-                      </button>
+              <div className="space-y-3 max-h-60 overflow-y-auto">
+                {groupEventsByDay(events).map((group) => (
+                  <div key={group.key}>
+                    <p className="text-xs font-bold text-[#1a2138] mb-1.5">{group.label}</p>
+                    <div className="space-y-1">
+                        {group.events.map((event, index) => (
+                          <div 
+                            key={event.id} 
+                            className={`relative p-2 rounded-lg cursor-pointer hover:opacity-90 transition-all overflow-hidden ${
+                              savedEventIds.includes(event.id) ? 'ring-2 ring-amber-400' : ''
+                            }`}
+                            style={{
+                              position: 'relative',
+                              backgroundColor: 'transparent',
+                            }}
+                          >
+                            {/* Fond parchemin comme dans le programme */}
+                            <div 
+                              className="absolute inset-0 opacity-60 z-0"
+                              style={{
+                                backgroundImage: `url('${IMAGE_PATHS.BACKGROUNDS.PARCHMENT}')`,
+                                backgroundSize: 'cover',
+                                backgroundPosition: index % 2 === 0 ? 'top left' : 'top right',
+                                transform: index % 2 === 1 ? 'scaleX(-1)' : 'none',
+                              }}
+                            />
+                            <div className="flex justify-between items-start relative z-10">
+                              <div className="flex-1" onClick={() => {
+                                onClose(); // Fermer LocationDetailsModern d'abord
+                                setTimeout(() => {
+                                  onSelectEvent(event); // Puis ouvrir EventDetailsModern après un délai
+                                }, 100);
+                              }}>
+                                <p className="font-bold text-[#1a2138] mb-0.5 text-sm leading-tight">{event.title}</p>
+                                {event.artistName && (
+                                  <p className="text-xs text-[#1a2138] font-medium mb-0.5">{event.artistName}</p>
+                                )}
+                                <div className="text-gray-500 text-xs">
+                                  <p>{timeWithoutDays(event.time)}</p>
+                                </div>
+                                <div className="flex items-center gap-1 mt-0.5">
+                                  <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                                  <span className="text-xs text-gray-600 font-medium">
+                                    {event.category || (event.type === 'exposition' ? 'Exposition' : 'Concert')}
+                                  </span>
+                                </div>
+                              </div>
+                              <button
+                                className={`w-8 h-8 flex items-center justify-center rounded-full border-2 transition-colors relative z-10 ${
+                                  savedEventIds.includes(event.id)
+                                    ? 'bg-amber-50 border-amber-500 text-amber-500'
+                                    : 'bg-white/70 border-gray-300 text-gray-600 hover:border-amber-500 hover:text-amber-500'
+                                }`}
+                                onClick={(e) => onSaveEvent(event, e)}
+                                title={savedEventIds.includes(event.id) ? "Retirer des favoris" : "Ajouter aux favoris"}
+                              >
+                                {savedEventIds.includes(event.id) ? (
+                                  <BookmarkCheck className="h-3 w-3" />
+                                ) : (
+                                  <Bookmark className="h-3 w-3" />
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        ))}
                     </div>
                   </div>
                 ))}
