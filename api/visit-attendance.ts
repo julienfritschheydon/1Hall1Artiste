@@ -15,6 +15,7 @@ import {
   rtdbRegistrationsGroupedByTour,
   rtdbWaitlistGroupedByTour,
   rtdbToursListAll,
+  rtdbTourStatsList,
 } from "./_visit-db.js";
 import { placesOf, Registration } from "../src/types/visitTypes.js";
 import { cancelRegistration } from "./visit-register.js";
@@ -254,8 +255,46 @@ async function handleOverview(req: VercelRequest, res: VercelResponse) {
   }
 }
 
+// GET /api/visit-attendance?action=stats — bilan des visites passées (guide).
+// Données strictement anonymes, conservées après la purge RGPD.
+async function handleStats(req: VercelRequest, res: VercelResponse) {
+  if (!(await requireGuideCode(req, res))) {
+    return;
+  }
+
+  try {
+    const stats = await rtdbTourStatsList();
+
+    // Taux d'absentéisme global : c'est LE chiffre qui permet de régler le
+    // surbooking. On ne le calcule que sur les visites réellement pointées —
+    // inclure les visites où personne n'a fait l'appel le ferait tendre vers
+    // zéro et donnerait une fausse impression d'assiduité.
+    const pointees = stats.filter((s) => s.present + s.absent > 0);
+    const attendus = pointees.reduce((sum, s) => sum + s.present + s.absent, 0);
+    const absents = pointees.reduce((sum, s) => sum + s.absent, 0);
+
+    res.setHeader("Cache-Control", "private, no-store");
+    return res.json({
+      tours: stats,
+      global: {
+        toursRecorded: stats.length,
+        toursWithAttendance: pointees.length,
+        expected: attendus,
+        absent: absents,
+        noShowRate: attendus > 0 ? Math.round((absents / attendus) * 100) : null,
+      },
+    });
+  } catch (e) {
+    console.error("[visit-attendance stats]", e);
+    return res.status(500).json({ error: "stats failed" });
+  }
+}
+
 // Main handler
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method === "GET" && req.query.action === "stats") {
+    return handleStats(req, res);
+  }
   if (req.method === "GET" && req.query.action === "overview") {
     return handleOverview(req, res);
   }

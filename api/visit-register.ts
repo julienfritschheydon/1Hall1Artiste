@@ -30,7 +30,7 @@ import {
 import { rtdbGet } from "./_firebase.js";
 import { buildVisitEmail, VisitEmailType } from "./_visit-email.js";
 import { createRegistrationToken, verifyRegistrationToken } from "./_token.js";
-import { placesOf } from "../src/types/visitTypes.js";
+import { placesOf, bookableCapacity } from "../src/types/visitTypes.js";
 import { buildIcs, googleCalendarUrl } from "./_ics.js";
 import { rateLimited, clientIp, REGISTER_RULE, GDPR_RULE } from "./_rate-limit.js";
 import { withTourLock } from "./_tour-lock.js";
@@ -290,7 +290,7 @@ async function handleCreateRegistration(req: VercelRequest, res: VercelResponse)
       // lui (voir doc §6.7).
       const registeredPlaces = await rtdbCountRegisteredByTour(tourId);
       const waitlistedPlaces = await rtdbCountWaitlistedPlaces(tourId);
-      const hasSpace = registeredPlaces + waitlistedPlaces + groupSize <= tour.capacity;
+      const hasSpace = registeredPlaces + waitlistedPlaces + groupSize <= bookableCapacity(tour);
 
       // Inscription manuelle du guide : le passe-droit de capacité est voulu
       // (surbooking décidé sur place), mais il doit être signalé — sans
@@ -486,7 +486,7 @@ export async function promoteWaitlist(tourId: string): Promise<void> {
         .filter((w) => w.invitationSentAt && !w.rejectedAt && w.invitationExpiresAt && new Date(w.invitationExpiresAt) >= now)
         .reduce((sum, w) => sum + placesOf(w), 0);
 
-      let freeSlots = tour.capacity - confirmedCount - pendingPlaces;
+      let freeSlots = bookableCapacity(tour) - confirmedCount - pendingPlaces;
       if (freeSlots <= 0) return [];
 
       // Candidats = ceux sans offre active/refusée, dans l'ordre de position (FIFO).

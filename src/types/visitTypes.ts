@@ -29,7 +29,14 @@ export interface Tour {
   startLocationY: number // Coordonnée Y sur la carte custom
   startLocationName?: string // Nom du lieu (dénormalisé)
   startLocationId?: string // Id réel du bâtiment (data/locations.ts) — lien fiable, pas de coïncidence de pixels
-  capacity: number
+  capacity: number // Places que le guide peut réellement accueillir sur le terrain
+  // Places proposées EN PLUS de la capacité réelle, pour compenser les absents.
+  // Sur une visite gratuite, l'absentéisme se situe structurellement entre 30 et
+  // 50 % : plafonner à la capacité réelle, c'est partir à 9 avec 15 places et 6
+  // personnes en file d'attente. Contrepartie assumée : si tout le monde vient,
+  // quelqu'un est refusé au départ. Valeur par défaut 0 — le surbooking reste
+  // désactivé tant que le collectif n'a pas mesuré son propre taux.
+  overbookingSeats?: number
   labels: string[] // Free tags: ['nature', 'architecture', 'enfants']
   guides?: string[] // Prénoms des guides qui animent — interne, jamais renvoyé au public
   status: 'upcoming' | 'ongoing' | 'completed'
@@ -38,6 +45,7 @@ export interface Tour {
   deletedAt?: string
   batchDeleteExecuted?: boolean // Idempotency: batch delete already ran
   placesLeft?: number // Calculé côté serveur (GET) — places restantes
+  waitlistCount?: number // Calculé côté serveur (GET) — personnes en file d'attente
 }
 
 export interface Registration {
@@ -124,6 +132,7 @@ export interface TourCreateInput {
   startLocationName?: string
   startLocationId?: string
   capacity: number
+  overbookingSeats?: number
   labels: string[]
   guides?: string[]
   guideId?: string
@@ -152,6 +161,14 @@ export interface WaitlistCreateInput {
   position: number
   invitationToken?: string
   invitationExpiresAt?: string
+}
+
+// Nombre de places réellement ouvertes à l'inscription : capacité de terrain
+// plus le surbooking décidé par le guide. C'est cette valeur, et non `capacity`,
+// qui arbitre inscription directe ou file d'attente.
+export function bookableCapacity(tour: { capacity: number; overbookingSeats?: number }): number {
+  const extra = Number.isFinite(tour.overbookingSeats) ? Math.max(0, tour.overbookingSeats as number) : 0;
+  return tour.capacity + extra;
 }
 
 // Nombre de places occupées par une inscription/file (titulaire + accompagnants).

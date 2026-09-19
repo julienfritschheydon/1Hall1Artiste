@@ -22,8 +22,11 @@ import {
   rtdbToursListAll,
   rtdbToursListFuture,
   rtdbCountRegisteredByTour,
+  rtdbCountWaitlistedPlaces,
+  rtdbTourStatsPut,
+  holdsSeat,
 } from "./_visit-db.js";
-import { placesOf } from "../src/types/visitTypes.js";
+import { placesOf, bookableCapacity } from "../src/types/visitTypes.js";
 import { buildVisitEmail } from "./_visit-email.js";
 import { createRegistrationToken } from "./_token.js";
 
@@ -354,6 +357,11 @@ async function sendReminderEmails1d(): Promise<{ sent: number; examined: number 
     const tour = await rtdbTourGet(reg.tourId);
     if (!tour) continue;
 
+    // Nombre de personnes en attente : c'est ce qui donne du sens au bouton de
+    // désistement. « Libérez votre place, 6 personnes attendent » agit, « vous
+    // pouvez annuler » n'agit pas.
+    const waitlistPlaces = await rtdbCountWaitlistedPlaces(reg.tourId);
+
     const idempotencyKey = `${reg.id}_1d_reminder`;
     const success = await sendEmailWithRetry(
       resolveTemplateId("reminder_1d"),
@@ -364,6 +372,7 @@ async function sendReminderEmails1d(): Promise<{ sent: number; examined: number 
         tourDate: tour.date,
         location: tour.startLocationName,
         cancelLink: `${SITE_URL}/#/reservations/cancel?id=${reg.id}`,
+        waitlistCount: waitlistPlaces,
         type: "reminder_1d",
       },
       idempotencyKey
@@ -394,16 +403,37 @@ async function batchDeletePostTour(): Promise<{ deletedRegs: number; deletedWait
     let tourRegs = 0,
       tourWaits = 0;
 
+    const regs = await rtdbRegistrationsListByTour(tour.id);
+    const waits = await rtdbWaitlistListByTour(tour.id);
+
+    // Bilan chiffré AVANT la purge : c'est le dernier instant où ces données
+    // existent. Sans cette écriture, le collectif perd le taux d'absentéisme de
+    // chaque visite 24h après l'avoir faite — et ne peut donc jamais régler son
+    // surbooking sur ses propres chiffres.
+    const seated = regs.filter((r) => holdsSeat(r));
+    const sumPlaces = (list: typeof seated) => list.reduce((sum, r) => sum + placesOf(r), 0);
+    await rtdbTourStatsPut({
+      tourId: tour.id,
+      title: tour.title,
+      date: tour.date,
+      capacity: tour.capacity,
+      overbookingSeats: tour.overbookingSeats ?? 0,
+      seatsTaken: sumPlaces(seated),
+      present: sumPlaces(seated.filter((r) => r.status === "présent")),
+      absent: sumPlaces(seated.filter((r) => r.status === "absent")),
+      unmarked: sumPlaces(seated.filter((r) => r.status === "confirmé")),
+      waitlistPlaces: waits.filter((w) => !w.rejectedAt).reduce((sum, w) => sum + placesOf(w), 0),
+      recordedAt: new Date().toISOString(),
+    });
+
     // Purge RGPD réelle (PII effacées) — un simple deletedAt gardait emails et
     // noms en base indéfiniment, à rebours de l'objet du job.
-    const regs = await rtdbRegistrationsListByTour(tour.id);
     for (const reg of regs) {
       await rtdbRegistrationErase(reg.id);
       deletedRegs++;
       tourRegs++;
     }
 
-    const waits = await rtdbWaitlistListByTour(tour.id);
     for (const wait of waits) {
       await rtdbWaitlistErase(wait.id);
       deletedWaitlist++;
@@ -473,7 +503,7 @@ async function promoteFromWaitlist(): Promise<{ promoted: number; rejected: numb
   }
 
   // Step 2: For each upcoming tour, fill free slots from the waitlist.
-  // freeSlots = capacity - confirmed - pendingOffers(non-expired, non-rejected)
+  // freeSlots = places ouvertes (capacité + surbooking) - confirmés - offres en cours
   for (const tour of await rtdbToursListFuture()) {
     const confirmedCount = await rtdbCountRegisteredByTour(tour.id);
     const waits = await rtdbWaitlistListByTour(tour.id); // sorted by position, excludes deleted
@@ -489,7 +519,7 @@ async function promoteFromWaitlist(): Promise<{ promoted: number; rejected: numb
       )
       .reduce((sum, w) => sum + placesOf(w), 0);
 
-    let freeSlots = tour.capacity - confirmedCount - pendingPlaces;
+    let freeSlots = bookableCapacity(tour) - confirmedCount - pendingPlaces;
     if (freeSlots <= 0) continue;
 
     // Candidates = waitlist entries with no active/rejected offer, in position order.

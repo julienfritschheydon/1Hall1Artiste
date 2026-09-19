@@ -49,6 +49,7 @@ export async function rtdbTourCreate(input: TourCreateInput): Promise<Tour> {
     startLocationName: input.startLocationName,
     startLocationId: input.startLocationId,
     capacity: input.capacity,
+    ...(input.overbookingSeats ? { overbookingSeats: input.overbookingSeats } : {}),
     labels: input.labels,
     status: input.status || "upcoming",
     createdAt: now,
@@ -600,6 +601,41 @@ export async function rtdbLocationsList(): Promise<LocationPoint[]> {
     .map(([id, l]) => ({ ...l, id }))
     .filter((l) => l && typeof l.x === "number" && typeof l.y === "number")
     .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+}
+
+// ============ BILAN DE FRÉQUENTATION ============
+// Compteurs anonymes par visite, écrits AVANT la purge RGPD des inscriptions.
+//
+// Sans eux, le bilan d'une édition disparaissait 24h après la dernière visite :
+// le portail calcule ses statistiques à partir des inscriptions vivantes, et la
+// purge les efface toutes. Le collectif se retrouvait sans aucun chiffre — donc
+// sans moyen de régler le surbooking, qui a précisément besoin du taux
+// d'absentéisme réel.
+//
+// Aucune donnée personnelle ici : uniquement des nombres et l'intitulé public
+// de la visite. Ces enregistrements sont donc conservés sans limite de durée.
+
+export interface TourStats {
+  tourId: string;
+  title: string;
+  date: string;
+  capacity: number;
+  overbookingSeats: number;
+  seatsTaken: number; // places occupées par les inscriptions (accompagnants inclus)
+  present: number;
+  absent: number;
+  unmarked: number; // inscrits que le guide n'a pas pointés
+  waitlistPlaces: number;
+  recordedAt: string;
+}
+
+export async function rtdbTourStatsPut(stats: TourStats): Promise<void> {
+  await rtdbPut(`visit_stats/${stats.tourId}`, stats);
+}
+
+export async function rtdbTourStatsList(): Promise<TourStats[]> {
+  const all = await rtdbGet<Record<string, TourStats>>("visit_stats");
+  return Object.values(all || {}).sort((a, b) => (b.date || "").localeCompare(a.date || ""));
 }
 
 // ============ AUDIT LOGS ============

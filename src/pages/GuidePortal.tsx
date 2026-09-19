@@ -2,7 +2,7 @@
 // Fonctions: créer/modifier visite, voir inscrits + file d'attente,
 // inscription manuelle sur place, appel présences, export CSV + impression.
 import { useState, useEffect, useMemo } from "react";
-import { Tour, Registration, placesOf } from "../types/visitTypes";
+import { Tour, Registration, placesOf, bookableCapacity } from "../types/visitTypes";
 import GuideCodeLogin from "../components/GuideCodeLogin";
 import GuideToursList from "../components/GuideToursList";
 import GuideDashboard from "../components/GuideDashboard";
@@ -51,6 +51,8 @@ export default function GuidePortal() {
   // le périmètre du filtre « Animé par » plutôt que sur tout le programme.
   const [registrationsByTour, setRegistrationsByTour] = useState<Record<string, Registration[]>>({});
   const [guideNames, setGuideNames] = useState<string[]>([]);
+  // Bilan anonyme des visites passées, conservé au-delà de la purge RGPD.
+  const [pastStats, setPastStats] = useState<PastStats | null>(null);
   // Filtre « Animé par » mémorisé par navigateur : chaque guide retrouve ses visites.
   const [guideFilter, setGuideFilterState] = useState<string>(() => {
     try {
@@ -128,6 +130,17 @@ export default function GuidePortal() {
       const data = await res.json();
       setRegistrationsByTour(data.registrations || {});
       setWaitlistCounts(data.waitlistPlaces || {});
+
+      // Best-effort : un bilan indisponible ne doit pas empêcher le portail de
+      // fonctionner le jour du festival.
+      try {
+        const statsRes = await fetch("/api/visit-attendance?action=stats", {
+          headers: { "x-guide-code": code },
+        });
+        if (statsRes.ok) setPastStats(await statsRes.json());
+      } catch (e) {
+        console.error("Error fetching past stats:", e);
+      }
     } catch (e) {
       console.error("Error fetching registration stats:", e);
       // Chiffres indisponibles : on n'efface pas ce qui est déjà affiché, une
@@ -246,6 +259,8 @@ export default function GuidePortal() {
         />
       )}
 
+      {!loading && <PastStatsPanel stats={pastStats} />}
+
       {!loading && filterNames.length > 0 && (
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <span className="text-sm text-[#4a4636]">Animé par :</span>
@@ -332,6 +347,7 @@ function TourForm({
   const date = `${dateStr}T${time}`;
   const [durationMinutes, setDurationMinutes] = useState(tour?.durationMinutes || 90);
   const [capacity, setCapacity] = useState(tour?.capacity || 15);
+  const [overbookingSeats, setOverbookingSeats] = useState(tour?.overbookingSeats ?? 0);
   const [labels, setLabels] = useState((tour?.labels || []).join(", "));
   // « Animé par » : cases pour la liste admin, champ libre « Autre » pour le reste.
   const [guideNames, setGuideNames] = useState<string[]>(initialGuideNames);
@@ -391,6 +407,7 @@ function TourForm({
         date: new Date(date).toISOString(),
         durationMinutes: Number(durationMinutes),
         capacity: Number(capacity),
+        overbookingSeats: Number(overbookingSeats) || 0,
         labels: labels.split(",").map((l) => l.trim()).filter(Boolean),
         guides: mergeNames(selectedGuides, otherGuides.split(",")),
       };
@@ -479,9 +496,31 @@ function TourForm({
               <Input type="number" min={1} value={durationMinutes} onChange={(e) => setDurationMinutes(Number(e.target.value))} required />
             </div>
             <div>
-              <label className={labelCls}>Capacité *</label>
+              <label className={labelCls}>Capacité réelle *</label>
               <Input type="number" min={1} value={capacity} onChange={(e) => setCapacity(Number(e.target.value))} required />
+              <p className="text-xs text-gray-500 mt-1">Ce que vous pouvez accueillir sur le terrain.</p>
             </div>
+          </div>
+          <div>
+            <label className={labelCls}>Places supplémentaires (surbooking)</label>
+            <Input
+              type="number"
+              min={0}
+              max={50}
+              value={overbookingSeats}
+              onChange={(e) => setOverbookingSeats(Math.max(0, Number(e.target.value)))}
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Sur une visite gratuite, une partie des inscrits ne vient pas. Ces places en plus
+              compensent les absents. Laissez 0 tant que vous n'avez pas mesuré votre taux
+              d'absentéisme — le bilan après visite vous le donne.
+            </p>
+            {Number(overbookingSeats) > 0 && (
+              <p className="text-xs text-amber-700 mt-1 font-medium">
+                {capacity + Number(overbookingSeats)} inscriptions seront acceptées pour {capacity} places.
+                Si tout le monde vient, {overbookingSeats} personne(s) devront être refusées au départ.
+              </p>
+            )}
           </div>
           <div>
             <label className={labelCls}>Labels (séparés par virgule)</label>
@@ -627,16 +666,21 @@ function TourDetails({
               {new Date(tour.date).toLocaleDateString("fr-FR")} •{" "}
               {new Date(tour.date).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
               {" • "}Durée : {tour.durationMinutes} min • Places libres :{" "}
-              <span className={(tour.placesLeft ?? tour.capacity) <= 0 ? "font-bold text-red-600" : undefined}>
-                {tour.placesLeft ?? tour.capacity}/{tour.capacity}
+              <span className={(tour.placesLeft ?? bookableCapacity(tour)) <= 0 ? "font-bold text-red-600" : undefined}>
+                {tour.placesLeft ?? bookableCapacity(tour)}/{bookableCapacity(tour)}
               </span>
+              {(tour.overbookingSeats ?? 0) > 0 && (
+                <span className="text-amber-700" title={`Capacité réelle : ${tour.capacity}`}>
+                  {" "}(dont {tour.overbookingSeats} en surbooking)
+                </span>
+              )}
               {/* placesLeft déduit aussi la file d'attente : sans cette mention,
                   « inscrits + places libres < capacité » passait pour une erreur. */}
               {totalWaitlistPeople > 0 && (
                 <span className="text-gray-500"> (file d'attente déduite)</span>
               )}
             </span>
-            {(tour.placesLeft ?? tour.capacity) <= 0 && (
+            {(tour.placesLeft ?? bookableCapacity(tour)) <= 0 && (
               <span className="text-xs px-2 py-1 rounded-full whitespace-nowrap bg-red-100 text-red-700 font-bold uppercase">
                 Complet
               </span>
@@ -992,6 +1036,113 @@ function ManualRegistration({
 }
 
 // ===== Helpers =====
+interface PastStats {
+  tours: {
+    tourId: string;
+    title: string;
+    date: string;
+    capacity: number;
+    overbookingSeats: number;
+    seatsTaken: number;
+    present: number;
+    absent: number;
+    unmarked: number;
+    waitlistPlaces: number;
+  }[];
+  global: {
+    toursRecorded: number;
+    toursWithAttendance: number;
+    expected: number;
+    absent: number;
+    noShowRate: number | null;
+  };
+}
+
+// Bilan des éditions passées. Il ne vient PAS des inscriptions (effacées 24h
+// après chaque visite par la purge RGPD) mais de compteurs anonymes écrits
+// juste avant cette purge. C'est la seule mémoire chiffrée du collectif, et
+// c'est elle qui permet de régler le surbooking sur des faits plutôt que sur
+// une moyenne de secteur.
+function PastStatsPanel({ stats }: { stats: PastStats | null }) {
+  const [open, setOpen] = useState(false);
+
+  if (!stats || stats.global.toursRecorded === 0) return null;
+
+  const { noShowRate, toursWithAttendance, expected, absent } = stats.global;
+
+  return (
+    <Card className="bg-white/90 backdrop-blur-sm border-2 border-amber-300 shadow-lg mb-4">
+      <CardContent className="p-4">
+        <button
+          type="button"
+          onClick={() => setOpen(!open)}
+          className="w-full flex items-center justify-between text-left"
+        >
+          <span className="font-bold text-[#1a2138]">
+            Bilan des visites passées ({stats.global.toursRecorded})
+          </span>
+          <span className="text-[#4a5d94] text-lg">{open ? "−" : "+"}</span>
+        </button>
+
+        {noShowRate !== null ? (
+          <p className="text-sm text-gray-700 mt-2">
+            Taux d'absentéisme : <strong className="text-[#e8693a]">{noShowRate}%</strong>{" "}
+            <span className="text-gray-500">
+              ({absent} absents sur {expected} attendus, {toursWithAttendance} visite
+              {toursWithAttendance > 1 ? "s" : ""} pointée{toursWithAttendance > 1 ? "s" : ""})
+            </span>
+          </p>
+        ) : (
+          <p className="text-sm text-gray-600 mt-2">
+            Aucune présence pointée pour l'instant — faites l'appel pendant les visites pour
+            obtenir votre taux d'absentéisme, qui sert à régler le surbooking.
+          </p>
+        )}
+
+        {noShowRate !== null && noShowRate > 0 && (
+          <p className="text-xs text-gray-500 mt-1">
+            À ce taux, une visite de 15 places pourrait en proposer environ{" "}
+            {Math.round(15 / (1 - noShowRate / 100))} pour partir complète.
+          </p>
+        )}
+
+        {open && (
+          <div className="mt-3 overflow-x-auto">
+            <table className={tableCls()}>
+              <thead>
+                <tr>
+                  <th className={thCls()}>Visite</th>
+                  <th className={thCls()}>Date</th>
+                  <th className={thCls()}>Inscrits</th>
+                  <th className={thCls()}>Présents</th>
+                  <th className={thCls()}>Absents</th>
+                  <th className={thCls()}>Non pointés</th>
+                  <th className={thCls()}>File</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stats.tours.map((t) => (
+                  <tr key={t.tourId}>
+                    <td className={tdCls()}>{t.title}</td>
+                    <td className={tdCls()}>{new Date(t.date).toLocaleDateString("fr-FR")}</td>
+                    <td className={tdCls()}>
+                      {t.seatsTaken}/{t.capacity + t.overbookingSeats}
+                    </td>
+                    <td className={tdCls()}>{t.present}</td>
+                    <td className={tdCls()}>{t.absent}</td>
+                    <td className={tdCls()}>{t.unmarked}</td>
+                    <td className={tdCls()}>{t.waitlistPlaces}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function toLocalInput(iso: string): string {
   const d = new Date(iso);
   const pad = (n: number) => String(n).padStart(2, "0");

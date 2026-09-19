@@ -1,6 +1,6 @@
 // Page publique: /reservations — Listing visites guidées + inscription
 import { useEffect, useMemo, useState } from "react";
-import { Tour } from "../types/visitTypes";
+import { Tour, bookableCapacity } from "../types/visitTypes";
 import { VisitLayout } from "@/components/VisitLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { TourRegistrationForm } from "@/components/TourRegistrationForm";
@@ -144,7 +144,12 @@ function TourCard({ tour, onClick }: { tour: Tour; onClick: () => void }) {
           <p className="text-sm font-semibold text-green-700">Départ donné — inscription close</p>
         ) : (
           <p className={`text-sm ${isFull ? "font-semibold text-red-600" : "text-gray-600"}`}>
-            Places : {placesLeft}/{tour.capacity}
+            Places : {placesLeft}/{bookableCapacity(tour)}
+          </p>
+        )}
+        {!started && (tour.waitlistCount ?? 0) > 0 && (
+          <p className="text-sm text-amber-700">
+            {tour.waitlistCount} personne{(tour.waitlistCount ?? 0) > 1 ? "s" : ""} en liste d'attente
           </p>
         )}
         {(tour.labels?.length ?? 0) > 0 && (
@@ -239,14 +244,26 @@ function TourDetail({
         ) : placesLeft <= 0 ? (
           <>
             <div className="mb-6 p-3 rounded-lg bg-amber-100 border-2 border-amber-400 font-bold text-amber-900">
-              Visite complète ({tour.capacity}/{tour.capacity}) — rejoignez la liste d'attente ci-dessous
+              Visite complète ({bookableCapacity(tour)}/{bookableCapacity(tour)}) — rejoignez la liste
+              d'attente ci-dessous
+              {(tour.waitlistCount ?? 0) > 0 && (
+                <span className="block font-normal mt-1">
+                  {tour.waitlistCount} personne{(tour.waitlistCount ?? 0) > 1 ? "s" : ""} attendent déjà
+                  qu'une place se libère.
+                </span>
+              )}
             </div>
             <TourRegistrationForm tour={tour} placesLeft={placesLeft} />
           </>
         ) : (
           <>
             <div className="mb-6 p-3 rounded-lg bg-[#fff6ef] border border-[#ffd9c4] font-bold text-[#e8693a]">
-              Places restantes : {placesLeft}/{tour.capacity}
+              Places restantes : {placesLeft}/{bookableCapacity(tour)}
+              {(tour.waitlistCount ?? 0) > 0 && (
+                <span className="block font-normal text-amber-700 mt-1">
+                  {tour.waitlistCount} personne{(tour.waitlistCount ?? 0) > 1 ? "s" : ""} en liste d'attente.
+                </span>
+              )}
             </div>
             <TourRegistrationForm tour={tour} placesLeft={placesLeft} />
           </>
