@@ -79,6 +79,7 @@ export default function GuideDashboard({
   registrationCounts,
   waitlistCounts,
   aggregationStats,
+  multiVisitTourCounts,
   onSelectTour,
   onCreateTour,
 }: {
@@ -86,6 +87,8 @@ export default function GuideDashboard({
   registrationCounts: Record<string, number>;
   waitlistCounts: Record<string, number>;
   aggregationStats?: VisitAggregationStats | null;
+  /** Badge « multi » par visite, calculé sur tout le programme (indépendant du filtre). */
+  multiVisitTourCounts?: Record<string, number>;
   onSelectTour: (tourId: string) => void;
   onCreateTour: () => void;
 }) {
@@ -143,7 +146,10 @@ export default function GuideDashboard({
     const filled = registrationCounts[tour.id] || 0;
     const remaining = tour.placesLeft ?? (tour.capacity - filled);
     const waitlist = waitlistCounts[tour.id] || 0;
-    const multiTourCount = aggregationStats?.multiVisitTourCounts[tour.id] || 0;
+    // Le badge suit la fiche de la visite, qui compte les visites de la personne
+    // sur tout le programme : filtré, il oubliait un inscrit suivant aussi la
+    // visite d'un autre guide.
+    const multiTourCount = (multiVisitTourCounts ?? aggregationStats?.multiVisitTourCounts)?.[tour.id] || 0;
     const status = tourStatus(tour, now);
     return { tour, filled, remaining, waitlist, multiTourCount, status };
   };

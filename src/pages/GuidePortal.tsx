@@ -303,6 +303,7 @@ export default function GuidePortal() {
           registrationCounts={registrationCounts}
           waitlistCounts={waitlistCounts}
           aggregationStats={aggregationStats}
+          multiVisitTourCounts={globalAggregation.multiVisitTourCounts}
           onSelectTour={setSelectedTourId}
           onCreateTour={() => setCreating(true)}
         />
