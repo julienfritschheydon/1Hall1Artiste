@@ -7,6 +7,7 @@
 import { VercelRequest, VercelResponse } from "@vercel/node";
 import {
   rtdbRegistrationsListByDateRange,
+  rtdbRegistrationsListByTourDay,
   rtdbRegistrationUpdate,
   rtdbToursCompleted,
   rtdbTourUpdate,
@@ -148,11 +149,11 @@ async function sendReminderEmails7d(): Promise<{ sent: number; failed: number }>
   const now = new Date();
   const sevenDaysLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-  // Query registrations with visite 7d from now (±1h window)
-  const startDate = new Date(sevenDaysLater.getTime() - 60 * 60 * 1000);
-  const endDate = new Date(sevenDaysLater.getTime() + 60 * 60 * 1000);
-
-  const registrations = await rtdbRegistrationsListByDateRange(startDate, endDate);
+  // Toutes les visites du JOUR J+7 (heure de Paris), quelle que soit l'heure de
+  // départ. L'ancienne fenêtre de ±1h autour de l'instant J+7 ne pouvait jamais
+  // matcher : le cron tourne à 04:00 UTC, elle ne couvrait donc que les visites
+  // démarrant entre 03:00 et 05:00 UTC.
+  const registrations = await rtdbRegistrationsListByTourDay(sevenDaysLater);
 
   let sent = 0,
     failed = 0;
@@ -201,11 +202,8 @@ async function sendValidationEmails1d(): Promise<{ sent: number; autocancelled: 
   const now = new Date();
   const oneDayLater = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
-  // Query registrations with visite 1d from now (±1h window)
-  const startDate = new Date(oneDayLater.getTime() - 60 * 60 * 1000);
-  const endDate = new Date(oneDayLater.getTime() + 60 * 60 * 1000);
-
-  const registrations = await rtdbRegistrationsListByDateRange(startDate, endDate);
+  // Toutes les visites du JOUR J+1 (heure de Paris) — même raison qu'au J-7.
+  const registrations = await rtdbRegistrationsListByTourDay(oneDayLater);
 
   let sent = 0,
     autocancelled = 0;
