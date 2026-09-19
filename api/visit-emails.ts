@@ -33,12 +33,64 @@ const QUOTA_WARNING_THRESHOLD = 50;
 
 let quotaWarningAlertSent = false;
 
+/**
+ * ID de template EmailJS pour un type d'email, avec repli.
+ *
+ * Tous les types partagent exactement les mêmes `template_params`
+ * (`to_email`, `subject`, `message`, `firstName`) : le sujet et le corps sont
+ * construits dans `buildVisitEmail`, le template EmailJS n'affiche que
+ * `{{subject}}` / `{{{message}}}`. Les templates sont donc interchangeables, et
+ * un type sans entrée dédiée peut réutiliser n'importe quel autre ID configuré
+ * plutôt que d'échouer.
+ *
+ * Sans ce repli, ajouter un type d'email exigeait de créer un template EmailJS
+ * ET d'éditer `VISIT_EMAILJS_TEMPLATE_IDS` avant tout envoi : jusque-là le job
+ * tournait en passant `template_id: undefined`, et chaque envoi échouait.
+ *
+ * Retourne `undefined` seulement si AUCUN ID n'est configuré — l'appelant
+ * traite alors l'envoi comme un échec, comme avant.
+ */
+export function resolveTemplateId(type: string): string | undefined {
+  let ids: Record<string, unknown>;
+  try {
+    ids = JSON.parse(process.env.VISIT_EMAILJS_TEMPLATE_IDS || "{}");
+  } catch {
+    console.error("[visit-emails] VISIT_EMAILJS_TEMPLATE_IDS n'est pas un JSON valide");
+    return undefined;
+  }
+  if (!ids || typeof ids !== "object") return undefined;
+
+  const own = ids[type];
+  if (typeof own === "string" && own) return own;
+
+  // Repli : n'importe quel autre ID configuré rend le même email.
+  const fallback = Object.entries(ids).find(([, v]) => typeof v === "string" && v);
+  if (fallback) {
+    console.warn(
+      `[visit-emails] Pas de template configuré pour « ${type} » — repli sur « ${fallback[0]} » ` +
+        `(les templates sont interchangeables, seuls subject/message varient).`
+    );
+    return fallback[1] as string;
+  }
+  return undefined;
+}
+
 // Q1, Q2: Send email with idempotency key + retry
 async function sendEmailWithRetry(
-  templateId: string,
+  templateId: string | undefined,
   data: Record<string, any>,
   idempotencyKey: string
 ): Promise<boolean> {
+  // Aucun template configuré : on échoue tout de suite avec un message lisible.
+  // Avant, un `templateId` absent partait tel quel chez EmailJS, qui répondait
+  // une erreur opaque après 3 tentatives.
+  if (!templateId) {
+    console.error(
+      `[visit-emails] Aucun template EmailJS configuré (type « ${data.type} ») — ` +
+        `renseigner VISIT_EMAILJS_TEMPLATE_IDS.`
+    );
+    return false;
+  }
   // Build subject + body in code (EmailJS can't compare {{#if type}}). Template = {{subject}}/{{message}}.
   const built = buildVisitEmail(data.type, data);
   const emailjsData = {
@@ -169,7 +221,7 @@ async function sendReminderEmails7d(): Promise<{ sent: number; failed: number }>
 
     const idempotencyKey = `${reg.id}_7d_reminder`;
     const success = await sendEmailWithRetry(
-      JSON.parse(process.env.VISIT_EMAILJS_TEMPLATE_IDS || "{}").reminder_7d,
+      resolveTemplateId("reminder_7d"),
       {
         to: reg.email,
         firstName: reg.firstName,
@@ -226,7 +278,7 @@ async function sendReminderEmails3h(): Promise<{ sent: number; failed: number }>
 
     const idempotencyKey = `${reg.id}_3h_reminder`;
     const success = await sendEmailWithRetry(
-      JSON.parse(process.env.VISIT_EMAILJS_TEMPLATE_IDS || "{}").reminder_3h,
+      resolveTemplateId("reminder_3h"),
       {
         to: reg.email,
         firstName: reg.firstName,
@@ -280,7 +332,7 @@ async function sendValidationEmails1d(): Promise<{ sent: number; autocancelled: 
 
     const idempotencyKey = `${reg.id}_1d_validation`;
     const success = await sendEmailWithRetry(
-      JSON.parse(process.env.VISIT_EMAILJS_TEMPLATE_IDS || "{}").reminder_1d_validate,
+      resolveTemplateId("reminder_1d_validate"),
       {
         to: reg.email,
         firstName: reg.firstName,
@@ -437,7 +489,7 @@ async function promoteFromWaitlist(): Promise<{ promoted: number; rejected: numb
         rejected++;
 
         const success = await sendEmailWithRetry(
-          JSON.parse(process.env.VISIT_EMAILJS_TEMPLATE_IDS || "{}").waitlist_offer_expired,
+          resolveTemplateId("waitlist_offer_expired"),
           {
             to: wait.email,
             firstName: wait.firstName,
@@ -502,7 +554,7 @@ async function promoteFromWaitlist(): Promise<{ promoted: number; rejected: numb
       freeSlots -= need;
 
       const success = await sendEmailWithRetry(
-        JSON.parse(process.env.VISIT_EMAILJS_TEMPLATE_IDS || "{}").waitlist_offer,
+        resolveTemplateId("waitlist_offer"),
         {
           to: next.email,
           firstName: next.firstName,

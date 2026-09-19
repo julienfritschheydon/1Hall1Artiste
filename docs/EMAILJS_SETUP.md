@@ -1,5 +1,17 @@
 # EmailJS Configuration
 
+> **À jour du code** : les conditions `{{#if type "…"}}` décrites plus bas ne
+> fonctionnent pas (Handlebars ne compare pas deux valeurs). Le sujet et le corps
+> HTML sont construits dans [api/_visit-email.ts](../api/_visit-email.ts), et le
+> template EmailJS n'affiche plus que `{{subject}}` et `{{{message}}}` (triple
+> accolade = HTML non échappé, pour des liens cliquables). Les seuls
+> `template_params` envoyés sont `to_email`, `subject`, `message`, `firstName`,
+> **identiques pour tous les types d'email** : les templates sont donc
+> interchangeables, et `resolveTemplateId()` retombe sur n'importe quel ID
+> configuré quand un type n'a pas d'entrée dédiée dans
+> `VISIT_EMAILJS_TEMPLATE_IDS`. La section « Required Variables » ci-dessous est
+> conservée à titre historique.
+
 ## Template: Visites Notifications
 
 **Template ID**: From VISIT_EMAILJS_TEMPLATE_IDS.confirmation
