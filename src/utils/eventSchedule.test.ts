@@ -6,6 +6,7 @@ import {
   currentFestivalDay,
   eventStatus,
   absentDayLabel,
+  eventStatusToday,
 } from "@/utils/eventSchedule";
 
 function evt(partial: Partial<Event>): Event {
@@ -97,6 +98,27 @@ describe("eventStatus", () => {
     expect(eventStatus(expo, "samedi", saturdayAt(15))).toBe("ongoing");
     expect(eventStatus(expo, "samedi", saturdayAt(19, 30))).toBe("past");
     expect(eventStatus(expo, "samedi", saturdayAt(10))).toBe("upcoming");
+  });
+});
+
+describe("eventStatusToday", () => {
+  const expo = evt({ type: "exposition", time: "12h00 - 19h00, samedi et dimanche" });
+
+  it("annonce « Demain » plutôt que « Terminé » quand l'expo rouvre dimanche", () => {
+    expect(eventStatusToday(expo, saturdayAt(21, 26))).toBe("tomorrow");
+  });
+
+  it("annonce « Demain » pour un artiste présent seulement dimanche", () => {
+    expect(eventStatusToday(evt({ days: ["dimanche"] }), saturdayAt(15))).toBe("tomorrow");
+  });
+
+  it("garde « Terminé » quand l'événement ne revient pas", () => {
+    expect(eventStatusToday(evt({ days: ["samedi"] }), saturdayAt(16))).toBe("past");
+    expect(eventStatusToday(expo, sundayAt(20))).toBe("past");
+  });
+
+  it("n'écrase pas un créneau en cours", () => {
+    expect(eventStatusToday(expo, saturdayAt(15))).toBe("ongoing");
   });
 });
 

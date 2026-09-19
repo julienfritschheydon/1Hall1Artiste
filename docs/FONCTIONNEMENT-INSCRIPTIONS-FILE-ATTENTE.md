@@ -168,10 +168,23 @@ expiré). B en file d'attente position #1, aucune offre envoyée. C tente de s'i
    (`?type=send-3h-reminder`), avec le même `CRON_SECRET` que les crons Vercel. GitHub décale
    parfois les runs planifiés de plusieurs minutes : tout job déclenché ainsi doit donc avoir
    une fenêtre de sélection tolérante et un flag d'idempotence (ici `reminder3hSent`).
-5. **Le token de validation/invitation porte sa propre expiration** (signée, dans le payload) —
+5. **Sélectionner les visites par JOUR, pas par fenêtre horaire, dans un job quotidien.**
+   Les rappels J-7 et J-1 cherchaient les visites dans une fenêtre de ±1h autour de l'instant
+   J+7 / J+1. Comme le cron ne tourne qu'une fois par jour (04:00 UTC), cette fenêtre ne
+   couvrait que les visites démarrant entre 03:00 et 05:00 UTC — 05h-07h à Paris l'été. Une
+   visite l'après-midi n'était jamais sélectionnée : **aucun rappel ne partait, pour personne**,
+   et comme `validation1dSent` n'était jamais posé, l'auto-annulation des non-répondants ne se
+   déclenchait jamais non plus (places d'absents jamais rendues à la file d'attente).
+   Ces deux jobs utilisent désormais `rtdbRegistrationsListByTourDay()`, qui compare les jours
+   calendaires **en heure de Paris** (`parisDayKey`). Règle générale : la fenêtre de sélection
+   d'un job doit être au moins aussi large que son intervalle d'exécution — c'est pourquoi le
+   rappel 3h, lui, garde une fenêtre horaire : il tourne toutes les heures (règle 4).
+   `rtdbRegistrationsListByDateRange()` reste réservée à ces jobs-là et au balayage
+   d'auto-annulation, qui porte sur 8 jours.
+6. **Le token de validation/invitation porte sa propre expiration** (signée, dans le payload) —
    il expire indépendamment du statut DB. Ne jamais se fier uniquement au statut DB pour rejeter
    un lien expiré ; `verifyRegistrationToken` doit toujours être appelé en premier.
-6. **La règle 2 (toujours appeler `promoteWaitlist`) s'applique à TOUT point d'entrée qui libère
+7. **La règle 2 (toujours appeler `promoteWaitlist`) s'applique à TOUT point d'entrée qui libère
    une place, pas seulement l'annulation/expiration côté inscription** (bugs corrigés) :
    - `DELETE /api/visit-waitlist` ([api/visit-waitlist.ts](../api/visit-waitlist.ts)) — annuler
      sa propre file d'attente alors qu'on a déjà une offre active libère cette place ; il faut
@@ -180,7 +193,7 @@ expiré). B en file d'attente position #1, aucune offre envoyée. C tente de s'i
      supprimer les données d'une personne qui occupait une place (confirmée, en attente de
      validation non expirée, ou avec une offre active) doit promouvoir la file d'attente du/des
      tour(s) concerné(s), pas juste soft-delete silencieusement.
-7. **Toute entrée en file d'attente, même SANS offre envoyée, réserve sa place — pas de saut de
+8. **Toute entrée en file d'attente, même SANS offre envoyée, réserve sa place — pas de saut de
    rang.** `hasSpace` (inscription d'un nouvel arrivant) compte
    `registeredPlaces + rtdbCountWaitlistedPlaces` où `rtdbCountWaitlistedPlaces`
    ([api/_visit-db.ts](../api/_visit-db.ts)) additionne `placesOf` de TOUTE entrée waitlist non
