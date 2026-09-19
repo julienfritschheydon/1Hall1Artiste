@@ -5,6 +5,7 @@ import { createLogger } from "@/utils/logger";
 import { validateEvent, validateLocation, formatValidationErrors } from "@/services/validationService";
 import { loadProgram, getCachedProgram, RemoteProgram } from "@/services/remoteContentService";
 import { REMOTE_REFRESH_INTERVAL_MS } from "@/config/remoteContent";
+import { filterHiddenEvents, hideEvent } from "@/config/hiddenEvents";
 
 // Créer un logger pour le service de données
 const logger = createLogger('DataService');
@@ -38,7 +39,8 @@ class DataService {
 
   private constructor() {
     logger.info('Initialisation du service de données');
-    this.state = this.loadFromLocalStorage() || initialState;
+    const loaded = this.loadFromLocalStorage() || initialState;
+    this.state = { ...loaded, events: filterHiddenEvents(loaded.events) };
 
     // Hydratation immédiate depuis le cache du programme distant (synchrone),
     // puis fetch asynchrone pour appliquer la dernière version au runtime.
@@ -61,10 +63,14 @@ class DataService {
   // Applique un programme distant (depuis Sheets) en remplaçant events + artists.
   // Les locations restent inchangées (gérées en TS).
   private applyRemoteProgram(program: RemoteProgram, opts: { silent?: boolean } = {}): void {
+    // Les événements retirés de la programmation ne doivent pas réapparaître au
+    // prochain refresh du Sheet : on refiltre à chaque application.
+    const events = filterHiddenEvents(program.events);
+    const keptArtistIds = new Set(events.map(event => event.artistId));
     const newState: DataState = {
       ...this.state,
-      events: program.events,
-      artists: program.artists,
+      events,
+      artists: program.artists.filter(artist => keptArtistIds.has(artist.id)),
       remoteApplied: true,
       error: null,
     };
@@ -268,10 +274,17 @@ class DataService {
 
   public removeEvent(eventId: string): void {
     logger.info(`Suppression de l'événement ${eventId}`);
-    
+
+    // Persiste la suppression pour qu'elle résiste au refresh du programme distant.
+    hideEvent(eventId);
+
+    const events = this.state.events.filter(event => event.id !== eventId);
+    const keptArtistIds = new Set(events.map(event => event.artistId));
+
     this.setState({
       ...this.state,
-      events: this.state.events.filter(event => event.id !== eventId)
+      events,
+      artists: this.state.artists.filter(artist => keptArtistIds.has(artist.id))
     });
   }
 
