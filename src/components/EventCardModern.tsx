@@ -9,6 +9,7 @@ import Bookmark from "lucide-react/dist/esm/icons/bookmark";
 import BookmarkCheck from "lucide-react/dist/esm/icons/bookmark-check";
 import { EventImage } from "@/components/EventImage";
 import { getBackgroundFallback } from "@/utils/backgroundUtils";
+import { EVENT_STATUS_LABELS, type EventTimeStatus } from "@/utils/eventSchedule";
 
 export interface EventCardModernProps {
   event: Event;
@@ -18,6 +19,10 @@ export interface EventCardModernProps {
   showImage?: boolean;
   priority?: boolean;
   cardIndex?: number;
+  /** État temporel calculé par la page (cf. utils/eventSchedule). */
+  timeStatus?: EventTimeStatus;
+  /** « Samedi uniquement » / « Dimanche uniquement », le cas échéant. */
+  absentDayLabel?: string | null;
 }
 
 export const EventCardModern: React.FC<EventCardModernProps> = ({ 
@@ -27,7 +32,9 @@ export const EventCardModern: React.FC<EventCardModernProps> = ({
   onSaveClick,
   showImage = true,
   priority = false,
-  cardIndex
+  cardIndex,
+  timeStatus = "unknown",
+  absentDayLabel = null,
 }) => {
   // Les hooks doivent être appelés avant tout return conditionnel.
   const [isLiked, setIsLiked] = React.useState(false);
@@ -66,9 +73,25 @@ export const EventCardModern: React.FC<EventCardModernProps> = ({
     };
   };
 
+  // Un créneau passé reste lisible et cliquable — la fiche de l'artiste garde
+  // son intérêt une fois le concert fini — mais s'efface visuellement.
+  const isPast = timeStatus === "past";
+  const statusLabel =
+    timeStatus === "ongoing" || timeStatus === "upcoming" || timeStatus === "past"
+      ? EVENT_STATUS_LABELS[timeStatus]
+      : null;
+  const statusClass =
+    timeStatus === "ongoing"
+      ? "bg-green-100 text-green-700"
+      : timeStatus === "upcoming"
+      ? "bg-amber-100 text-amber-800"
+      : "bg-gray-200 text-gray-600";
+
   return (
     <Card 
-      className="card-modern cursor-pointer border-0 shadow-lg grid grid-cols-[96px_1fr] md:grid-cols-[128px_1fr]"
+      className={`card-modern cursor-pointer border-0 shadow-lg grid grid-cols-[96px_1fr] md:grid-cols-[128px_1fr] ${
+        isPast ? "opacity-60" : ""
+      }`}
       style={getEventBackgroundStyle()}
       onClick={onEventClick}
     >
@@ -98,6 +121,20 @@ export const EventCardModern: React.FC<EventCardModernProps> = ({
               <p className="text-sm text-[#1a2138] mt-1 font-medium">
                 {event.title}
               </p>
+            )}
+            {(statusLabel || absentDayLabel) && (
+              <div className="flex flex-wrap gap-1.5 mt-1.5">
+                {statusLabel && (
+                  <span className={`text-[11px] font-bold uppercase px-2 py-0.5 rounded-full ${statusClass}`}>
+                    {statusLabel}
+                  </span>
+                )}
+                {absentDayLabel && (
+                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[#f1ede2] text-[#5b5340]">
+                    {absentDayLabel}
+                  </span>
+                )}
+              </div>
             )}
           </div>
           <div className="flex items-center gap-2 ml-2 flex-shrink-0">
