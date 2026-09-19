@@ -25,10 +25,14 @@ function calcStats(
   aggregationStats?: VisitAggregationStats | null
 ): GuideDashboardStats {
   const totalTours = tours.length;
-  const totalRegistrations = Object.values(registrationCounts).reduce((s, n) => s + n, 0);
+  // Les compteurs sont indexés par visite et couvrent tout le programme, alors
+  // que `tours` peut être filtré (bouton « Animé par »). Sommer les Object.values
+  // mélangeait les inscrits de toutes les visites avec la capacité des seules
+  // visites affichées — d'où un remplissage supérieur à 100 %.
+  const totalRegistrations = tours.reduce((s, t) => s + (registrationCounts[t.id] || 0), 0);
   const totalCapacity = tours.reduce((s, t) => s + t.capacity, 0);
   const averageFillRate = totalCapacity > 0 ? Math.round((totalRegistrations / totalCapacity) * 100) : 0;
-  const totalWaitlist = Object.values(waitlistCounts).reduce((s, n) => s + n, 0);
+  const totalWaitlist = tours.reduce((s, t) => s + (waitlistCounts[t.id] || 0), 0);
   const atRiskCount = tours.filter((t) => {
     const filled = registrationCounts[t.id] || 0;
     const remaining = t.capacity - filled;

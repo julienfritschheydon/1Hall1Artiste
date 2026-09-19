@@ -68,6 +68,28 @@ describe("GuideDashboard", () => {
     emptyToursCount: 1,
   };
 
+  it("n'additionne que les visites affichées quand le filtre « Animé par » est actif", () => {
+    // Les compteurs couvrent tout le programme ; seule la première visite est
+    // affichée. Sommer toutes les valeurs donnait un remplissage > 100 %.
+    render(
+      <GuideDashboard
+        tours={[dummyTours[0]]}
+        registrationCounts={{ "tour-empty": 3, "tour-hors-filtre": 176 }}
+        waitlistCounts={{ "tour-empty": 1, "tour-hors-filtre": 11 }}
+        aggregationStats={aggregationStats}
+        onSelectTour={vi.fn()}
+        onCreateTour={vi.fn()}
+      />
+    );
+
+    // 3 inscrits sur 15 places = 20 %, et non (3 + 176) / 15.
+    expect(screen.getByText("20%")).toBeInTheDocument();
+    expect(screen.getByText("15 places totales")).toBeInTheDocument();
+    // Ni les inscrits ni la file d'attente des autres visites n'apparaissent.
+    expect(screen.queryByText("179")).not.toBeInTheDocument();
+    expect(screen.queryByText("12")).not.toBeInTheDocument();
+  });
+
   it("affiche le badge 'Aucun inscrit' pour la visite sans participants", () => {
     render(
       <GuideDashboard
