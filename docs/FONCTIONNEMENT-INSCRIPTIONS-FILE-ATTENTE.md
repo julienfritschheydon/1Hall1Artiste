@@ -262,3 +262,32 @@ chacun de ces comportements) :
     refuse les inscriptions `annulé`/supprimées ; le GET ne renvoie que les inscriptions occupant
     une place, sans `validationToken`.
 12. **Heures d'email** : `formatDate` force `timeZone: "Europe/Paris"` (les fonctions tournent en UTC).
+
+
+## Recherche d'un inscrit (portail guide)
+
+`GET /api/visit-register?action=search&q=<terme>`, en-tête `x-guide-code` obligatoire.
+
+Le portail n'offrait qu'une entrée **par visite**. Retrouver quelqu'un qui appelle
+(« je ne retrouve plus mon inscription », « je voudrais annuler ») imposait d'exporter le CSV
+et de le fouiller — et ce CSV **omet les inscriptions annulées**, justement le cas où l'on cherche.
+
+- **Correspondance partielle** sur email, prénom, nom, « prénom nom » et « nom prénom ».
+  `normalizeSearchText()` retire les accents et la casse : sans ça, « lea » ne trouve pas « Léa »
+  et le guide conclut à tort que l'inscription n'existe pas.
+- **Tous les statuts**, annulées comprises ; seuls les documents `deletedAt` (purge RGPD) sont exclus.
+- **File d'attente incluse**, avec la position et l'état de l'offre.
+- **Groupé par personne** (email en minuscules), une entrée par visite avec son détail.
+- **Aucun jeton dans la réponse** : les champs sont listés un à un côté serveur. Un spread de
+  l'objet brut ferait fuiter `validationToken` / `invitationToken` jusque dans le navigateur —
+  c'est vérifié par un test.
+- Filtrage **en mémoire** : Firebase RTDB ne sait pas faire de recherche partielle. Sans
+  conséquence à l'échelle du projet, comme les autres listings.
+- Résultats plafonnés (50 personnes), avec un `truncated: true` pour le signaler.
+
+Les actions proposées sur le résultat réutilisent les endpoints existants — aucune logique
+métier dupliquée : `?action=cancel` pour annuler, `POST /api/visit-attendance` pour pointer,
+`DELETE /api/visit-waitlist` pour retirer de la file.
+
+**La route est multiplexée dans `visit-register.ts`** et non dans un fichier dédié : le plan
+Hobby plafonne à 12 fonctions serverless et le projet y est exactement (voir règle 4).

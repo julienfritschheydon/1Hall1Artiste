@@ -26,12 +26,14 @@ import {
   rtdbRegistrationErase,
   rtdbAuditLog,
   rtdbGuideCodeValidate,
+  rtdbRegistrationsSearch,
+  rtdbWaitlistSearch,
   rtdbWaitlistUpdate,
 } from "./_visit-db.js";
 import { rtdbGet } from "./_firebase.js";
 import { buildVisitEmail, VisitEmailType } from "./_visit-email.js";
 import { createRegistrationToken, verifyRegistrationToken } from "./_token.js";
-import { placesOf, bookableCapacity } from "../src/types/visitTypes.js";
+import { placesOf, bookableCapacity, type Tour } from "../src/types/visitTypes.js";
 import { buildIcs, googleCalendarUrl } from "./_ics.js";
 import { rateLimited, clientIp, REGISTER_RULE, GDPR_RULE } from "./_rate-limit.js";
 import { withTourLock } from "./_tour-lock.js";
@@ -714,6 +716,127 @@ async function handleGdprConfirm(req: VercelRequest, res: VercelResponse) {
   }
 }
 
+// ==== GET ?action=search&q=… — recherche d'un inscrit par nom ou email (guides) ====
+//
+// Le portail guide n'offrait qu'une entrée PAR VISITE. Quand quelqu'un appelle
+// (« je ne retrouve plus mon inscription », « je voudrais annuler »), il fallait
+// exporter le CSV et le fouiller — et le CSV omet les annulées, justement le cas
+// où l'on cherche.
+//
+// Renvoie inscriptions ET file d'attente, tous statuts confondus, groupées par
+// personne, avec le détail de chaque visite et les identifiants nécessaires aux
+// actions (annuler, pointer, retirer de la file).
+const SEARCH_MIN_LENGTH = 2;
+const SEARCH_MAX_PEOPLE = 50;
+
+async function handleSearchRegistrants(req: VercelRequest, res: VercelResponse) {
+  // Données personnelles : réservé aux guides authentifiés.
+  const guideCode = req.headers["x-guide-code"] as string | undefined;
+  if (!guideCode || !(await rtdbGuideCodeValidate(guideCode))) {
+    return res.status(401).json({ error: "Code guide requis (en-tête x-guide-code)" });
+  }
+
+  const raw = typeof req.query.q === "string" ? req.query.q.trim() : "";
+  if (raw.length < SEARCH_MIN_LENGTH) {
+    return res
+      .status(400)
+      .json({ error: `Saisir au moins ${SEARCH_MIN_LENGTH} caractères`, code: "query_too_short" });
+  }
+
+  try {
+    const [registrations, waitlist] = await Promise.all([
+      rtdbRegistrationsSearch(raw),
+      rtdbWaitlistSearch(raw),
+    ]);
+
+    // Une seule lecture par visite, même si la personne y est plusieurs fois.
+    const tourCache = new Map<string, Tour | null>();
+    const tourOf = async (tourId: string) => {
+      if (!tourCache.has(tourId)) tourCache.set(tourId, await rtdbTourGet(tourId));
+      return tourCache.get(tourId) ?? null;
+    };
+    const tourSummary = (tour: Tour | null) =>
+      tour
+        ? {
+            id: tour.id,
+            title: tour.title,
+            date: tour.date,
+            startLocationName: tour.startLocationName,
+            status: tour.status,
+          }
+        : null;
+
+    // Groupement par personne : l'email (en minuscules) fait l'identité.
+    type Person = {
+      email: string;
+      firstName: string;
+      lastName: string;
+      registrations: unknown[];
+      waitlist: unknown[];
+    };
+    const people = new Map<string, Person>();
+    const personFor = (p: { email: string; firstName: string; lastName: string }) => {
+      const key = p.email.toLowerCase();
+      let entry = people.get(key);
+      if (!entry) {
+        entry = { email: p.email, firstName: p.firstName, lastName: p.lastName, registrations: [], waitlist: [] };
+        people.set(key, entry);
+      }
+      return entry;
+    };
+
+    for (const reg of registrations) {
+      // Aucun jeton n'est recopié : les champs sont listés un à un, jamais
+      // l'objet brut. Un spread exposerait validationToken côté navigateur.
+      personFor(reg).registrations.push({
+        id: reg.id,
+        tour: tourSummary(await tourOf(reg.tourId)),
+        tourId: reg.tourId,
+        status: reg.status,
+        places: placesOf(reg),
+        companions: reg.companions || [],
+        createdAt: reg.createdAt,
+        confirmedAt: reg.confirmedAt,
+        attendedAt: reg.attendedAt,
+        cancelledAt: reg.cancelledAt,
+        reminder7dSent: !!reg.reminder7dSent,
+        reminder3hSent: !!reg.reminder3hSent,
+        validation1dSent: !!reg.validation1dSent,
+      });
+    }
+
+    for (const w of waitlist) {
+      personFor(w).waitlist.push({
+        id: w.id,
+        tour: tourSummary(await tourOf(w.tourId)),
+        tourId: w.tourId,
+        position: w.position,
+        places: placesOf(w),
+        companions: w.companions || [],
+        createdAt: w.createdAt,
+        // Présence d'une offre, jamais le jeton lui-même.
+        invitationSentAt: w.invitationSentAt,
+        invitationExpiresAt: w.invitationExpiresAt,
+        rejectedAt: w.rejectedAt,
+      });
+    }
+
+    const results = Array.from(people.values()).sort((a, b) =>
+      `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`, "fr")
+    );
+
+    return res.json({
+      ok: true,
+      query: raw,
+      truncated: results.length > SEARCH_MAX_PEOPLE,
+      results: results.slice(0, SEARCH_MAX_PEOPLE),
+    });
+  } catch (e) {
+    console.error("[visit-register] Recherche d'inscrit échouée:", e);
+    return res.status(500).json({ error: "Échec de la recherche" });
+  }
+}
+
 // Main router
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // GET ?action=ics&id=<registrationId> — téléchargement fichier calendrier.
@@ -721,6 +844,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // 12 fonctions serverless, déjà atteint par les endpoints /api existants.
   if (req.method === "GET" && req.query.action === "ics") {
     return handleIcsDownload(req, res);
+  }
+
+  // GET ?action=search&q=… — recherche d'inscrit, réservée aux guides.
+  if (req.method === "GET" && req.query.action === "search") {
+    return handleSearchRegistrants(req, res);
   }
 
   if (req.method !== "POST") {
