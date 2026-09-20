@@ -266,13 +266,21 @@ async function handlePut(req: VercelRequest, res: VercelResponse) {
 
     // Whitelist des champs modifiables — le corps était fusionné tel quel dans
     // le document (id, deletedAt, batchDeleteExecuted… écrasables).
-    const ALLOWED_FIELDS = ["title", "description", "date", "durationMinutes", "capacity", "overbookingSeats", "labels", "status"] as const;
+    //
+    // Le créneau (jour + heure de départ) n'en fait PAS partie : c'est le seul
+    // engagement pris auprès des inscrits, qui l'ont noté et mis dans leur
+    // agenda. Le déplacer sans les prévenir les enverrait devant une porte
+    // close. Une visite à déplacer s'annule et se recrée.
+    const ALLOWED_FIELDS = ["title", "description", "durationMinutes", "capacity", "overbookingSeats", "labels", "status"] as const;
     const updates: Record<string, any> = {};
     for (const field of ALLOWED_FIELDS) {
       if (req.body[field] !== undefined) updates[field] = req.body[field];
     }
     // Le formulaire renvoie tous les champs, touchés ou non : on ne regarde que
     // ceux dont la valeur change réellement (cf. isSameFieldValue).
+    if (req.body.date !== undefined && !isSameFieldValue("date", req.body.date, (tour as any).date)) {
+      return res.status(400).json({ error: "date: not editable" });
+    }
     const fieldChanged = ALLOWED_FIELDS.some(
       (f) => updates[f] !== undefined && !isSameFieldValue(f, updates[f], (tour as any)[f])
     );
@@ -297,18 +305,6 @@ async function handlePut(req: VercelRequest, res: VercelResponse) {
     }
     if (updates.status !== undefined && !["upcoming", "ongoing", "completed"].includes(updates.status)) {
       return res.status(400).json({ error: "status: invalid value" });
-    }
-    if (updates.date !== undefined) {
-      const newDate = new Date(updates.date);
-      if (isNaN(newDate.getTime())) {
-        return res.status(400).json({ error: "date: invalid ISO datetime" });
-      }
-      // « Doit être dans le futur » ne vaut que pour un vrai déplacement : le
-      // formulaire renvoie la date même quand le guide n'y a pas touché, et une
-      // visite qui vient de commencer aurait alors refusé jusqu'à un no-op.
-      if (!isSameFieldValue("date", updates.date, (tour as any).date) && newDate < new Date()) {
-        return res.status(400).json({ error: "date: must be future" });
-      }
     }
     if (updates.capacity !== undefined) {
       if (!Number.isFinite(updates.capacity) || updates.capacity < 1) {

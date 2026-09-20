@@ -1,8 +1,10 @@
 // Édition d'une visite par son guide.
 //
-// La règle est simple : tant que la visite n'a pas démarré, le guide est maître
-// de sa fiche — y compris le jour même, où les ajustements sont les plus utiles.
-// Une fois la visite commencée, plus rien ne bouge.
+// Deux règles :
+// - le créneau (jour + heure de départ) est figé dès la création — c'est le
+//   seul engagement pris auprès des inscrits, qui l'ont mis dans leur agenda ;
+// - tout le reste (intitulé, descriptif, durée, places, surbooking) se modifie
+//   librement tant que la visite n'a pas démarré, le jour même compris.
 //
 // Un gel « J-1 » interdisait auparavant tout changement dans les 24 h précédant
 // le départ. Il bloquait même les corrections de texte : le formulaire renvoie
@@ -170,25 +172,44 @@ describe("édition d'une visite avant son départ", () => {
     expect(getAtPath(`tours/${id}`).description).toBe("Départ devant le Temple du Goût.");
   });
 
-  it("accepte un changement d'horaire quelques heures avant le départ", async () => {
+  it("accepte un changement de capacité et de surbooking le jour même", async () => {
     const id = makeTour();
-    const { status } = await put(id, formBody({ date: "2026-09-19T15:00:00.000Z" }));
-    expect(status).toBe(200);
-    expect(getAtPath(`tours/${id}`).date).toBe("2026-09-19T15:00:00.000Z");
-  });
-
-  it("accepte un changement de capacité quelques heures avant le départ", async () => {
-    const id = makeTour();
-    const { status } = await put(id, formBody({ capacity: 30 }));
+    const { status } = await put(id, formBody({ capacity: 30, overbookingSeats: 5 }));
     expect(status).toBe(200);
     expect(getAtPath(`tours/${id}`).capacity).toBe(30);
+    expect(getAtPath(`tours/${id}`).overbookingSeats).toBe(5);
   });
 
-  it("refuse toujours de déplacer une visite dans le passé", async () => {
+  it("accepte un changement de durée le jour même", async () => {
     const id = makeTour();
-    const { status, body } = await put(id, formBody({ date: "2026-09-18T10:00:00.000Z" }));
+    const { status } = await put(id, formBody({ durationMinutes: 90 }));
+    expect(status).toBe(200);
+    expect(getAtPath(`tours/${id}`).durationMinutes).toBe(90);
+  });
+});
+
+describe("créneau d'une visite", () => {
+  it("refuse un changement d'horaire", async () => {
+    const id = makeTour();
+    const { status, body } = await put(id, formBody({ date: "2026-09-19T15:00:00.000Z" }));
     expect(status).toBe(400);
-    expect(body.error).toBe("date: must be future");
+    expect(body.error).toBe("date: not editable");
+    expect(getAtPath(`tours/${id}`).date).toBe(TOUR_DATE);
+  });
+
+  it("refuse un changement de jour, même accompagné d'une modification légitime", async () => {
+    const id = makeTour();
+    const { status } = await put(id, formBody({ title: "Nouveau titre", date: "2026-09-20T12:00:00.000Z" }));
+    expect(status).toBe(400);
+    // Rien n'est enregistré : la requête est rejetée en bloc.
+    expect(getAtPath(`tours/${id}`).title).toBe("Visite de 14h");
+  });
+
+  it("laisse passer le renvoi du même créneau par le formulaire", async () => {
+    const id = makeTour();
+    const { status } = await put(id, formBody({ title: "Nouveau titre", date: "2026-09-19T12:00:00Z" }));
+    expect(status).toBe(200);
+    expect(getAtPath(`tours/${id}`).title).toBe("Nouveau titre");
   });
 });
 
