@@ -5,6 +5,7 @@
 //   double opt-in ; cet endpoint ne fait plus que rassurer le porteur du lien)
 
 import { VercelRequest, VercelResponse } from "@vercel/node";
+import { alertApiError, sendAdminAlert } from "./_alert-email.js";
 import {
   rtdbTourGet,
   rtdbRegistrationCreate,
@@ -116,8 +117,11 @@ export async function sendRegistrationEmail(
     }
   }
 
-  // Q2: Alert admin if all retries fail
-  const alertError = `EmailJS failed after 3 retries: ${emailType} to ${data.to}. Error: ${lastError}`;
+  // Q2 : alerter l'administrateur quand toutes les tentatives ont échoué.
+  const alertError =
+    `Envoi EmailJS en échec après 3 tentatives : ${emailType} vers ${data.to}.\n` +
+    `Inscription : ${data.registrationId ?? "(inconnue)"}\n` +
+    `Erreur : ${lastError}`;
   console.error(`[visit-register] ${alertError}`);
 
   await rtdbAuditLog("email_failure_alert", {
@@ -128,28 +132,7 @@ export async function sendRegistrationEmail(
     lastError: String(lastError),
   });
 
-  // Send alert to admin
-  try {
-    await fetch("https://api.emailjs.com/api/v1.0/email/send", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        service_id: process.env.EMAILJS_SERVICE_ID,
-        template_id: process.env.EMAILJS_TEMPLATE_ID,
-        user_id: process.env.EMAILJS_PUBLIC_KEY,
-        accessToken: process.env.EMAILJS_PRIVATE_KEY,
-        template_params: {
-          to_email: process.env.VISIT_ALERT_EMAIL,
-          subject: "Doodates Email Failure Alert",
-          message: alertError,
-        },
-      }),
-    });
-  } catch (alertE) {
-    console.error("[visit-register] Failed to send alert to admin:", alertE);
-  }
+  await sendAdminAlert("DooDates — échec d'envoi d'e-mail", alertError);
 }
 
 // Email « c'est confirmé » : détails complets + liens calendrier.
@@ -374,6 +357,7 @@ async function handleCreateRegistration(req: VercelRequest, res: VercelResponse)
     });
   } catch (e) {
     console.error("[visit-register POST]", e);
+    await alertApiError({ route: "visit-register", action: "register", error: e, req });
     return res.status(500).json({ error: "Échec de l'inscription" });
   }
 }
@@ -412,6 +396,7 @@ async function handleIcsDownload(req: VercelRequest, res: VercelResponse) {
     return res.status(200).send(ics);
   } catch (e) {
     console.error("[visit-register ics]", e);
+    await alertApiError({ route: "visit-register", action: "ics", error: e, req });
     return res.status(500).json({ error: "Échec de la génération du fichier calendrier" });
   }
 }
@@ -456,6 +441,7 @@ async function handleConfirmRegistration(req: VercelRequest, res: VercelResponse
     return res.status(400).json({ error: "Cette inscription a déjà été traitée", code: "registration_already_processed", status: registration.status });
   } catch (e) {
     console.error("[visit-register confirm]", e);
+    await alertApiError({ route: "visit-register", action: "confirm", error: e, req });
     return res.status(500).json({ error: "Échec de la confirmation" });
   }
 }
@@ -612,6 +598,7 @@ async function handleCancelRegistration(req: VercelRequest, res: VercelResponse)
     return res.json({ ok: true, message: "Inscription annulée" });
   } catch (e) {
     console.error("[visit-register cancel]", e);
+    await alertApiError({ route: "visit-register", action: "cancel", error: e, req });
     return res.status(500).json({ error: "Échec de l'annulation" });
   }
 }
@@ -649,6 +636,7 @@ async function handleGdprRequest(req: VercelRequest, res: VercelResponse) {
     });
   } catch (e) {
     console.error("[visit-register gdpr request]", e);
+    await alertApiError({ route: "visit-register", action: "gdpr-request", error: e, req });
     return res.status(500).json({ error: "Échec de la demande de suppression" });
   }
 }
@@ -721,6 +709,7 @@ async function handleGdprConfirm(req: VercelRequest, res: VercelResponse) {
     });
   } catch (e) {
     console.error("[visit-register gdpr]", e);
+    await alertApiError({ route: "visit-register", action: "gdpr-confirm", error: e, req });
     return res.status(500).json({ error: "Échec de la suppression des données" });
   }
 }

@@ -13,6 +13,7 @@
 // coercer avec Array.isArray côté lecture, jamais brancher sur « nœud absent ».
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { alertApiError } from "./_alert-email.js";
 import { rtdbGet, rtdbPatch, rtdbDelete } from "./_firebase.js";
 import {
   emailKey,
@@ -48,6 +49,7 @@ async function handleGetTours(email: string, res: VercelResponse) {
     return res.status(200).json({ tours, registrations, waitlist });
   } catch (e) {
     console.error("[favorites GET tours]", e);
+    await alertApiError({ route: "favorites", action: "get-tours", error: e, details: { email } });
     return res.status(500).json({ error: "Échec de la récupération des données" });
   }
 }
@@ -241,6 +243,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Méthode non autorisée" });
   } catch (err) {
     console.error("[favorites] erreur:", err);
+    await alertApiError({ route: "favorites", action: String(req.query?.action || req.method || ""), error: err, req });
     return res.status(500).json({ error: "Erreur serveur" });
   }
 }

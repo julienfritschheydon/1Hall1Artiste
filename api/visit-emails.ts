@@ -6,6 +6,7 @@
 // POST /api/visit-emails?type=promote-waitlist — Auto-promotion file attente
 
 import { VercelRequest, VercelResponse } from "@vercel/node";
+import { alertApiError, sendAdminAlert } from "./_alert-email.js";
 import {
   rtdbRegistrationsListByDateRange,
   rtdbRegistrationsListByTourDay,
@@ -132,12 +133,12 @@ async function sendEmailWithRetry(
         const quotaInt = parseInt(remaining);
         console.log(`[emailjs-quota] ${quotaInt} requests remaining`);
 
-        // Alert admin if quota low (once per cron run)
+        // Alerte l'administrateur si le quota est bas (une fois par run de cron)
         if (quotaInt < QUOTA_WARNING_THRESHOLD && !quotaWarningAlertSent) {
           quotaWarningAlertSent = true;
           await sendAdminAlert(
-            "EmailJS Quota Warning",
-            `Only ${quotaInt} requests remaining. May be insufficient for next batch.`
+            "DooDates — quota EmailJS bas",
+            `Il ne reste que ${quotaInt} envois. Cela peut être insuffisant pour le prochain lot.`
           );
         }
       }
@@ -170,30 +171,6 @@ async function sendEmailWithRetry(
   return false; // All retries failed
 }
 
-// Q2: Send alert to admin
-async function sendAdminAlert(subject: string, message: string): Promise<void> {
-  try {
-    await fetch("https://api.emailjs.com/api/v1.0/email/send", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        service_id: process.env.EMAILJS_SERVICE_ID,
-        template_id: process.env.EMAILJS_TEMPLATE_ID,
-        user_id: process.env.EMAILJS_PUBLIC_KEY,
-        accessToken: process.env.EMAILJS_PRIVATE_KEY,
-        template_params: {
-          to_email: process.env.VISIT_ALERT_EMAIL,
-          subject,
-          message,
-        },
-      }),
-    });
-  } catch (e) {
-    console.error("[visit-emails] Failed to send admin alert:", e);
-  }
-}
 
 // Validate cron auth
 function validateCronAuth(req: VercelRequest): boolean {
@@ -251,7 +228,7 @@ async function sendReminderEmails7d(): Promise<{ sent: number; failed: number; e
   }
 
   if (failed > 0) {
-    await sendAdminAlert("Doodates 7d Reminder Failures", `${failed} reminders failed to send`);
+    await sendAdminAlert("DooDates — échecs de rappel J-7", `${failed} rappel(s) J-7 n'ont pas pu être envoyés.`);
   }
 
   // `examined` distingue « aucune visite ce jour-là » (0 candidat, normal) de
@@ -316,7 +293,7 @@ async function sendReminderEmails3h(): Promise<{ sent: number; failed: number; e
   }
 
   if (failed > 0) {
-    await sendAdminAlert("Doodates 3h Reminder Failures", `${failed} reminders failed to send`);
+    await sendAdminAlert("DooDates — échecs de rappel H-3", `${failed} rappel(s) H-3 n'ont pas pu être envoyés.`);
   }
 
   return { sent, failed, examined: registrations.length };
@@ -625,6 +602,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.json({ ok: true, type, ...result });
   } catch (e) {
     console.error(`[visit-emails] Job ${type} failed:`, e);
+    await alertApiError({ route: "visit-emails", action: String(type || ""), error: e, req });
     return res.status(500).json({ error: "Échec de la tâche", type });
   }
 }

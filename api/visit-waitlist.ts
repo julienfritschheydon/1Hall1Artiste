@@ -5,6 +5,7 @@
 // DELETE /api/visit-waitlist/{id} — annuler file attente (public)
 
 import { VercelRequest, VercelResponse } from "@vercel/node";
+import { alertApiError } from "./_alert-email.js";
 import {
   rtdbWaitlistGet,
   rtdbWaitlistSoftDelete,
@@ -148,6 +149,7 @@ async function handleActivateWaitlist(req: VercelRequest, res: VercelResponse) {
     });
   } catch (e) {
     console.error("[visit-waitlist activate]", e);
+    await alertApiError({ route: "visit-waitlist", action: "activate", error: e, req });
     return res.status(500).json({ error: "Échec de l'activation" });
   }
 }
@@ -256,6 +258,7 @@ async function handleRegisterFromWaitlist(req: VercelRequest, res: VercelRespons
     });
   } catch (e) {
     console.error("[visit-waitlist register]", e);
+    await alertApiError({ route: "visit-waitlist", action: "register", error: e, req });
     return res.status(500).json({ error: "Échec de l'inscription" });
   }
 }
@@ -325,9 +328,10 @@ async function handleDeleteWaitlist(req: VercelRequest, res: VercelResponse) {
       console.error("[visit-waitlist] left email failed:", e);
     }
 
-    return res.json({ ok: true, message: "Cancelled" });
+    return res.json({ ok: true, message: "Inscription annulée" });
   } catch (e) {
     console.error("[visit-waitlist delete]", e);
+    await alertApiError({ route: "visit-waitlist", action: "cancel", error: e, req });
     return res.status(500).json({ error: "Échec de l'annulation" });
   }
 }
@@ -381,6 +385,7 @@ async function handleGetWaitlist(req: VercelRequest, res: VercelResponse) {
     return res.json({ totalInWaitlist: waits.length, positions: anonymized });
   } catch (e) {
     console.error("[visit-waitlist get]", e);
+    await alertApiError({ route: "visit-waitlist", action: "list", error: e, req });
     return res.status(500).json({ error: "Échec du chargement de la liste" });
   }
 }

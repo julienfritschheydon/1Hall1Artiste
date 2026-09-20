@@ -5,6 +5,7 @@
 // n'importe qui créer un code guide — donc lire noms et emails des inscrits.
 
 import { VercelRequest, VercelResponse } from "@vercel/node";
+import { alertApiError } from "./_alert-email.js";
 import { rtdbGuideCodeCreateCustom, rtdbGuideCodeRevoke } from "./_visit-db.js";
 import { isAdminRequest } from "./_admin.js";
 
@@ -38,6 +39,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   } catch (e) {
     console.error("Error creating guide code:", e);
+    await alertApiError({ route: "guide-code-create", action: String(req.query?.action || req.method || ""), error: e, req });
     return res.status(500).json({ error: "Impossible de créer le code guide" });
   }
 }

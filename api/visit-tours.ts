@@ -6,6 +6,7 @@
 // PUT /api/visit-tours?action=guide-names — remplacer cette liste (admin)
 
 import { VercelRequest, VercelResponse } from "@vercel/node";
+import { alertApiError } from "./_alert-email.js";
 import { rtdbTourCreate, rtdbTourGet, rtdbTourUpdate, rtdbToursListFuture, rtdbToursListAll, rtdbGuideCodeValidate, rtdbCountRegisteredByTour, rtdbCountWaitlistedPlaces, rtdbGuideNamesGet, rtdbGuideNamesSet } from "./_visit-db.js";
 import { isAdminRequest } from "./_admin.js";
 import { promoteWaitlist } from "./visit-register.js";
@@ -169,6 +170,7 @@ async function handlePost(req: VercelRequest, res: VercelResponse) {
     return res.status(201).json(tour);
   } catch (e) {
     console.error("[visit-tours POST]", e);
+    await alertApiError({ route: "visit-tours", action: "create", error: e, req });
     return res.status(500).json({ error: "Échec de la création" });
   }
 }
@@ -234,6 +236,7 @@ async function handleGet(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json(enriched);
   } catch (e) {
     console.error("[visit-tours GET]", e);
+    await alertApiError({ route: "visit-tours", action: "list", error: e, req });
     return res.status(500).json({ error: "Échec du chargement de la liste" });
   }
 }
@@ -370,6 +373,7 @@ async function handlePut(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ ok: true, ...(warning ? { warning } : {}) });
   } catch (e) {
     console.error("[visit-tours PUT]", e);
+    await alertApiError({ route: "visit-tours", action: "update", error: e, req });
     return res.status(500).json({ error: "Échec de la mise à jour" });
   }
 }
@@ -400,6 +404,7 @@ async function handleGuideNames(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Méthode non autorisée" });
   } catch (e) {
     console.error("[visit-tours guide-names]", e);
+    await alertApiError({ route: "visit-tours", action: "guide-names", error: e, req });
     return res.status(500).json({ error: "Échec du chargement des noms de guides" });
   }
 }

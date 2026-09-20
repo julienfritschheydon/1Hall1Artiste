@@ -4,6 +4,7 @@
 // DELETE /api/visit-attendance — annuler une inscription (guide)
 
 import { VercelRequest, VercelResponse } from "@vercel/node";
+import { alertApiError } from "./_alert-email.js";
 import {
   rtdbAttendanceUpsert,
   rtdbAttendanceListByTour,
@@ -98,6 +99,7 @@ async function handleMarkAttendance(req: VercelRequest, res: VercelResponse) {
     });
   } catch (e) {
     console.error("[visit-attendance POST]", e);
+    await alertApiError({ route: "visit-attendance", action: "mark-attendance", error: e, req });
     return res.status(500).json({ error: "Échec du pointage" });
   }
 }
@@ -172,6 +174,7 @@ async function handleListAttendance(req: VercelRequest, res: VercelResponse) {
     });
   } catch (e) {
     console.error("[visit-attendance GET]", e);
+    await alertApiError({ route: "visit-attendance", action: "list", error: e, req });
     return res.status(500).json({ error: "Échec du chargement de la liste" });
   }
 }
@@ -207,6 +210,7 @@ async function handleCancelByGuide(req: VercelRequest, res: VercelResponse) {
     return res.json({ ok: true, message: "Inscription annulée" });
   } catch (e) {
     console.error("[visit-attendance cancel]", e);
+    await alertApiError({ route: "visit-attendance", action: "cancel", error: e, req });
     return res.status(500).json({ error: "Échec de l'annulation" });
   }
 }
@@ -251,6 +255,7 @@ async function handleOverview(req: VercelRequest, res: VercelResponse) {
     return res.json({ registrations, waitlistPlaces });
   } catch (e) {
     console.error("[visit-attendance overview]", e);
+    await alertApiError({ route: "visit-attendance", action: "overview", error: e, req });
     return res.status(500).json({ error: "Échec du chargement de la vue d'ensemble" });
   }
 }
@@ -286,6 +291,7 @@ async function handleStats(req: VercelRequest, res: VercelResponse) {
     });
   } catch (e) {
     console.error("[visit-attendance stats]", e);
+    await alertApiError({ route: "visit-attendance", action: "stats", error: e, req });
     return res.status(500).json({ error: "Échec du chargement des statistiques" });
   }
 }

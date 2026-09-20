@@ -3,6 +3,7 @@
 // Les règles RTDB peuvent rester en .write:false ; seul ce endpoint écrit.
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { alertApiError } from "./_alert-email.js";
 import { rtdbPut, rtdbDelete } from "./_firebase.js";
 
 const PATH = "community-photos";
@@ -68,6 +69,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Méthode non autorisée" });
   } catch (err) {
     console.error("[community] erreur:", err);
+    await alertApiError({ route: "community", action: String(req.query?.action || req.method || ""), error: err, req });
     return res.status(500).json({ error: "Échec" });
   }
 }
