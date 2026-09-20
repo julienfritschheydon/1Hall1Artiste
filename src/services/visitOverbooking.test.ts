@@ -307,8 +307,8 @@ describe("bilan conservé au-delà de la purge RGPD", () => {
     setAtPath(`registrations/${present.body.registrationId}/status`, "présent");
     setAtPath(`registrations/${absent.body.registrationId}/status`, "absent");
 
-    // Plus de 24h après la fin de la visite : la purge s'applique.
-    vi.setSystemTime(new Date("2026-08-10T04:00:00.000Z"));
+    // Au-delà du délai de conservation (30 jours) : la purge s'applique.
+    vi.setSystemTime(new Date("2026-09-10T04:00:00.000Z"));
     const res = mockRes();
     await emailsHandler(
       mockReq({
@@ -335,11 +335,55 @@ describe("bilan conservé au-delà de la purge RGPD", () => {
     expect(stats.overbookingSeats).toBe(1);
   });
 
+  it("ne purge pas une visite encore dans le délai de conservation", async () => {
+    // Le délai était de 24 h : les inscrits du samedi étaient effacés alors que
+    // le festival durait encore, et un appel fait le lundi tombait sur une
+    // feuille vide.
+    const tourId = makeTour(5, `tour_garde_${tourCounter}`);
+    const reg = await register(tourId, "encore-la@t.fr");
+
+    // Une semaine après la visite : bien au-delà des anciennes 24 h.
+    vi.setSystemTime(new Date("2026-08-15T04:00:00.000Z"));
+    const res = mockRes();
+    await emailsHandler(
+      mockReq({
+        method: "GET",
+        query: { type: "batch-delete-post-tour" },
+        headers: { authorization: "Bearer test-cron-secret" },
+      }),
+      res
+    );
+
+    expect(jsonOf(res).deletedRegs).toBe(0);
+    expect(getAtPath(`registrations/${reg.body.registrationId}`).email).toBe("encore-la@t.fr");
+  });
+
+  it("survit à tout le week-end du festival", async () => {
+    // Le cas qui motive le changement : la visite du samedi ne doit pas
+    // disparaître pendant que celles du dimanche ont encore lieu.
+    const tourId = makeTour(5, `tour_we_${tourCounter}`);
+    const reg = await register(tourId, "samedi@t.fr");
+
+    // Dimanche soir, festival terminé.
+    vi.setSystemTime(new Date("2026-08-09T20:00:00.000Z"));
+    const res = mockRes();
+    await emailsHandler(
+      mockReq({
+        method: "GET",
+        query: { type: "batch-delete-post-tour" },
+        headers: { authorization: "Bearer test-cron-secret" },
+      }),
+      res
+    );
+
+    expect(getAtPath(`registrations/${reg.body.registrationId}`).email).toBe("samedi@t.fr");
+  });
+
   it("ne conserve aucune donnée personnelle", async () => {
     const tourId = makeTour(3, `tour_stats_rgpd_${tourCounter}`);
     await register(tourId, "prive@t.fr");
 
-    vi.setSystemTime(new Date("2026-08-10T04:00:00.000Z"));
+    vi.setSystemTime(new Date("2026-09-10T04:00:00.000Z"));
     const res = mockRes();
     await emailsHandler(
       mockReq({

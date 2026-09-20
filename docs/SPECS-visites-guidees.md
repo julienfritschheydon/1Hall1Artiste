@@ -159,7 +159,7 @@ Plateforme d'inscription aux visites guidées. Guides gèrent création/inscript
 - Statut (confirmé, absent, etc)
 
 ### Suppression auto
-- **Timing**: 24H après fin visite
+- **Timing**: 30 jours après la fin de la visite (VISIT_RETENTION_DAYS)
 - **Quoi**: Tous inscrits + file attente + logs
 - **Logs**: Garder trace suppression (audit RGPD compatible)
 - **Confirmation**: Email ou dashboard notification
@@ -254,7 +254,7 @@ Plateforme d'inscription aux visites guidées. Guides gèrent création/inscript
 - Plusieurs libérations en même temps: chacun reçoit offre immédiate (sans attendre le précédent)
 
 ### Données avant suppression
-- Dashboard affiche "données supprimées" 24H après
+- Dashboard affiche "données supprimées" passé le délai de conservation
 - Audit log: timestamp + who deleted + why (auto/manual/gdpr)
 
 ### Guide modifie capacité
@@ -274,7 +274,7 @@ Plateforme d'inscription aux visites guidées. Guides gèrent création/inscript
 | **+24H après** | Queue suivante (si refusée) | "Place repassée à file" | Attendre |
 | **+7j** | Confirmés | Rappel visite | Lecture info |
 | **+1j avant** | Confirmés | Demande confirmation (24H deadline) | Confirmer ou annuler |
-| **+24H après** | Inscrits | "Données supprimées RGPD" | N/A |
+| **+30 jours** | Inscrits | "Données supprimées RGPD" | N/A |
 
 ---
 
@@ -285,7 +285,7 @@ Plateforme d'inscription aux visites guidées. Guides gèrent création/inscript
 - ✅ Inscription simple + validation email
 - ✅ File d'attente + auto email libération
 - ✅ Appel présence
-- ✅ Suppression auto 24H après
+- ✅ Suppression auto 30 jours après
 - ✅ Export PDF/CSV
 - ✅ Lien annulation file attente
 
@@ -304,6 +304,6 @@ Plateforme d'inscription aux visites guidées. Guides gèrent création/inscript
 - **Authentification**: Code accès guide (pas de login/mdp, lien protégé comme artiste)
 - **Tokens email**: JWT ou UUID, expiration 24H ou 7j selon contexte
 - **Promotions waitlist**: **Immédiat** lors libération place (pas batch) — déclenché dans flux annulation/confirma...
-- **Batch jobs**: Suppression 24H après, rappels 7j/1j (24H avant), vérification expiration offres waitlist
+- **Batch jobs**: Purge RGPD à 30 jours, rappels 7j/1j, vérification expiration offres waitlist
 - **Emails**: Template HTML, replay test possible
 - **Audit logs**: Garder trace suppression RGPD (soft delete + log table)

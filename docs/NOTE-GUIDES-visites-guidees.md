@@ -75,10 +75,17 @@ Un nouveau bloc **« Bilan des visites passées »** apparaît en haut du portai
 guide. Il affiche votre **taux d'absentéisme réel** et le détail par visite :
 inscrits, présents, absents, non pointés, liste d'attente.
 
-Auparavant ces chiffres disparaissaient : les inscriptions sont effacées 24 h
-après chaque visite (obligation RGPD), et le bilan partait avec elles. Désormais
-un décompte **strictement anonyme** est enregistré juste avant cet effacement, et
-il est conservé sans limite de durée.
+Auparavant ces chiffres disparaissaient : les inscriptions sont effacées au bout
+d'un moment (obligation RGPD), et le bilan partait avec elles. Désormais un
+décompte **strictement anonyme** est enregistré juste avant cet effacement, et il
+est conservé sans limite de durée.
+
+> **Combien de temps gardons-nous les inscriptions ?** **30 jours** après la fin
+> de chaque visite. C'était 24 h auparavant, ce qui posait deux problèmes bien
+> réels : les inscrits du samedi disparaissaient alors que le festival durait
+> encore, et un appel fait le lundi pour une visite du samedi tombait sur une
+> feuille vide. Passé ces 30 jours, noms et emails sont définitivement effacés —
+> seuls les compteurs anonymes subsistent.
 
 > **⚠️ Ça ne marche que si vous faites l'appel.** Le bilan se nourrit des
 > présences que vous cochez pendant la visite. Si personne ne pointe, le taux

@@ -84,12 +84,53 @@ export async function rtdbToursListFuture(): Promise<Tour[]> {
   });
 }
 
+/**
+ * Délai de conservation des inscriptions après la fin d'une visite, en jours.
+ *
+ * Il était de 1 jour, ce qui était trop court pour deux raisons concrètes :
+ *  - le festival dure plusieurs jours, donc les inscrits du samedi étaient
+ *    effacés alors que l'événement battait encore son plein ;
+ *  - un guide qui fait son appel le lundi pour une visite du samedi trouvait
+ *    une feuille vide, et la fréquentation réelle était perdue.
+ *
+ * 30 jours laisse le temps de finir un appel, de traiter une réclamation ou de
+ * retrouver quelqu'un qui a perdu un objet, tout en restant une durée
+ * manifestement limitée au regard du RGPD. Le bilan chiffré anonyme, lui, est
+ * écrit avant la purge et conservé sans limite : allonger ce délai ne sert donc
+ * pas les statistiques, uniquement le traitement des cas individuels.
+ *
+ * Surchargeable par VISIT_RETENTION_DAYS sans redéploiement du code.
+ */
+export const DEFAULT_RETENTION_DAYS = 30;
+
+export function retentionDays(): number {
+  const raw = process.env.VISIT_RETENTION_DAYS;
+  if (raw === undefined || raw === "") return DEFAULT_RETENTION_DAYS;
+
+  const parsed = Number(raw);
+  // Une valeur illisible ou absurde ne doit surtout pas se traduire par une
+  // purge immédiate : on retombe sur la valeur par défaut, bruyamment.
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    console.error(
+      `[visit-db] VISIT_RETENTION_DAYS invalide (« ${raw} ») — repli sur ${DEFAULT_RETENTION_DAYS} jours.`
+    );
+    return DEFAULT_RETENTION_DAYS;
+  }
+  return parsed;
+}
+
+/** Visites dont les inscriptions ont dépassé le délai de conservation. */
 export async function rtdbToursCompleted(): Promise<Tour[]> {
   const tours = await rtdbToursListAll();
-  const now = new Date();
+  const cutoff = Date.now() - retentionDays() * 24 * 60 * 60 * 1000;
   return tours.filter((t) => {
-    const tourEnd = new Date(new Date(t.date).getTime() + t.durationMinutes * 60 * 1000);
-    return tourEnd < new Date(now.getTime() - 24 * 60 * 60 * 1000) && !t.batchDeleteExecuted && !t.deletedAt;
+    const start = new Date(t.date).getTime();
+    // Date corrompue : on ne purge pas. Un NaN rendrait la comparaison fausse
+    // et laisserait le document en place de toute façon, mais autant que
+    // l'intention soit explicite plutôt que le fruit d'un hasard.
+    if (isNaN(start)) return false;
+    const tourEnd = start + (t.durationMinutes || 0) * 60 * 1000;
+    return tourEnd < cutoff && !t.batchDeleteExecuted && !t.deletedAt;
   });
 }
 
@@ -225,7 +266,8 @@ export async function rtdbRegistrationsListByTour(tourId: string): Promise<Regis
 // c'est un aller-retour réseau par inscrit. Le portail guide, qui affiche tout
 // le programme, en déclenchait plusieurs centaines à chaque ouverture. Ici on
 // lit le nœud entier une fois et on trie en mémoire — le volume reste modeste
-// (quelques milliers de documents au plus, purgés 24h après chaque visite),
+// (quelques milliers de documents au plus, purgés après le délai de
+// conservation, cf. DEFAULT_RETENTION_DAYS),
 // sans commune mesure avec le coût de la rafale de requêtes qu'il remplace.
 export async function rtdbRegistrationsGroupedByTour(): Promise<Map<string, Registration[]>> {
   const all = await rtdbGet<Record<string, Registration>>("registrations");
@@ -606,7 +648,7 @@ export async function rtdbLocationsList(): Promise<LocationPoint[]> {
 // ============ BILAN DE FRÉQUENTATION ============
 // Compteurs anonymes par visite, écrits AVANT la purge RGPD des inscriptions.
 //
-// Sans eux, le bilan d'une édition disparaissait 24h après la dernière visite :
+// Sans eux, le bilan d'une édition disparaissait avec la purge des inscriptions :
 // le portail calcule ses statistiques à partir des inscriptions vivantes, et la
 // purge les efface toutes. Le collectif se retrouvait sans aucun chiffre — donc
 // sans moyen de régler le surbooking, qui a précisément besoin du taux
