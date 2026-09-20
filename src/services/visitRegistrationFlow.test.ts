@@ -331,7 +331,7 @@ describe("Groupe 5 — anti-abus / doublons", () => {
     await register(tourId, "dup@t.fr");
     const second = await register(tourId, "dup@t.fr");
     expect(second.status).toBe(400);
-    expect(second.body.error).toMatch(/already registered/);
+    expect(second.body.error).toMatch(/déjà inscrit/);
   });
 
   it("bloque un email qui atteint 3 visites CONFIRMÉES, et remet le compteur à zéro après annulation", async () => {
@@ -349,7 +349,7 @@ describe("Groupe 5 — anti-abus / doublons", () => {
 
     const r4 = await register(t4, "busy@t.fr");
     expect(r4.status).toBe(400);
-    expect(r4.body.error).toMatch(/max 3 visites/);
+    expect(r4.body.error).toMatch(/3 visites maximum/);
 
     // Annuler une des 3 confirmées doit permettre une nouvelle inscription.
     await cancelRegistration(r1.body.registrationId, "busy@t.fr");
@@ -369,7 +369,7 @@ describe("Groupe 5 — anti-abus / doublons", () => {
     // comptées par rtdbCountUserTours — la 4e est refusée.
     const r4 = await register(t4, "pending@t.fr");
     expect(r4.status).toBe(400);
-    expect(r4.body.error).toMatch(/max 3 visites/);
+    expect(r4.body.error).toMatch(/3 visites maximum/);
   });
 });
 

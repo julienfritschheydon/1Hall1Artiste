@@ -5,6 +5,7 @@
 // DELETE /api/visit-waitlist/{id} — annuler file attente (public)
 
 import { VercelRequest, VercelResponse } from "@vercel/node";
+import { alertApiError } from "./_alert-email.js";
 import {
   rtdbWaitlistGet,
   rtdbWaitlistSoftDelete,
@@ -73,30 +74,30 @@ async function handleActivateWaitlist(req: VercelRequest, res: VercelResponse) {
   const { token } = req.body;
 
   if (!token || typeof token !== "string") {
-    return res.status(400).json({ error: "token: string required" });
+    return res.status(400).json({ error: "Token requis" });
   }
 
   try {
     const verified = verifyRegistrationToken(token);
 
     if (!verified.valid) {
-      return res.status(400).json({ error: "invalid token" });
+      return res.status(400).json({ error: "Lien invalide" });
     }
 
     if (verified.expired) {
-      return res.status(400).json({ error: "token expired" });
+      return res.status(400).json({ error: "Lien expiré", code: "token_expired" });
     }
 
     const waitlistId = verified.registrationId;
     const waitlist = await rtdbWaitlistGet(waitlistId);
 
     if (!waitlist) {
-      return res.status(404).json({ error: "waitlist entry not found" });
+      return res.status(404).json({ error: "Inscription en file d'attente introuvable" });
     }
 
     // Q5: Check if already rejected (after 24H auto-reject)
     if (waitlist.rejectedAt) {
-      return res.status(400).json({ error: "offer already rejected, you were passed over" });
+      return res.status(400).json({ error: "Offre déjà refusée : la place a été proposée à la personne suivante" });
     }
 
     // Entrée déjà consommée (soft-deleted) : sans ce test, recharger la page du
@@ -113,7 +114,7 @@ async function handleActivateWaitlist(req: VercelRequest, res: VercelResponse) {
       if (existing) {
         return res.json({ ok: true, registrationId: existing.id, message: "Inscription déjà confirmée" });
       }
-      return res.status(410).json({ error: "offer no longer valid" });
+      return res.status(410).json({ error: "Cette offre n'est plus valable" });
     }
 
     // Conversion file d'attente → inscription, sous le même verrou que
@@ -148,7 +149,8 @@ async function handleActivateWaitlist(req: VercelRequest, res: VercelResponse) {
     });
   } catch (e) {
     console.error("[visit-waitlist activate]", e);
-    return res.status(500).json({ error: "activation failed" });
+    await alertApiError({ route: "visit-waitlist", action: "activate", error: e, req });
+    return res.status(500).json({ error: "Échec de l'activation" });
   }
 }
 
@@ -166,18 +168,18 @@ async function handleActivateWaitlist(req: VercelRequest, res: VercelResponse) {
 async function handleRegisterFromWaitlist(req: VercelRequest, res: VercelResponse) {
   const guideCode = req.headers["x-guide-code"] as string | undefined;
   if (!guideCode || !(await rtdbGuideCodeValidate(guideCode))) {
-    return res.status(401).json({ error: "invalid guide code" });
+    return res.status(401).json({ error: "Code guide invalide" });
   }
 
   const { waitlistId } = req.body || {};
   if (!waitlistId || typeof waitlistId !== "string") {
-    return res.status(400).json({ error: "waitlistId: string required" });
+    return res.status(400).json({ error: "Identifiant de file d'attente requis" });
   }
 
   try {
     const waitlist = await rtdbWaitlistGet(waitlistId);
     if (!waitlist) {
-      return res.status(404).json({ error: "waitlist entry not found" });
+      return res.status(404).json({ error: "Inscription en file d'attente introuvable" });
     }
 
     // Entrée déjà consommée : si la personne a accepté l'offre entre-temps,
@@ -194,18 +196,18 @@ async function handleRegisterFromWaitlist(req: VercelRequest, res: VercelRespons
       return res.json({ ok: true, registrationId: already.id, message: "Inscription déjà confirmée" });
     }
     if (waitlist.deletedAt) {
-      return res.status(410).json({ error: "waitlist entry no longer active" });
+      return res.status(410).json({ error: "Cette inscription en file d'attente n'est plus active" });
     }
 
     const tour = await rtdbTourGet(waitlist.tourId);
     if (!tour || tour.deletedAt) {
-      return res.status(404).json({ error: "tour not found" });
+      return res.status(404).json({ error: "Visite introuvable" });
     }
     // Même règle que l'inscription manuelle sur place : autorisée tant que la
     // visite n'est pas terminée (les retardataires sont inscrits pendant).
     const tourEnd = new Date(tour.date).getTime() + (tour.durationMinutes || 0) * 60 * 1000;
     if (tourEnd < Date.now()) {
-      return res.status(400).json({ error: "tour already ended" });
+      return res.status(400).json({ error: "Cette visite est terminée" });
     }
 
     const groupSize = placesOf(waitlist);
@@ -256,7 +258,8 @@ async function handleRegisterFromWaitlist(req: VercelRequest, res: VercelRespons
     });
   } catch (e) {
     console.error("[visit-waitlist register]", e);
-    return res.status(500).json({ error: "registration failed" });
+    await alertApiError({ route: "visit-waitlist", action: "register", error: e, req });
+    return res.status(500).json({ error: "Échec de l'inscription" });
   }
 }
 
@@ -269,25 +272,25 @@ async function handleDeleteWaitlist(req: VercelRequest, res: VercelResponse) {
   const { id, email } = req.query;
 
   if (!id || typeof id !== "string") {
-    return res.status(400).json({ error: "waitlist id required" });
+    return res.status(400).json({ error: "Identifiant de file d'attente requis" });
   }
   if (!email || typeof email !== "string") {
-    return res.status(400).json({ error: "email required" });
+    return res.status(400).json({ error: "Adresse email requise" });
   }
 
   try {
     const waitlist = await rtdbWaitlistGet(id);
 
     if (!waitlist) {
-      return res.status(404).json({ error: "waitlist entry not found" });
+      return res.status(404).json({ error: "Inscription en file d'attente introuvable" });
     }
 
     if (waitlist.email.toLowerCase() !== email.toLowerCase()) {
-      return res.status(403).json({ error: "email does not match waitlist entry" });
+      return res.status(403).json({ error: "L'adresse email ne correspond pas à l'inscription en file d'attente" });
     }
 
     if (waitlist.deletedAt) {
-      return res.status(410).json({ error: "already cancelled" });
+      return res.status(410).json({ error: "Inscription déjà annulée", code: "already_cancelled" });
     }
 
     // Une offre active (invitationSentAt, ni refusée ni expirée) réservait une
@@ -325,10 +328,11 @@ async function handleDeleteWaitlist(req: VercelRequest, res: VercelResponse) {
       console.error("[visit-waitlist] left email failed:", e);
     }
 
-    return res.json({ ok: true, message: "Cancelled" });
+    return res.json({ ok: true, message: "Inscription annulée" });
   } catch (e) {
     console.error("[visit-waitlist delete]", e);
-    return res.status(500).json({ error: "cancellation failed" });
+    await alertApiError({ route: "visit-waitlist", action: "cancel", error: e, req });
+    return res.status(500).json({ error: "Échec de l'annulation" });
   }
 }
 
@@ -337,7 +341,7 @@ async function handleGetWaitlist(req: VercelRequest, res: VercelResponse) {
   const { tourId } = req.query;
 
   if (!tourId || typeof tourId !== "string") {
-    return res.status(400).json({ error: "tourId required" });
+    return res.status(400).json({ error: "Identifiant de visite requis" });
   }
 
   try {
@@ -350,7 +354,7 @@ async function handleGetWaitlist(req: VercelRequest, res: VercelResponse) {
     const guideCode = req.headers["x-guide-code"] as string | undefined;
     const isGuide = guideCode ? await rtdbGuideCodeValidate(guideCode) : false;
     if (guideCode && !isGuide) {
-      return res.status(401).json({ error: "invalid guide code" });
+      return res.status(401).json({ error: "Code guide invalide" });
     }
 
     if (isGuide) {
@@ -381,7 +385,8 @@ async function handleGetWaitlist(req: VercelRequest, res: VercelResponse) {
     return res.json({ totalInWaitlist: waits.length, positions: anonymized });
   } catch (e) {
     console.error("[visit-waitlist get]", e);
-    return res.status(500).json({ error: "list failed" });
+    await alertApiError({ route: "visit-waitlist", action: "list", error: e, req });
+    return res.status(500).json({ error: "Échec du chargement de la liste" });
   }
 }
 
@@ -396,12 +401,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.query.action === "register" || path?.endsWith("/register")) {
       return handleRegisterFromWaitlist(req, res);
     }
-    return res.status(405).json({ error: "invalid POST path" });
+    return res.status(405).json({ error: "Chemin POST invalide" });
   } else if (req.method === "DELETE") {
     return handleDeleteWaitlist(req, res);
   } else if (req.method === "GET") {
     return handleGetWaitlist(req, res);
   } else {
-    return res.status(405).json({ error: "method not allowed" });
+    return res.status(405).json({ error: "Méthode non autorisée" });
   }
 }

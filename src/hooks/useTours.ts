@@ -3,7 +3,7 @@ import { Tour } from "@/types/visitTypes";
 
 async function fetchTours(): Promise<Tour[]> {
   const res = await fetch("/api/visit-tours");
-  if (!res.ok) throw new Error("Failed to load tours");
+  if (!res.ok) throw new Error("Impossible de charger les visites");
   const data = await res.json();
   return Array.isArray(data) ? data : data.tours || [];
 }

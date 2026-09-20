@@ -10,6 +10,7 @@
 // quel porteur de lien éditer la fiche d'un autre en joignant simplement un artistId.
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { alertApiError } from "./_alert-email.js";
 import { verifyToken } from "./_token.js";
 import { isAdminRequest } from "./_admin.js";
 import { putArtistOverride, sanitizeOverrideFields } from "./_overrides.js";
@@ -19,7 +20,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") return res.status(204).end();
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+  if (req.method !== "POST") return res.status(405).json({ error: "Méthode non autorisée" });
 
   try {
     const bodyArtistId = String(req.body?.artistId || "").trim();
@@ -54,6 +55,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ ok: true, artistId });
   } catch (err) {
     console.error("[artist-update] erreur:", err);
+    await alertApiError({ route: "artist-update", action: String(req.query?.action || req.method || ""), error: err, req });
     return res.status(500).json({ error: "Échec de l'enregistrement" });
   }
 }

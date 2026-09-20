@@ -6,6 +6,7 @@
 // PUT /api/visit-tours?action=guide-names — remplacer cette liste (admin)
 
 import { VercelRequest, VercelResponse } from "@vercel/node";
+import { alertApiError } from "./_alert-email.js";
 import { rtdbTourCreate, rtdbTourGet, rtdbTourUpdate, rtdbToursListFuture, rtdbToursListAll, rtdbGuideCodeValidate, rtdbCountRegisteredByTour, rtdbCountWaitlistedPlaces, rtdbGuideNamesGet, rtdbGuideNamesSet } from "./_visit-db.js";
 import { isAdminRequest } from "./_admin.js";
 import { promoteWaitlist } from "./visit-register.js";
@@ -117,7 +118,7 @@ function validateTourInput(data: any): { valid: boolean; errors: string[] } {
     errors.push("capacity: number >= 1 required");
   }
   if (data.overbookingSeats !== undefined && !isValidOverbooking(data.overbookingSeats)) {
-    errors.push(`overbookingSeats: integer in [0, ${MAX_OVERBOOKING_SEATS}] required`);
+    errors.push(`Le surbooking doit être un entier compris entre 0 et ${MAX_OVERBOOKING_SEATS}`);
   }
   if (!Array.isArray(data.labels)) {
     errors.push("labels: array required");
@@ -136,7 +137,7 @@ async function handlePost(req: VercelRequest, res: VercelResponse) {
   const isGuideUser = await isGuide(req);
 
   if (!isGuideUser) {
-    return res.status(401).json({ error: "guide code required" });
+    return res.status(401).json({ error: "Code guide requis" });
   }
 
   const { title, description, date, durationMinutes, capacity, labels, overbookingSeats } = req.body;
@@ -169,7 +170,8 @@ async function handlePost(req: VercelRequest, res: VercelResponse) {
     return res.status(201).json(tour);
   } catch (e) {
     console.error("[visit-tours POST]", e);
-    return res.status(500).json({ error: "creation failed" });
+    await alertApiError({ route: "visit-tours", action: "create", error: e, req });
+    return res.status(500).json({ error: "Échec de la création" });
   }
 }
 
@@ -182,7 +184,7 @@ async function handleGet(req: VercelRequest, res: VercelResponse) {
   // de connexion guide acceptait n'importe quel code (le GET répondait 200 avec
   // la liste publique), (b) un code expiré en cours de session passait inaperçu.
   if (guideCode && !isGuideUser) {
-    return res.status(401).json({ error: "invalid guide code" });
+    return res.status(401).json({ error: "Code guide invalide" });
   }
 
   try {
@@ -234,7 +236,8 @@ async function handleGet(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json(enriched);
   } catch (e) {
     console.error("[visit-tours GET]", e);
-    return res.status(500).json({ error: "list failed" });
+    await alertApiError({ route: "visit-tours", action: "list", error: e, req });
+    return res.status(500).json({ error: "Échec du chargement de la liste" });
   }
 }
 
@@ -244,18 +247,18 @@ async function handlePut(req: VercelRequest, res: VercelResponse) {
   const isGuideUser = await isGuide(req);
 
   if (!isGuideUser) {
-    return res.status(401).json({ error: "guide code required" });
+    return res.status(401).json({ error: "Code guide requis" });
   }
 
   const { id } = req.query;
   if (!id || typeof id !== "string") {
-    return res.status(400).json({ error: "tour id required" });
+    return res.status(400).json({ error: "Identifiant de visite requis" });
   }
 
   try {
     const tour = await rtdbTourGet(id);
     if (!tour) {
-      return res.status(404).json({ error: "tour not found" });
+      return res.status(404).json({ error: "Visite introuvable" });
     }
 
     // Une visite déjà commencée n'est plus modifiable : on ne réécrit pas une
@@ -279,40 +282,40 @@ async function handlePut(req: VercelRequest, res: VercelResponse) {
     // Le formulaire renvoie tous les champs, touchés ou non : on ne regarde que
     // ceux dont la valeur change réellement (cf. isSameFieldValue).
     if (req.body.date !== undefined && !isSameFieldValue("date", req.body.date, (tour as any).date)) {
-      return res.status(400).json({ error: "date: not editable" });
+      return res.status(400).json({ error: "La date n'est pas modifiable", code: "date_not_editable" });
     }
     const fieldChanged = ALLOWED_FIELDS.some(
       (f) => updates[f] !== undefined && !isSameFieldValue(f, updates[f], (tour as any)[f])
     );
     if (tourStarted && fieldChanged) {
-      return res.status(400).json({ error: "tour already started" });
+      return res.status(400).json({ error: "Cette visite a déjà commencé", code: "tour_already_started" });
     }
     if (req.body.guides !== undefined) {
       const guides = normalizeGuideNames(req.body.guides, MAX_GUIDES_PER_TOUR);
       if (guides === null) {
-        return res.status(400).json({ error: "guides: array of strings required" });
+        return res.status(400).json({ error: "La liste des guides est invalide" });
       }
       updates.guides = guides;
     }
     if (updates.title !== undefined && (typeof updates.title !== "string" || !updates.title.trim())) {
-      return res.status(400).json({ error: "title: non-empty string required" });
+      return res.status(400).json({ error: "Le titre est obligatoire" });
     }
     if (updates.durationMinutes !== undefined && (!Number.isFinite(updates.durationMinutes) || updates.durationMinutes < 1)) {
-      return res.status(400).json({ error: "durationMinutes: number >= 1 required" });
+      return res.status(400).json({ error: "La durée doit être d'au moins 1 minute" });
     }
     if (updates.labels !== undefined && (!Array.isArray(updates.labels) || updates.labels.some((l: unknown) => typeof l !== "string"))) {
-      return res.status(400).json({ error: "labels: array of strings required" });
+      return res.status(400).json({ error: "La liste des étiquettes est invalide" });
     }
     if (updates.status !== undefined && !["upcoming", "ongoing", "completed"].includes(updates.status)) {
-      return res.status(400).json({ error: "status: invalid value" });
+      return res.status(400).json({ error: "Statut invalide" });
     }
     if (updates.capacity !== undefined) {
       if (!Number.isFinite(updates.capacity) || updates.capacity < 1) {
-        return res.status(400).json({ error: "capacity: number >= 1 required" });
+        return res.status(400).json({ error: "La capacité doit être d'au moins 1" });
       }
     }
     if (updates.overbookingSeats !== undefined && !isValidOverbooking(updates.overbookingSeats)) {
-      return res.status(400).json({ error: `overbookingSeats: integer in [0, ${MAX_OVERBOOKING_SEATS}] required` });
+      return res.status(400).json({ error: `Le surbooking doit être un entier compris entre 0 et ${MAX_OVERBOOKING_SEATS}` });
     }
     await rtdbTourUpdate(id, updates);
 
@@ -370,7 +373,8 @@ async function handlePut(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ ok: true, ...(warning ? { warning } : {}) });
   } catch (e) {
     console.error("[visit-tours PUT]", e);
-    return res.status(500).json({ error: "update failed" });
+    await alertApiError({ route: "visit-tours", action: "update", error: e, req });
+    return res.status(500).json({ error: "Échec de la mise à jour" });
   }
 }
 
@@ -381,26 +385,27 @@ async function handleGuideNames(req: VercelRequest, res: VercelResponse) {
   try {
     if (req.method === "GET") {
       if (!isAdmin && !(await isGuide(req))) {
-        return res.status(401).json({ error: "guide code or admin token required" });
+        return res.status(401).json({ error: "Code guide ou token admin requis" });
       }
       res.setHeader("Cache-Control", "private, no-store");
       return res.status(200).json({ names: await rtdbGuideNamesGet() });
     }
     if (req.method === "PUT") {
       if (!isAdmin) {
-        return res.status(401).json({ error: "admin token required" });
+        return res.status(401).json({ error: "Token admin requis" });
       }
       const names = normalizeGuideNames(req.body?.names, 50);
       if (names === null) {
-        return res.status(400).json({ error: "names: array of strings required" });
+        return res.status(400).json({ error: "La liste des noms est invalide" });
       }
       await rtdbGuideNamesSet(names);
       return res.status(200).json({ names });
     }
-    return res.status(405).json({ error: "method not allowed" });
+    return res.status(405).json({ error: "Méthode non autorisée" });
   } catch (e) {
     console.error("[visit-tours guide-names]", e);
-    return res.status(500).json({ error: "guide names failed" });
+    await alertApiError({ route: "visit-tours", action: "guide-names", error: e, req });
+    return res.status(500).json({ error: "Échec du chargement des noms de guides" });
   }
 }
 
@@ -416,6 +421,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } else if (req.method === "PUT") {
     return handlePut(req, res);
   } else {
-    return res.status(405).json({ error: "method not allowed" });
+    return res.status(405).json({ error: "Méthode non autorisée" });
   }
 }

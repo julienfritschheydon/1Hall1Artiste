@@ -11,6 +11,7 @@
 //   l'artiste recevrait : il couvre toutes les fiches de son adresse.
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { alertApiError } from "./_alert-email.js";
 import { buildEmailToArtistIds } from "./_sheets.js";
 import { createToken } from "./_token.js";
 import {
@@ -65,7 +66,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") return res.status(204).end();
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+  if (req.method !== "POST") return res.status(405).json({ error: "Méthode non autorisée" });
 
   const generic = { ok: true, message: "Si cet email est inscrit au programme, un lien vient d'être envoyé." };
 
@@ -85,6 +86,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // Config incomplète : on refuse au lieu de laisser passer.
       if (!adminPasswordConfigured()) {
         console.error("[artist-link] ADMIN_PASSWORD non configuré");
+        await alertApiError({ route: "artist-link", action: "admin-login", error: new Error("ADMIN_PASSWORD non configuré"), req });
         return res.status(500).json({ error: "Authentification admin non configurée" });
       }
       const password = String(req.body?.password || "");
@@ -152,6 +154,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // lien signe un token ARTISTE, elle échoue donc sur ARTIST_SECRET et non sur les
       // variables d'authentification admin.
       const detail = err instanceof Error && /manquant/.test(err.message) ? ` (${err.message})` : "";
+      await alertApiError({ route: "artist-link", action: "admin", error: err, req });
       return res.status(500).json({
         error: `Opération admin impossible — vérifiez la configuration serveur${detail}`,
       });

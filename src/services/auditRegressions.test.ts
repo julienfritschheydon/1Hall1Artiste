@@ -346,7 +346,7 @@ describe("M6 — dédoublonnage de la file d'attente", () => {
 
     const second = await register(tourId, "dup@t.fr");
     expect(second.status).toBe(400);
-    expect(second.body.error).toMatch(/already in waitlist/);
+    expect(second.body.error).toMatch(/déjà en file d'attente/);
   });
 });
 
@@ -355,7 +355,7 @@ describe("M4 — visite déjà commencée", () => {
     const tourId = makeTour(5, `tour_past_${tourCounter}`, "2026-07-30T14:00:00.000Z");
     const res = await register(tourId, "late@t.fr");
     expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/already started/);
+    expect(res.body.error).toMatch(/déjà commencé/);
   });
 });
 

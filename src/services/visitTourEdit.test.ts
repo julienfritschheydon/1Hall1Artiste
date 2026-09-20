@@ -193,7 +193,7 @@ describe("créneau d'une visite", () => {
     const id = makeTour();
     const { status, body } = await put(id, formBody({ date: "2026-09-19T15:00:00.000Z" }));
     expect(status).toBe(400);
-    expect(body.error).toBe("date: not editable");
+    expect(body.code).toBe("date_not_editable");
     expect(getAtPath(`tours/${id}`).date).toBe(TOUR_DATE);
   });
 
@@ -219,7 +219,7 @@ describe("édition d'une visite déjà commencée", () => {
     vi.setSystemTime(new Date("2026-09-19T12:30:00.000Z")); // visite en cours
     const { status, body } = await put(id, formBody({ title: "Trop tard" }));
     expect(status).toBe(400);
-    expect(body.error).toBe("tour already started");
+    expect(body.code).toBe("tour_already_started");
     expect(getAtPath(`tours/${id}`).title).toBe("Visite de 14h");
   });
 

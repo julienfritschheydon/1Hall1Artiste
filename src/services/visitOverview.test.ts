@@ -299,6 +299,6 @@ describe("nettoyage du double opt-in", () => {
     );
     // Une action inconnue ne doit surtout pas créer une inscription en douce.
     expect(statusOf(res)).toBe(400);
-    expect(jsonOf(res).error).toMatch(/unknown action/);
+    expect(jsonOf(res).error).toMatch(/Action inconnue/);
   });
 });
