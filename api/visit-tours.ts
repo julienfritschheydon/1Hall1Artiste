@@ -322,15 +322,44 @@ async function handlePut(req: VercelRequest, res: VercelResponse) {
     const placesAvant = bookableCapacity(tour);
     const placesApres = bookableCapacity({ ...tour, ...updates } as Tour);
 
+    // Une modification qui change ce que les inscrits ont lu ou prévu doit être
+    // signalée au guide : personne n'est prévenu automatiquement, et c'est à lui
+    // d'envoyer un mot. Les adresses sont dans la fiche de la visite (export CSV).
+    const warnings: string[] = [];
+    const dureeChangee = updates.durationMinutes !== undefined && Number(updates.durationMinutes) !== Number(tour.durationMinutes);
+    const texteChange =
+      (updates.title !== undefined && !isSameFieldValue("title", updates.title, (tour as any).title)) ||
+      (updates.description !== undefined && !isSameFieldValue("description", updates.description, (tour as any).description));
+
+    // Un seul décompte, réutilisé : inutile de relire la base par avertissement.
+    let confirmedCount: number | null = null;
+    const countInscrits = async () => {
+      if (confirmedCount === null) confirmedCount = await rtdbCountRegisteredByTour(id);
+      return confirmedCount;
+    };
+
     // Spec §9 : places ouvertes passées sous le nombre d'inscrits → avertir le
     // guide, sans jamais désinscrire personne automatiquement.
-    let warning: string | undefined;
-    if (placesApres < placesAvant) {
-      const confirmedCount = await rtdbCountRegisteredByTour(id);
-      if (placesApres < confirmedCount) {
-        warning = `Places ouvertes (${placesApres}) < inscrits confirmés (${confirmedCount}). ${confirmedCount - placesApres} personne(s) en surnombre — à gérer manuellement (annuler des inscriptions).`;
-      }
+    if (placesApres < placesAvant && (await countInscrits()) > placesApres) {
+      const inscrits = await countInscrits();
+      warnings.push(
+        `Places ouvertes (${placesApres}) < inscrits confirmés (${inscrits}). ${inscrits - placesApres} personne(s) en surnombre — à gérer manuellement (annuler des inscriptions), et à prévenir par email.`
+      );
     }
+
+    if (dureeChangee && (await countInscrits()) > 0) {
+      warnings.push(
+        `La durée passe de ${tour.durationMinutes} à ${updates.durationMinutes} min. ${await countInscrits()} personne(s) déjà inscrite(s) ont prévu leur journée sur l'ancienne durée : prévenez-les par email.`
+      );
+    }
+
+    if (texteChange && (await countInscrits()) > 0) {
+      warnings.push(
+        `${await countInscrits()} personne(s) sont déjà inscrites et ont reçu l'ancien texte. Si votre modification touche le point de rendez-vous ou une information pratique, envoyez-leur un email.`
+      );
+    }
+
+    const warning = warnings.length > 0 ? warnings.join("\n\n") : undefined;
 
     // Places ouvertes en plus : proposer immédiatement à la file d'attente.
     // Un seul appel suffit, promoteWaitlist remplit tous les sièges libres.

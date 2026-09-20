@@ -232,3 +232,64 @@ describe("édition d'une visite déjà commencée", () => {
     expect(status).toBe(200);
   });
 });
+
+describe("avertissements quand des visiteurs sont déjà inscrits", () => {
+  /** Inscrit `n` personnes confirmées sur la visite. */
+  function inscrire(tourId: string, n: number) {
+    for (let i = 0; i < n; i++) {
+      const regId = `reg_${tourId}_${i}`;
+      setAtPath(`registrations/${regId}`, {
+        id: regId,
+        tourId,
+        email: `visiteur${i}@example.com`,
+        firstName: "V",
+        lastName: String(i),
+        status: "confirmé",
+        companions: 0,
+        createdAt: "2026-09-10T10:00:00.000Z",
+      });
+      setAtPath(`registrations_by_tour/${tourId}/${regId}`, true);
+    }
+  }
+
+  it("invite à prévenir les inscrits quand la durée change", async () => {
+    const id = makeTour();
+    inscrire(id, 3);
+    const { status, body } = await put(id, formBody({ durationMinutes: 120 }));
+    expect(status).toBe(200);
+    expect(body.warning).toContain("durée");
+    expect(body.warning).toContain("email");
+  });
+
+  it("invite à prévenir les inscrits quand le texte change", async () => {
+    const id = makeTour();
+    inscrire(id, 2);
+    const { status, body } = await put(id, formBody({ description: "Nouveau point de rendez-vous." }));
+    expect(status).toBe(200);
+    expect(body.warning).toContain("rendez-vous");
+  });
+
+  it("n'avertit pas quand personne n'est inscrit", async () => {
+    const id = makeTour();
+    const { status, body } = await put(id, formBody({ durationMinutes: 120, title: "Autre" }));
+    expect(status).toBe(200);
+    expect(body.warning).toBeUndefined();
+  });
+
+  it("cumule les avertissements quand plusieurs changements concernent les inscrits", async () => {
+    const id = makeTour();
+    inscrire(id, 3);
+    const { status, body } = await put(id, formBody({ durationMinutes: 120, description: "Autre texte" }));
+    expect(status).toBe(200);
+    expect(body.warning).toContain("durée");
+    expect(body.warning).toContain("rendez-vous");
+  });
+
+  it("signale toujours le surnombre quand les places passent sous les inscrits", async () => {
+    const id = makeTour();
+    inscrire(id, 5);
+    const { status, body } = await put(id, formBody({ capacity: 2 }));
+    expect(status).toBe(200);
+    expect(body.warning).toContain("surnombre");
+  });
+});
