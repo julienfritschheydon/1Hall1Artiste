@@ -137,6 +137,10 @@ export const clearStoredErrors = (): void => {
 // Configuration EmailJS
 const EMAIL_SERVICE_ID = 'service_14prhl5';
 const EMAIL_TEMPLATE_ID = 'template_q7nh8h2';
+// Destinataire des rapports d'erreur. Le template EmailJS adresse l'e-mail à
+// {{to_email}} : sans ce paramètre, chaque envoi était rejeté par EmailJS avec
+// « The recipients address is empty » — d'où le taux d'échec du tableau de bord.
+export const ERROR_REPORT_RECIPIENT = 'julien.fritsch@gmail.com';
 
 /**
  * Initialiser EmailJS
@@ -187,6 +191,7 @@ export const sendErrorsToTrackingService = async (): Promise<boolean> => {
       
       // Préparer les données pour le modèle d'email
       const templateParams = {
+        to_email: ERROR_REPORT_RECIPIENT,
         errors_json: JSON.stringify(errors, null, 2),
         error_count: errors.length,
         timestamp: new Date().toISOString(),

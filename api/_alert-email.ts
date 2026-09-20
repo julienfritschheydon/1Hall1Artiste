@@ -12,13 +12,16 @@
 // - anti-rafale : une même action en erreur n'alerte qu'une fois par fenêtre,
 //   sinon une panne EmailJS ou Firebase noierait la boîte de réception.
 import type { VercelRequest } from "@vercel/node";
+import { normalizeRecipient } from "./_recipient.js";
 
 // Adresse par défaut : le projet n'a qu'un administrateur. VISIT_ALERT_EMAIL
 // reste prioritaire pour rediriger les alertes sans redéployer.
 const DEFAULT_ALERT_EMAIL = "julien.fritsch@gmail.com";
 
 export function alertRecipient(): string {
-  return process.env.VISIT_ALERT_EMAIL || DEFAULT_ALERT_EMAIL;
+  // VISIT_ALERT_EMAIL défini mais vide (cas classique d'une variable Vercel
+  // effacée sans être supprimée) ferait partir l'alerte sans destinataire.
+  return normalizeRecipient(process.env.VISIT_ALERT_EMAIL) || DEFAULT_ALERT_EMAIL;
 }
 
 // Fenêtre anti-rafale, par clé d'alerte (route + action + type d'erreur).
