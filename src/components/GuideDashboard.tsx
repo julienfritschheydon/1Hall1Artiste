@@ -432,12 +432,6 @@ export default function GuideDashboard({
               >
                 📥 Exporter inscriptions
               </button>
-              <button
-                onClick={() => alert("File d'attente - à implémenter")}
-                style={{ textAlign: "left", background: "transparent", border: "none", color: "#ff7a45", cursor: "pointer", padding: 0, textDecoration: "underline" }}
-              >
-                ⏳ Gérer file d'attente
-              </button>
             </div>
           </CardContent>
         </Card>
