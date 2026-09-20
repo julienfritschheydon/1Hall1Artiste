@@ -419,7 +419,7 @@ function TourForm({
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || (data.errors ? data.errors.join(", ") : "Erreur"));
+        setError(humanizeTourError(data.error) || (data.errors ? data.errors.join(", ") : "Erreur"));
         return;
       }
       if (data.warning) {
@@ -1207,6 +1207,16 @@ function PastStatsPanel({ stats }: { stats: PastStats | null }) {
       </CardContent>
     </Card>
   );
+}
+
+// Les erreurs de l'API sont techniques et en anglais : affichées telles quelles,
+// elles laissaient le guide sans savoir quoi faire.
+function humanizeTourError(error: string | undefined): string | undefined {
+  if (!error) return error;
+  if (error === "cannot modify within 24h of start") {
+    return "À moins de 24 h du départ, l'horaire, la durée et le nombre de places sont figés (des visiteurs sont déjà inscrits). L'intitulé et le descriptif restent modifiables.";
+  }
+  return error;
 }
 
 function toLocalInput(iso: string): string {

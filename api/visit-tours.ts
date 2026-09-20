@@ -66,6 +66,30 @@ function isValidOverbooking(value: unknown): boolean {
   return Number.isInteger(value) && (value as number) >= 0 && (value as number) <= MAX_OVERBOOKING_SEATS;
 }
 
+// Le formulaire renvoie toujours tous les champs, y compris ceux que le guide
+// n'a pas touchés. Une comparaison brute (JSON.stringify) voyait un changement
+// là où il n'y en a pas — une visite sans surbooking enregistré (champ absent)
+// contre le « 0 » du formulaire, un champ vide contre un champ absent, une date
+// identique à la seconde près — et le gel J-1 refusait alors jusqu'aux
+// corrections de texte. On compare donc les valeurs par leur sens.
+function isUnset(value: unknown): boolean {
+  return value === undefined || value === null || value === "" || (Array.isArray(value) && value.length === 0);
+}
+
+function isSameFieldValue(field: string, next: unknown, prev: unknown): boolean {
+  if (isUnset(next) && isUnset(prev)) return true;
+  if (field === "date") {
+    const a = new Date(next as string).getTime();
+    const b = new Date(prev as string).getTime();
+    return Number.isFinite(a) && Number.isFinite(b) && a === b;
+  }
+  // Champs numériques : un champ absent vaut 0 (surbooking non renseigné).
+  if (field === "durationMinutes" || field === "capacity" || field === "overbookingSeats") {
+    return Number(next ?? 0) === Number(prev ?? 0);
+  }
+  return JSON.stringify(next) === JSON.stringify(prev);
+}
+
 // Validate tour input
 function validateTourInput(data: any): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
@@ -249,11 +273,13 @@ async function handlePut(req: VercelRequest, res: VercelResponse) {
     }
     // Seuls les champs publics sont gelés à J-1 : un remplacement de guide de
     // dernière minute doit rester possible (les « guides » sont internes).
-    // L'intitulé reste aussi modifiable : corriger un titre n'impacte pas les
-    // inscrits (horaire, durée, capacité inchangés).
-    const FROZEN_FIELDS = ALLOWED_FIELDS.filter((f) => f !== "title");
+    // L'intitulé et le descriptif restent modifiables : corriger un texte
+    // n'impacte pas les inscrits (horaire, durée, capacité inchangés), alors
+    // que c'est justement la veille et le jour même qu'un guide relit sa fiche.
+    const EDITORIAL_FIELDS: string[] = ["title", "description"];
+    const FROZEN_FIELDS = ALLOWED_FIELDS.filter((f) => !EDITORIAL_FIELDS.includes(f));
     const publicFieldChanged = FROZEN_FIELDS.some(
-      (f) => updates[f] !== undefined && JSON.stringify(updates[f]) !== JSON.stringify((tour as any)[f])
+      (f) => updates[f] !== undefined && !isSameFieldValue(f, updates[f], (tour as any)[f])
     );
     if (hoursUntilStart < 24 && publicFieldChanged) {
       return res.status(400).json({ error: "cannot modify within 24h of start" });
