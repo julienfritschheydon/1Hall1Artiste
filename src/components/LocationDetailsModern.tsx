@@ -157,7 +157,6 @@ export const LocationDetailsModern: React.FC<LocationDetailsModernProps> = ({
     items: navigableLocations,
     currentIndex,
     onIndexChange: onIndexChange || (() => {}),
-    enabled: navigableLocations.length > 1
   });
   
   // Hook de navigation clavier
@@ -165,7 +164,6 @@ export const LocationDetailsModern: React.FC<LocationDetailsModernProps> = ({
     onPrevious: swipe.goPrevious,
     onNext: swipe.goNext,
     onClose,
-    enabled: navigableLocations.length > 1
   });
 
   return (
@@ -173,7 +171,6 @@ export const LocationDetailsModern: React.FC<LocationDetailsModernProps> = ({
       <div 
         className="max-w-2xl w-full max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl relative bg-amber-50/95 backdrop-blur-sm"
         onClick={(e) => e.stopPropagation()}
-        {...swipe.handlers}
       >
         
         <div className="relative z-10 p-6">

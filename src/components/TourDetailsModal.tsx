@@ -36,9 +36,7 @@ export function TourDetailsModal({
   const swipe = useSwipeNavigation({
     items: navigableTours,
     currentIndex,
-    onIndexChange: onIndexChange || (() => {}),
-    threshold: 100,
-    enabled: navigableTours.length > 1,
+    onIndexChange: onIndexChange || (() => {})
   });
 
   useKeyboardNavigation({
@@ -63,7 +61,6 @@ export function TourDetailsModal({
       <div
         className="max-w-lg w-full max-h-[85vh] overflow-y-auto rounded-2xl shadow-2xl relative bg-amber-50/95 backdrop-blur-sm"
         onClick={(e) => e.stopPropagation()}
-        {...swipe.handlers}
       >
         <div className="relative z-10 p-6">
           {navigableTours.length > 1 && (

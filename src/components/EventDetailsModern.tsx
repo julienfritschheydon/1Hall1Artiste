@@ -166,8 +166,6 @@ export const EventDetailsNew = ({
     items: navigableEvents,
     currentIndex,
     onIndexChange: onIndexChange || (() => {}),
-    threshold: 100, // Seuil augmenté pour éviter les faux positifs (clic interprété comme swipe)
-    enabled: navigableEvents.length > 1
   });
   
   // Hook de navigation clavier
@@ -353,7 +351,6 @@ export const EventDetailsNew = ({
       <div 
         className="max-w-lg w-full max-h-[75vh] overflow-y-auto rounded-2xl shadow-2xl relative bg-amber-50/95 backdrop-blur-sm"
         onClick={(e) => e.stopPropagation()}
-        {...swipe.handlers}
       >
         
         <div className="relative z-10 p-6">
