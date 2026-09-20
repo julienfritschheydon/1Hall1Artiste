@@ -3,6 +3,41 @@ import { addToCalendar, buildGoogleCalendarUrl } from "./calendarService";
 import { getFestivalDates } from "@/utils/festival";
 import type { Event } from "@/data/events";
 
+// Les horaires du Google Sheet sont des heures françaises : l'export doit les
+// convertir depuis Europe/Paris, quel que soit le fuseau de l'appareil.
+const parisToUtcStamp = (isoDay: string, hhmm: string) => {
+  const [year, month, day] = isoDay.split("-").map(Number);
+  const [hours, minutes] = hhmm.split(":").map(Number);
+  const naive = Date.UTC(year, month - 1, day, hours, minutes, 0, 0);
+  const offset = (instant: number) => {
+    const parts = Object.fromEntries(
+      new Intl.DateTimeFormat("en-US", {
+        timeZone: "Europe/Paris",
+        hourCycle: "h23",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      })
+        .formatToParts(new Date(instant))
+        .map(({ type, value }) => [type, value])
+    ) as Record<string, string>;
+    const asUtc = Date.UTC(
+      Number(parts.year),
+      Number(parts.month) - 1,
+      Number(parts.day),
+      Number(parts.hour),
+      Number(parts.minute),
+      Number(parts.second)
+    );
+    return (asUtc - instant) / 60000;
+  };
+  const instant = naive - offset(naive - offset(naive) * 60000) * 60000;
+  return new Date(instant).toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+};
+
 const event = {
   id: "evt-1",
   title: "Concert de jazz",
@@ -40,10 +75,17 @@ describe("calendarService", () => {
       expect(url).not.toBeNull();
       const samedi = getFestivalDates().samedi;
       const [start, end] = (new URL(url as string).searchParams.get("dates") ?? "").split("/");
-      const toUtc = (hhmm: string) =>
-        new Date(`${samedi}T${hhmm}:00`).toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+      const toUtc = (hhmm: string) => parisToUtcStamp(samedi, hhmm);
       expect(start).toBe(toUtc(expectedStart));
       expect(end).toBe(toUtc(expectedEnd));
+    });
+
+    it("place l'événement à l'heure française même si l'appareil est dans un autre fuseau", () => {
+      // Le festival a lieu en septembre : Paris est à UTC+2 (CEST).
+      const samedi = getFestivalDates().samedi;
+      const url = new URL(buildGoogleCalendarUrl(event) as string);
+      const [start] = (url.searchParams.get("dates") ?? "").split("/");
+      expect(start).toBe(`${samedi.replace(/-/g, "")}T130000Z`);
     });
 
     it("renvoie null sur un horaire illisible plutôt que de lever une erreur", () => {
@@ -60,9 +102,9 @@ describe("calendarService", () => {
       expect(url.searchParams.get("action")).toBe("TEMPLATE");
       expect(url.searchParams.get("text")).toBe("Concert de jazz");
       expect(url.searchParams.get("location")).toBe("Île Feydeau, Nantes");
-      // Les dates sont en UTC ; on vérifie qu'elles encadrent bien le samedi du festival.
-      expect(new Date(`${samedi}T15:00:00`).toISOString().replace(/[-:]/g, "").split(".")[0] + "Z").toBe(start);
-      expect(new Date(`${samedi}T16:30:00`).toISOString().replace(/[-:]/g, "").split(".")[0] + "Z").toBe(end);
+      // Les dates sont en UTC, converties depuis l'heure française.
+      expect(parisToUtcStamp(samedi, "15:00")).toBe(start);
+      expect(parisToUtcStamp(samedi, "16:30")).toBe(end);
     });
   });
 
