@@ -67,11 +67,11 @@ function isValidOverbooking(value: unknown): boolean {
 }
 
 // Le formulaire renvoie toujours tous les champs, y compris ceux que le guide
-// n'a pas touchés. Une comparaison brute (JSON.stringify) voyait un changement
+// n'a pas touchés. Une comparaison brute (JSON.stringify) voit un changement
 // là où il n'y en a pas — une visite sans surbooking enregistré (champ absent)
 // contre le « 0 » du formulaire, un champ vide contre un champ absent, une date
-// identique à la seconde près — et le gel J-1 refusait alors jusqu'aux
-// corrections de texte. On compare donc les valeurs par leur sens.
+// identique à la seconde près. On compare donc les valeurs par leur sens, pour
+// ne refuser une visite commencée que sur une vraie modification.
 function isUnset(value: unknown): boolean {
   return value === undefined || value === null || value === "" || (Array.isArray(value) && value.length === 0);
 }
@@ -258,11 +258,11 @@ async function handlePut(req: VercelRequest, res: VercelResponse) {
       return res.status(404).json({ error: "tour not found" });
     }
 
-    // Restriction: pas modifier si J-1 ou après (Q11 invalidate post-season)
-    const now = new Date();
-    const tourStart = new Date(tour.date);
-    const diffMs = tourStart.getTime() - now.getTime();
-    const hoursUntilStart = diffMs / (60 * 60 * 1000);
+    // Une visite déjà commencée n'est plus modifiable : on ne réécrit pas une
+    // visite en cours ou passée sous les pieds des inscrits et du bilan.
+    // Tant qu'elle n'a pas démarré, en revanche, le guide reste maître de sa
+    // fiche — y compris le jour même, où les ajustements sont les plus utiles.
+    const tourStarted = new Date(tour.date).getTime() <= Date.now();
 
     // Whitelist des champs modifiables — le corps était fusionné tel quel dans
     // le document (id, deletedAt, batchDeleteExecuted… écrasables).
@@ -271,18 +271,13 @@ async function handlePut(req: VercelRequest, res: VercelResponse) {
     for (const field of ALLOWED_FIELDS) {
       if (req.body[field] !== undefined) updates[field] = req.body[field];
     }
-    // Seuls les champs publics sont gelés à J-1 : un remplacement de guide de
-    // dernière minute doit rester possible (les « guides » sont internes).
-    // L'intitulé et le descriptif restent modifiables : corriger un texte
-    // n'impacte pas les inscrits (horaire, durée, capacité inchangés), alors
-    // que c'est justement la veille et le jour même qu'un guide relit sa fiche.
-    const EDITORIAL_FIELDS: string[] = ["title", "description"];
-    const FROZEN_FIELDS = ALLOWED_FIELDS.filter((f) => !EDITORIAL_FIELDS.includes(f));
-    const publicFieldChanged = FROZEN_FIELDS.some(
+    // Le formulaire renvoie tous les champs, touchés ou non : on ne regarde que
+    // ceux dont la valeur change réellement (cf. isSameFieldValue).
+    const fieldChanged = ALLOWED_FIELDS.some(
       (f) => updates[f] !== undefined && !isSameFieldValue(f, updates[f], (tour as any)[f])
     );
-    if (hoursUntilStart < 24 && publicFieldChanged) {
-      return res.status(400).json({ error: "cannot modify within 24h of start" });
+    if (tourStarted && fieldChanged) {
+      return res.status(400).json({ error: "tour already started" });
     }
     if (req.body.guides !== undefined) {
       const guides = normalizeGuideNames(req.body.guides, MAX_GUIDES_PER_TOUR);
@@ -308,7 +303,10 @@ async function handlePut(req: VercelRequest, res: VercelResponse) {
       if (isNaN(newDate.getTime())) {
         return res.status(400).json({ error: "date: invalid ISO datetime" });
       }
-      if (newDate < new Date()) {
+      // « Doit être dans le futur » ne vaut que pour un vrai déplacement : le
+      // formulaire renvoie la date même quand le guide n'y a pas touché, et une
+      // visite qui vient de commencer aurait alors refusé jusqu'à un no-op.
+      if (!isSameFieldValue("date", updates.date, (tour as any).date) && newDate < new Date()) {
         return res.status(400).json({ error: "date: must be future" });
       }
     }

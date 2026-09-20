@@ -1213,8 +1213,8 @@ function PastStatsPanel({ stats }: { stats: PastStats | null }) {
 // elles laissaient le guide sans savoir quoi faire.
 function humanizeTourError(error: string | undefined): string | undefined {
   if (!error) return error;
-  if (error === "cannot modify within 24h of start") {
-    return "À moins de 24 h du départ, l'horaire, la durée et le nombre de places sont figés (des visiteurs sont déjà inscrits). L'intitulé et le descriptif restent modifiables.";
+  if (error === "tour already started") {
+    return "Cette visite a déjà commencé : elle n'est plus modifiable.";
   }
   return error;
 }

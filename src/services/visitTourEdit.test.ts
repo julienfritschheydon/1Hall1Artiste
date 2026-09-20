@@ -1,9 +1,12 @@
-// Édition d'une visite à moins de 24 h du départ.
+// Édition d'une visite par son guide.
 //
-// Le gel J-1 protège les inscrits : horaire, durée et nombre de places ne
-// doivent plus bouger. Mais il bloquait aussi les corrections de texte, et même
-// un simple changement d'intitulé, parce que le formulaire renvoie tous les
-// champs et que la comparaison brute voyait des changements fantômes
+// La règle est simple : tant que la visite n'a pas démarré, le guide est maître
+// de sa fiche — y compris le jour même, où les ajustements sont les plus utiles.
+// Une fois la visite commencée, plus rien ne bouge.
+//
+// Un gel « J-1 » interdisait auparavant tout changement dans les 24 h précédant
+// le départ. Il bloquait même les corrections de texte : le formulaire renvoie
+// tous les champs et la comparaison brute voyait des changements fantômes
 // (surbooking absent vs « 0 » du formulaire, descriptif vide vs absent).
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
@@ -152,56 +155,59 @@ async function put(id: string, body: Record<string, unknown>) {
   return { status: statusOf(res), body: jsonOf(res) };
 }
 
-describe("édition d'une visite à moins de 24 h", () => {
-  it("accepte un changement d'intitulé seul", async () => {
+describe("édition d'une visite avant son départ", () => {
+  it("accepte un changement d'intitulé le jour même", async () => {
     const id = makeTour();
-    const { status } = await put(id, formBody({ title: "Visite du Temple du Goût" }));
+    const { status } = await put(id, formBody({ title: "Le Temple du Goût" }));
     expect(status).toBe(200);
-    expect(getAtPath(`tours/${id}`).title).toBe("Visite du Temple du Goût");
+    expect(getAtPath(`tours/${id}`).title).toBe("Le Temple du Goût");
   });
 
-  it("accepte l'ajout d'un descriptif", async () => {
+  it("accepte l'ajout d'un descriptif le jour même", async () => {
     const id = makeTour();
     const { status } = await put(id, formBody({ description: "Départ devant le Temple du Goût." }));
     expect(status).toBe(200);
     expect(getAtPath(`tours/${id}`).description).toBe("Départ devant le Temple du Goût.");
   });
 
-  it("accepte une modification de texte sur une visite sans descriptif ni surbooking enregistrés", async () => {
-    // Le formulaire renvoie description:"" et overbookingSeats:0 là où la base
-    // n'a rien : ces champs ne doivent pas compter comme des changements.
+  it("accepte un changement d'horaire quelques heures avant le départ", async () => {
     const id = makeTour();
-    const { status } = await put(id, formBody({ title: "Nouvel intitulé" }));
+    const { status } = await put(id, formBody({ date: "2026-09-19T15:00:00.000Z" }));
     expect(status).toBe(200);
+    expect(getAtPath(`tours/${id}`).date).toBe("2026-09-19T15:00:00.000Z");
   });
 
-  it("accepte un renvoi de la même date à la seconde près", async () => {
-    const id = makeTour("tour_secondes", { date: "2026-09-19T12:00:00.000Z" });
-    // Le formulaire ne garde que les minutes : la date repart sans les secondes.
-    const { status } = await put(id, formBody({ title: "Autre titre", date: "2026-09-19T12:00:00Z" }));
-    expect(status).toBe(200);
-  });
-
-  it("refuse toujours un changement d'horaire", async () => {
-    const id = makeTour();
-    const { status, body } = await put(id, formBody({ date: "2026-09-19T15:00:00.000Z" }));
-    expect(status).toBe(400);
-    expect(body.error).toBe("cannot modify within 24h of start");
-    expect(getAtPath(`tours/${id}`).date).toBe(TOUR_DATE);
-  });
-
-  it("refuse toujours un changement de capacité", async () => {
+  it("accepte un changement de capacité quelques heures avant le départ", async () => {
     const id = makeTour();
     const { status } = await put(id, formBody({ capacity: 30 }));
-    expect(status).toBe(400);
-    expect(getAtPath(`tours/${id}`).capacity).toBe(15);
-  });
-
-  it("laisse passer les mêmes champs largement avant la visite", async () => {
-    vi.setSystemTime(new Date("2026-09-01T08:00:00.000Z"));
-    const id = makeTour();
-    const { status } = await put(id, formBody({ capacity: 30, description: "Nouveau texte" }));
     expect(status).toBe(200);
     expect(getAtPath(`tours/${id}`).capacity).toBe(30);
+  });
+
+  it("refuse toujours de déplacer une visite dans le passé", async () => {
+    const id = makeTour();
+    const { status, body } = await put(id, formBody({ date: "2026-09-18T10:00:00.000Z" }));
+    expect(status).toBe(400);
+    expect(body.error).toBe("date: must be future");
+  });
+});
+
+describe("édition d'une visite déjà commencée", () => {
+  it("refuse toute modification", async () => {
+    const id = makeTour();
+    vi.setSystemTime(new Date("2026-09-19T12:30:00.000Z")); // visite en cours
+    const { status, body } = await put(id, formBody({ title: "Trop tard" }));
+    expect(status).toBe(400);
+    expect(body.error).toBe("tour already started");
+    expect(getAtPath(`tours/${id}`).title).toBe("Visite de 14h");
+  });
+
+  it("n'échoue pas sur un renvoi du formulaire sans aucun changement", async () => {
+    // Visite sans descriptif ni surbooking enregistrés : le formulaire renvoie
+    // description:"" et overbookingSeats:0, qui ne sont pas des modifications.
+    const id = makeTour();
+    vi.setSystemTime(new Date("2026-09-19T12:30:00.000Z"));
+    const { status } = await put(id, formBody());
+    expect(status).toBe(200);
   });
 });
