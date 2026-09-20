@@ -43,12 +43,12 @@ async function handleGetTours(email: string, res: VercelResponse) {
     }
 
     if (registrations.length === 0 && waitlist.length === 0) {
-      return res.status(404).json({ error: "no bookings found" });
+      return res.status(404).json({ error: "Aucune réservation trouvée" });
     }
     return res.status(200).json({ tours, registrations, waitlist });
   } catch (e) {
     console.error("[favorites GET tours]", e);
-    return res.status(500).json({ error: "fetch failed" });
+    return res.status(500).json({ error: "Échec de la récupération des données" });
   }
 }
 
@@ -238,7 +238,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const deviceId = typeof req.query.deviceId === "string" ? req.query.deviceId : "";
       return await handleDelete(deviceId, res);
     }
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Méthode non autorisée" });
   } catch (err) {
     console.error("[favorites] erreur:", err);
     return res.status(500).json({ error: "Erreur serveur" });

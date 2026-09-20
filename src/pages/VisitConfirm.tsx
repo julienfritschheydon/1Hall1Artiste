@@ -64,7 +64,7 @@ export default function VisitConfirm() {
       if (res.ok && data.ok) {
         setStatus("success");
         setMessage("Vous avez été retiré de la file d'attente.");
-      } else if (data.error === "already cancelled") {
+      } else if (data.code === "already_cancelled") {
         setStatus("success");
         setMessage("Vous étiez déjà retiré de la file d'attente.");
       } else {
@@ -96,7 +96,7 @@ export default function VisitConfirm() {
       if (res.ok && data.ok) {
         setStatus("success");
         setMessage(data.message || "Vos données ont été supprimées.");
-      } else if (data.error === "token expired") {
+      } else if (data.code === "token_expired") {
         setStatus("error");
         setMessage("Lien expiré (24h dépassées). Refaites une demande de suppression.");
       } else {
@@ -128,7 +128,7 @@ export default function VisitConfirm() {
       if (res.ok && data.ok) {
         setStatus("success");
         setMessage("Inscription annulée. Vous recevrez un email de confirmation.");
-      } else if (data.error === "email does not match registration") {
+      } else if (data.code === "email_mismatch") {
         setStatus("form");
         setMessage("Email incorrect. Réessayez.");
       } else {
@@ -165,10 +165,10 @@ export default function VisitConfirm() {
           if (res.ok && data.ok) {
             setStatus("success");
             setMessage("Inscription confirmée ! Vous recevrez un rappel avant la visite.");
-          } else if (data.error === "token expired") {
+          } else if (data.code === "token_expired") {
             setStatus("error");
             setMessage("Lien expiré. Votre inscription a été annulée. Vous pouvez vous réinscrire.");
-          } else if (data.error === "registration already processed") {
+          } else if (data.code === "registration_already_processed") {
             setStatus("error");
             setMessage(
               data.status === "annulé"
@@ -195,7 +195,7 @@ export default function VisitConfirm() {
           if (res.ok && data.ok) {
             setStatus("success");
             setMessage("Place confirmée ! Votre inscription est validée.");
-          } else if (data.error === "token expired") {
+          } else if (data.code === "token_expired") {
             setStatus("error");
             setMessage("Offre expirée (24H dépassées). La place a été proposée à la personne suivante.");
           } else {

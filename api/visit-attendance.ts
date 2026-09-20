@@ -32,7 +32,7 @@ async function requireGuideCode(req: VercelRequest, res: VercelResponse): Promis
   const valid = await validateGuideCode(code);
 
   if (!valid) {
-    res.status(401).json({ error: "guide code required in x-guide-code header" });
+    res.status(401).json({ error: "Code guide requis (en-tête x-guide-code)" });
     return false;
   }
 
@@ -49,30 +49,30 @@ async function handleMarkAttendance(req: VercelRequest, res: VercelResponse) {
   const { registrationId, tourId, present } = req.body;
 
   if (!registrationId || typeof registrationId !== "string") {
-    return res.status(400).json({ error: "registrationId: string required" });
+    return res.status(400).json({ error: "Identifiant d'inscription requis" });
   }
 
   if (!tourId || typeof tourId !== "string") {
-    return res.status(400).json({ error: "tourId: string required" });
+    return res.status(400).json({ error: "Identifiant de visite requis" });
   }
 
   if (typeof present !== "boolean") {
-    return res.status(400).json({ error: "present: boolean required" });
+    return res.status(400).json({ error: "Le statut de présence est requis" });
   }
 
   try {
     const reg = await rtdbRegistrationGet(registrationId);
 
     if (!reg || reg.deletedAt) {
-      return res.status(404).json({ error: "registration not found" });
+      return res.status(404).json({ error: "Inscription introuvable" });
     }
 
     if (reg.tourId !== tourId) {
-      return res.status(400).json({ error: "registration does not belong to this tour" });
+      return res.status(400).json({ error: "Cette inscription n'appartient pas à cette visite" });
     }
 
     if (!holdsSeat(reg)) {
-      return res.status(409).json({ error: `cannot mark attendance: registration is "${reg.status}"` });
+      return res.status(409).json({ error: `Pointage impossible : l'inscription est « ${reg.status} »` });
     }
 
     // Create/update attendance record (un seul par inscription)
@@ -94,11 +94,11 @@ async function handleMarkAttendance(req: VercelRequest, res: VercelResponse) {
     return res.json({
       ok: true,
       attendance,
-      message: `Marked as ${newStatus}`,
+      message: `Marqué comme ${newStatus}`,
     });
   } catch (e) {
     console.error("[visit-attendance POST]", e);
-    return res.status(500).json({ error: "attendance marking failed" });
+    return res.status(500).json({ error: "Échec du pointage" });
   }
 }
 
@@ -112,7 +112,7 @@ async function handleListAttendance(req: VercelRequest, res: VercelResponse) {
   const { tourId } = req.query;
 
   if (!tourId || typeof tourId !== "string") {
-    return res.status(400).json({ error: "tourId: string required" });
+    return res.status(400).json({ error: "Identifiant de visite requis" });
   }
 
   try {
@@ -172,7 +172,7 @@ async function handleListAttendance(req: VercelRequest, res: VercelResponse) {
     });
   } catch (e) {
     console.error("[visit-attendance GET]", e);
-    return res.status(500).json({ error: "list failed" });
+    return res.status(500).json({ error: "Échec du chargement de la liste" });
   }
 }
 
@@ -186,28 +186,28 @@ async function handleCancelByGuide(req: VercelRequest, res: VercelResponse) {
 
   const { registrationId, tourId } = req.body || {};
   if (!registrationId || typeof registrationId !== "string") {
-    return res.status(400).json({ error: "registrationId: string required" });
+    return res.status(400).json({ error: "Identifiant d'inscription requis" });
   }
   if (!tourId || typeof tourId !== "string") {
-    return res.status(400).json({ error: "tourId: string required" });
+    return res.status(400).json({ error: "Identifiant de visite requis" });
   }
 
   try {
     const reg = await rtdbRegistrationGet(registrationId);
     if (!reg || reg.deletedAt) {
-      return res.status(404).json({ error: "registration not found" });
+      return res.status(404).json({ error: "Inscription introuvable" });
     }
     if (reg.tourId !== tourId) {
-      return res.status(400).json({ error: "registration does not belong to this tour" });
+      return res.status(400).json({ error: "Cette inscription n'appartient pas à cette visite" });
     }
     if (reg.status === "annulé") {
-      return res.json({ ok: true, message: "Already cancelled" });
+      return res.json({ ok: true, message: "Inscription déjà annulée" });
     }
     await cancelRegistration(reg);
     return res.json({ ok: true, message: "Inscription annulée" });
   } catch (e) {
     console.error("[visit-attendance cancel]", e);
-    return res.status(500).json({ error: "cancellation failed" });
+    return res.status(500).json({ error: "Échec de l'annulation" });
   }
 }
 
@@ -251,7 +251,7 @@ async function handleOverview(req: VercelRequest, res: VercelResponse) {
     return res.json({ registrations, waitlistPlaces });
   } catch (e) {
     console.error("[visit-attendance overview]", e);
-    return res.status(500).json({ error: "overview failed" });
+    return res.status(500).json({ error: "Échec du chargement de la vue d'ensemble" });
   }
 }
 
@@ -286,7 +286,7 @@ async function handleStats(req: VercelRequest, res: VercelResponse) {
     });
   } catch (e) {
     console.error("[visit-attendance stats]", e);
-    return res.status(500).json({ error: "stats failed" });
+    return res.status(500).json({ error: "Échec du chargement des statistiques" });
   }
 }
 
@@ -305,6 +305,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } else if (req.method === "DELETE") {
     return handleCancelByGuide(req, res);
   } else {
-    return res.status(405).json({ error: "method not allowed" });
+    return res.status(405).json({ error: "Méthode non autorisée" });
   }
 }

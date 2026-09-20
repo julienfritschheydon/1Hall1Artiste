@@ -579,12 +579,12 @@ async function promoteFromWaitlist(): Promise<{ promoted: number; rejected: numb
 // rappel, aucune purge, aucune promotion automatique).
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST" && req.method !== "GET") {
-    return res.status(405).json({ error: "method not allowed" });
+    return res.status(405).json({ error: "Méthode non autorisée" });
   }
 
   // Validate cron auth
   if (!validateCronAuth(req)) {
-    return res.status(401).json({ error: "invalid authorization" });
+    return res.status(401).json({ error: "Autorisation invalide" });
   }
 
   const { type } = req.query;
@@ -613,7 +613,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } else if (type === "promote-waitlist") {
       result = await promoteFromWaitlist();
     } else {
-      return res.status(400).json({ error: "unknown job type" });
+      return res.status(400).json({ error: "Type de tâche inconnu" });
     }
 
     // Trace unique et lisible dans les logs Vercel : le corps de la réponse
@@ -625,6 +625,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.json({ ok: true, type, ...result });
   } catch (e) {
     console.error(`[visit-emails] Job ${type} failed:`, e);
-    return res.status(500).json({ error: "job failed", type });
+    return res.status(500).json({ error: "Échec de la tâche", type });
   }
 }

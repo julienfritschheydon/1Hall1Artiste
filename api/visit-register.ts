@@ -204,15 +204,15 @@ async function handleCreateRegistration(req: VercelRequest, res: VercelResponse)
 
   // Q13: Validate email
   if (!email || typeof email !== "string" || !EMAIL_REGEX.test(email)) {
-    return res.status(400).json({ error: "email: valid email required" });
+    return res.status(400).json({ error: "Adresse email valide requise" });
   }
 
   // Q13: Sanitize names
   if (!firstName || typeof firstName !== "string" || firstName.trim().length === 0) {
-    return res.status(400).json({ error: "firstName: non-empty string required" });
+    return res.status(400).json({ error: "Le prénom est obligatoire" });
   }
   if (!lastName || typeof lastName !== "string" || lastName.trim().length === 0) {
-    return res.status(400).json({ error: "lastName: non-empty string required" });
+    return res.status(400).json({ error: "Le nom est obligatoire" });
   }
 
   const sanitizedFirstName = sanitizeText(firstName);
@@ -233,7 +233,7 @@ async function handleCreateRegistration(req: VercelRequest, res: VercelResponse)
     ];
   }
   if (companions.length > 4) {
-    return res.status(400).json({ error: "max 5 places per inscription (1 + 4 accompagnants)" });
+    return res.status(400).json({ error: "5 places maximum par inscription (vous + 4 accompagnants)" });
   }
   const groupSize = 1 + companions.length;
   const companionsField = companions.length > 0 ? companions : undefined;
@@ -242,13 +242,13 @@ async function handleCreateRegistration(req: VercelRequest, res: VercelResponse)
     // Q7: Check max 3 visites (global, resets when soft-deleted)
     const userTourCount = await rtdbCountUserTours(email);
     if (userTourCount >= 3) {
-      return res.status(400).json({ error: "max 3 visites per person" });
+      return res.status(400).json({ error: "3 visites maximum par personne" });
     }
 
     // Check tour exists
     const tour = await rtdbTourGet(tourId);
     if (!tour || tour.deletedAt) {
-      return res.status(404).json({ error: "tour not found" });
+      return res.status(404).json({ error: "Visite introuvable" });
     }
 
     // Guide manual on-site registration (spec §2): bypasses capacité, autorisé
@@ -261,19 +261,19 @@ async function handleCreateRegistration(req: VercelRequest, res: VercelResponse)
     const tourStart = new Date(tour.date).getTime();
     const tourEnd = tourStart + (tour.durationMinutes || 0) * 60 * 1000;
     if (!isManual && tourStart <= Date.now()) {
-      return res.status(400).json({ error: "tour already started" });
+      return res.status(400).json({ error: "Cette visite a déjà commencé" });
     }
     if (isManual && tourEnd < Date.now()) {
-      return res.status(400).json({ error: "tour already ended" });
+      return res.status(400).json({ error: "Cette visite est terminée" });
     }
 
     // Check already registered (Q6: dedup by email + tour) — inscriptions ET file d'attente
     const alreadyReg = await rtdbRegistrationExists(tourId, email);
     if (alreadyReg) {
-      return res.status(400).json({ error: "already registered for this tour" });
+      return res.status(400).json({ error: "Vous êtes déjà inscrit à cette visite" });
     }
     if (await rtdbWaitlistExists(tourId, email)) {
-      return res.status(400).json({ error: "already in waitlist for this tour" });
+      return res.status(400).json({ error: "Vous êtes déjà en file d'attente pour cette visite" });
     }
 
     // ── Section critique ────────────────────────────────────────────────────
@@ -374,7 +374,7 @@ async function handleCreateRegistration(req: VercelRequest, res: VercelResponse)
     });
   } catch (e) {
     console.error("[visit-register POST]", e);
-    return res.status(500).json({ error: "registration failed" });
+    return res.status(500).json({ error: "Échec de l'inscription" });
   }
 }
 
@@ -382,18 +382,18 @@ async function handleCreateRegistration(req: VercelRequest, res: VercelResponse)
 async function handleIcsDownload(req: VercelRequest, res: VercelResponse) {
   const id = req.query.id;
   if (!id || typeof id !== "string") {
-    return res.status(400).json({ error: "id: string required" });
+    return res.status(400).json({ error: "Identifiant requis" });
   }
 
   try {
     const registration = await rtdbRegistrationGet(id);
     if (!registration || registration.status !== "confirmé") {
-      return res.status(404).json({ error: "registration not found" });
+      return res.status(404).json({ error: "Inscription introuvable" });
     }
 
     const tour = await rtdbTourGet(registration.tourId);
     if (!tour) {
-      return res.status(404).json({ error: "tour not found" });
+      return res.status(404).json({ error: "Visite introuvable" });
     }
 
     const ics = buildIcs({
@@ -412,7 +412,7 @@ async function handleIcsDownload(req: VercelRequest, res: VercelResponse) {
     return res.status(200).send(ics);
   } catch (e) {
     console.error("[visit-register ics]", e);
-    return res.status(500).json({ error: "ics generation failed" });
+    return res.status(500).json({ error: "Échec de la génération du fichier calendrier" });
   }
 }
 
@@ -427,14 +427,14 @@ async function handleConfirmRegistration(req: VercelRequest, res: VercelResponse
   const { token } = req.body;
 
   if (!token || typeof token !== "string") {
-    return res.status(400).json({ error: "token: string required" });
+    return res.status(400).json({ error: "Token requis" });
   }
 
   try {
     const verified = verifyRegistrationToken(token);
 
     if (!verified.valid) {
-      return res.status(400).json({ error: "invalid token" });
+      return res.status(400).json({ error: "Lien invalide" });
     }
 
     // L'expiration du jeton est sans objet ici : on ne valide plus rien, on se
@@ -442,7 +442,7 @@ async function handleConfirmRegistration(req: VercelRequest, res: VercelResponse
     const registration = await rtdbRegistrationGet(verified.registrationId).catch(() => null);
 
     if (!registration || registration.deletedAt) {
-      return res.status(404).json({ error: "registration not found" });
+      return res.status(404).json({ error: "Inscription introuvable" });
     }
 
     if (registration.status === "confirmé" || registration.status === "présent") {
@@ -453,10 +453,10 @@ async function handleConfirmRegistration(req: VercelRequest, res: VercelResponse
       });
     }
 
-    return res.status(400).json({ error: "registration already processed", status: registration.status });
+    return res.status(400).json({ error: "Cette inscription a déjà été traitée", code: "registration_already_processed", status: registration.status });
   } catch (e) {
     console.error("[visit-register confirm]", e);
-    return res.status(500).json({ error: "confirmation failed" });
+    return res.status(500).json({ error: "Échec de la confirmation" });
   }
 }
 
@@ -585,26 +585,26 @@ async function handleCancelRegistration(req: VercelRequest, res: VercelResponse)
   const { registrationId, email } = req.body;
 
   if (!registrationId || typeof registrationId !== "string") {
-    return res.status(400).json({ error: "registrationId: string required" });
+    return res.status(400).json({ error: "Identifiant d'inscription requis" });
   }
   if (!email || typeof email !== "string") {
-    return res.status(400).json({ error: "email: string required" });
+    return res.status(400).json({ error: "Adresse email requise" });
   }
 
   try {
     const registration = await rtdbRegistrationGet(registrationId);
     if (!registration || registration.deletedAt) {
-      return res.status(404).json({ error: "registration not found" });
+      return res.status(404).json({ error: "Inscription introuvable" });
     }
     // Email must match (weak auth)
     if (registration.email.toLowerCase() !== email.toLowerCase()) {
-      return res.status(403).json({ error: "email does not match registration" });
+      return res.status(403).json({ error: "L'adresse email ne correspond pas à l'inscription", code: "email_mismatch" });
     }
     if (registration.status === "annulé") {
-      return res.json({ ok: true, message: "Already cancelled" });
+      return res.json({ ok: true, message: "Inscription déjà annulée" });
     }
     if (registration.status === "présent" || registration.status === "absent") {
-      return res.status(400).json({ error: "tour already happened, cannot cancel" });
+      return res.status(400).json({ error: "Cette visite a déjà eu lieu : annulation impossible" });
     }
 
     await cancelRegistration(registration);
@@ -612,7 +612,7 @@ async function handleCancelRegistration(req: VercelRequest, res: VercelResponse)
     return res.json({ ok: true, message: "Inscription annulée" });
   } catch (e) {
     console.error("[visit-register cancel]", e);
-    return res.status(500).json({ error: "cancellation failed" });
+    return res.status(500).json({ error: "Échec de l'annulation" });
   }
 }
 
@@ -631,7 +631,7 @@ async function handleGdprRequest(req: VercelRequest, res: VercelResponse) {
 
   const { email } = req.body;
   if (!email || typeof email !== "string" || !EMAIL_REGEX.test(email)) {
-    return res.status(400).json({ error: "email: valid email required" });
+    return res.status(400).json({ error: "Adresse email valide requise" });
   }
 
   try {
@@ -649,7 +649,7 @@ async function handleGdprRequest(req: VercelRequest, res: VercelResponse) {
     });
   } catch (e) {
     console.error("[visit-register gdpr request]", e);
-    return res.status(500).json({ error: "gdpr request failed" });
+    return res.status(500).json({ error: "Échec de la demande de suppression" });
   }
 }
 
@@ -658,14 +658,14 @@ async function handleGdprRequest(req: VercelRequest, res: VercelResponse) {
 async function handleGdprConfirm(req: VercelRequest, res: VercelResponse) {
   const { token } = req.body;
   if (!token || typeof token !== "string") {
-    return res.status(400).json({ error: "token: string required" });
+    return res.status(400).json({ error: "Token requis" });
   }
   const verified = verifyRegistrationToken(token);
   if (!verified.valid || verified.registrationId !== "gdpr") {
-    return res.status(400).json({ error: "invalid token" });
+    return res.status(400).json({ error: "Lien invalide" });
   }
   if (verified.expired) {
-    return res.status(400).json({ error: "token expired" });
+    return res.status(400).json({ error: "Lien expiré", code: "token_expired" });
   }
   const email = verified.email;
 
@@ -721,7 +721,7 @@ async function handleGdprConfirm(req: VercelRequest, res: VercelResponse) {
     });
   } catch (e) {
     console.error("[visit-register gdpr]", e);
-    return res.status(500).json({ error: "gdpr deletion failed" });
+    return res.status(500).json({ error: "Échec de la suppression des données" });
   }
 }
 
@@ -735,7 +735,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (req.method !== "POST") {
-    return res.status(405).json({ error: "method not allowed" });
+    return res.status(405).json({ error: "Méthode non autorisée" });
   }
 
   // Route by query param (?action=confirm) or path suffix (/confirm).
@@ -752,7 +752,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return handleGdprConfirm(req, res);
   } else if (action) {
     // Une action inconnue (typo) ne doit pas créer silencieusement une inscription.
-    return res.status(400).json({ error: `unknown action: ${action}` });
+    return res.status(400).json({ error: `Action inconnue : ${action}` });
   } else {
     return handleCreateRegistration(req, res);
   }

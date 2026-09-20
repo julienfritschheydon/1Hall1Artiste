@@ -421,7 +421,7 @@ function TourForm({
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(humanizeTourError(data.error) || (data.errors ? data.errors.join(", ") : "Erreur"));
+        setError(humanizeTourError(data.error, data.code) || (data.errors ? data.errors.join(", ") : "Erreur"));
         return;
       }
       if (data.warning) {
@@ -1227,14 +1227,13 @@ function PastStatsPanel({ stats }: { stats: PastStats | null }) {
   );
 }
 
-// Les erreurs de l'API sont techniques et en anglais : affichées telles quelles,
-// elles laissaient le guide sans savoir quoi faire.
-function humanizeTourError(error: string | undefined): string | undefined {
-  if (!error) return error;
-  if (error === "tour already started") {
+// L'API renvoie déjà un message en français, mais certains cas méritent une
+// consigne plus explicite : on les reconnaît via le code machine (`code`).
+function humanizeTourError(error: string | undefined, code?: string): string | undefined {
+  if (code === "tour_already_started") {
     return "Cette visite a déjà commencé : elle n'est plus modifiable.";
   }
-  if (error === "date: not editable") {
+  if (code === "date_not_editable") {
     return "Le jour et l'heure d'une visite ne sont pas modifiables. Pour la déplacer, annulez-la et créez-en une nouvelle.";
   }
   return error;
