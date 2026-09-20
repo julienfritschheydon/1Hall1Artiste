@@ -12,13 +12,44 @@
 // - anti-rafale : une même action en erreur n'alerte qu'une fois par fenêtre,
 //   sinon une panne EmailJS ou Firebase noierait la boîte de réception.
 import type { VercelRequest } from "@vercel/node";
+import { normalizeRecipient } from "./_recipient.js";
 
 // Adresse par défaut : le projet n'a qu'un administrateur. VISIT_ALERT_EMAIL
 // reste prioritaire pour rediriger les alertes sans redéployer.
 const DEFAULT_ALERT_EMAIL = "julien.fritsch@gmail.com";
 
 export function alertRecipient(): string {
-  return process.env.VISIT_ALERT_EMAIL || DEFAULT_ALERT_EMAIL;
+  // VISIT_ALERT_EMAIL défini mais vide (cas classique d'une variable Vercel
+  // effacée sans être supprimée) ferait partir l'alerte sans destinataire.
+  return normalizeRecipient(process.env.VISIT_ALERT_EMAIL) || DEFAULT_ALERT_EMAIL;
+}
+
+/**
+ * Template EmailJS des alertes administrateur.
+ *
+ * L'alerte passe `subject` + `message` : elle exige donc un template qui rende
+ * {{subject}} / {{{message}}}, comme celui des e-mails de visite. Or
+ * EMAILJS_TEMPLATE_ID désigne le template du lien artiste, dont le sujet est en
+ * dur et dont le corps n'affiche que {{link}} : les alertes partaient avec le
+ * texte « votre lien pour modifier votre fiche » et sans le moindre détail sur
+ * l'erreur. On prend donc d'abord un template de visite, et EMAILJS_TEMPLATE_ID
+ * ne sert plus que de dernier recours.
+ */
+export function alertTemplateId(): string | undefined {
+  const explicit = process.env.EMAILJS_ALERT_TEMPLATE_ID;
+  if (explicit) return explicit;
+
+  try {
+    const ids = JSON.parse(process.env.VISIT_EMAILJS_TEMPLATE_IDS || "{}");
+    if (ids && typeof ids === "object") {
+      const found = Object.values(ids).find((v) => typeof v === "string" && v);
+      if (found) return found as string;
+    }
+  } catch {
+    console.error("[alert-email] VISIT_EMAILJS_TEMPLATE_IDS n'est pas un JSON valide");
+  }
+
+  return process.env.EMAILJS_TEMPLATE_ID;
 }
 
 // Fenêtre anti-rafale, par clé d'alerte (route + action + type d'erreur).
@@ -50,7 +81,7 @@ export async function sendAdminAlert(subject: string, message: string): Promise<
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         service_id: process.env.EMAILJS_SERVICE_ID,
-        template_id: process.env.EMAILJS_TEMPLATE_ID,
+        template_id: alertTemplateId(),
         user_id: process.env.EMAILJS_PUBLIC_KEY,
         accessToken: process.env.EMAILJS_PRIVATE_KEY,
         template_params: {

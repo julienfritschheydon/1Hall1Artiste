@@ -30,6 +30,7 @@ import {
 } from "./_visit-db.js";
 import { placesOf, bookableCapacity } from "../src/types/visitTypes.js";
 import { buildVisitEmail } from "./_visit-email.js";
+import { normalizeRecipient } from "./_recipient.js";
 import { createRegistrationToken } from "./_token.js";
 
 const SITE_URL = process.env.PUBLIC_SITE_URL || "https://www.1hall1artiste.fr";
@@ -100,6 +101,16 @@ async function sendEmailWithRetry(
     );
     return false;
   }
+  // Destinataire vide : EmailJS répondrait « The recipients address is empty »
+  // après trois tentatives, pour du quota consommé et rien d'envoyé.
+  const recipient = normalizeRecipient(data.to);
+  if (!recipient) {
+    console.error(
+      `[visit-emails] Destinataire vide (type « ${data.type} », inscription ` +
+        `${data.registrationId ?? "(inconnue)"}) — envoi abandonné.`
+    );
+    return false;
+  }
   // Build subject + body in code (EmailJS can't compare {{#if type}}). Template = {{subject}}/{{message}}.
   const built = buildVisitEmail(data.type, data);
   const emailjsData = {
@@ -108,7 +119,7 @@ async function sendEmailWithRetry(
     user_id: process.env.EMAILJS_PUBLIC_KEY,
     accessToken: process.env.EMAILJS_PRIVATE_KEY,
     template_params: {
-      to_email: data.to,
+      to_email: recipient,
       subject: built.subject,
       message: built.message,
       firstName: data.firstName || "",

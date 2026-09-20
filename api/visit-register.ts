@@ -32,6 +32,7 @@ import {
 } from "./_visit-db.js";
 import { rtdbGet } from "./_firebase.js";
 import { buildVisitEmail, VisitEmailType } from "./_visit-email.js";
+import { normalizeRecipient } from "./_recipient.js";
 import { createRegistrationToken, verifyRegistrationToken } from "./_token.js";
 import { placesOf, bookableCapacity, type Tour } from "../src/types/visitTypes.js";
 import { buildIcs, googleCalendarUrl } from "./_ics.js";
@@ -64,7 +65,26 @@ export async function sendRegistrationEmail(
   const templateId = templateIds[emailType] || templateIds.confirmation;
   if (!templateId) throw new Error(`Template ${emailType} not configured`);
 
-  const idempotencyKey = data.idempotencyKey || `${data.to}_${emailType}_${Date.now()}`;
+  // Destinataire vide : inutile d'appeler EmailJS, qui répondrait « The
+  // recipients address is empty » après trois tentatives. On trace l'anomalie
+  // comme un échec d'envoi, sans faire échouer l'action en cours.
+  const recipient = normalizeRecipient(data.to);
+  if (!recipient) {
+    console.error(
+      `[visit-register] Destinataire vide (type « ${emailType} », inscription ` +
+        `${data.registrationId ?? "(inconnue)"}) — envoi abandonné.`
+    );
+    await rtdbAuditLog("email_failure_alert", {
+      emailType,
+      toEmail: "",
+      registrationId: data.registrationId,
+      attempts: 0,
+      lastError: "Destinataire vide",
+    });
+    return;
+  }
+
+  const idempotencyKey = data.idempotencyKey || `${recipient}_${emailType}_${Date.now()}`;
 
   // Build subject + body in code (EmailJS can't compare {{#if type}}). Template = {{subject}}/{{message}}.
   const built = buildVisitEmail(emailType as any, data);
@@ -75,7 +95,7 @@ export async function sendRegistrationEmail(
     user_id: process.env.EMAILJS_PUBLIC_KEY,
     accessToken: process.env.EMAILJS_PRIVATE_KEY,
     template_params: {
-      to_email: data.to,
+      to_email: recipient,
       subject: built.subject,
       message: built.message,
       firstName: data.firstName || "",

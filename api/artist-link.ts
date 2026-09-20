@@ -11,6 +11,7 @@
 //   l'artiste recevrait : il couvre toutes les fiches de son adresse.
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { normalizeRecipient } from "./_recipient.js";
 import { alertApiError } from "./_alert-email.js";
 import { buildEmailToArtistIds } from "./_sheets.js";
 import { createToken } from "./_token.js";
@@ -33,6 +34,10 @@ function appBaseUrl(req: VercelRequest): string {
 // Envoi via EmailJS (compte Gmail déjà branché sur l'app — aucun domaine requis).
 // Appel REST serveur : nécessite la clé privée + "Allow EmailJS API for non-browser apps".
 async function sendEmail(to: string, link: string): Promise<void> {
+  // Sans destinataire, EmailJS répond « The recipients address is empty » :
+  // autant le dire ici, avec le nom du champ fautif.
+  const recipient = normalizeRecipient(to);
+  if (!recipient) throw new Error("Destinataire e-mail vide");
   const privateKey = process.env.EMAILJS_PRIVATE_KEY;
   if (!privateKey) throw new Error("EMAILJS_PRIVATE_KEY manquant");
   const serviceId = process.env.EMAILJS_SERVICE_ID || "service_14prhl5";
@@ -49,7 +54,7 @@ async function sendEmail(to: string, link: string): Promise<void> {
       user_id: publicKey,
       accessToken: privateKey,
       template_params: {
-        to_email: to,
+        to_email: recipient,
         link,
         app_name: "Collectif Île Feydeau",
       },
