@@ -142,6 +142,49 @@ const EMAIL_TEMPLATE_ID = 'template_q7nh8h2';
 // « The recipients address is empty » — d'où le taux d'échec du tableau de bord.
 export const ERROR_REPORT_RECIPIENT = 'julien.fritsch@gmail.com';
 
+// Le template « Visites Notifications » (template_q7nh8h2) est partagé avec les
+// e-mails de visite : il n'affiche que {{subject}} et {{{message}}}. Les
+// variables historiques de ce service (errors_json, error_count, user_agent…)
+// n'y existent pas — envoyées seules, elles produisaient un e-mail sans
+// destinataire, sans objet et sans corps. Le rapport est donc mis en forme ici,
+// comme le fait `buildVisitEmail` côté serveur.
+const escapeHtml = (value: string): string =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+export function buildErrorReportEmail(errors: ErrorInfo[]): { subject: string; message: string } {
+  const subject = `Collectif Île Feydeau — ${errors.length} erreur${errors.length > 1 ? 's' : ''} applicative${errors.length > 1 ? 's' : ''}`;
+
+  const blocks = errors.map((err, index) => {
+    const lines = [
+      `<strong>${index + 1}. ${escapeHtml(err.message)}</strong>`,
+      `Page : ${escapeHtml(err.path || err.url || '(inconnue)')}`,
+      `Composant : ${escapeHtml(err.componentName || '(non précisé)')}`,
+      `Horodatage : ${escapeHtml(err.timestamp)}`,
+      `Navigateur : ${escapeHtml(err.userAgent || '(inconnu)')}`,
+    ];
+    if (err.additionalInfo) {
+      lines.push(`Contexte : ${escapeHtml(JSON.stringify(err.additionalInfo))}`);
+    }
+    if (err.stack) {
+      // La trace complète est illisible dans un e-mail : les premières lignes
+      // suffisent à localiser l'erreur.
+      const trace = err.stack.split('\n').slice(0, 8).join('\n');
+      lines.push(`<pre>${escapeHtml(trace)}</pre>`);
+    }
+    return lines.join('<br>');
+  });
+
+  const message = [
+    `${errors.length} erreur${errors.length > 1 ? 's ont' : ' a'} été collectée${errors.length > 1 ? 's' : ''} côté visiteur.`,
+    ...blocks,
+  ].join('<br><br>');
+
+  return { subject, message };
+}
+
 /**
  * Initialiser EmailJS
  * À appeler au démarrage de l'application
@@ -189,15 +232,13 @@ export const sendErrorsToTrackingService = async (): Promise<boolean> => {
       // Importer EmailJS dynamiquement
       const emailjs = await import('@emailjs/browser');
       
-      // Préparer les données pour le modèle d'email
+      // Préparer les données pour le modèle d'email : exactement les variables
+      // attendues par le template (to_email, subject, message).
+      const built = buildErrorReportEmail(errors);
       const templateParams = {
         to_email: ERROR_REPORT_RECIPIENT,
-        errors_json: JSON.stringify(errors, null, 2),
-        error_count: errors.length,
-        timestamp: new Date().toISOString(),
-        user_agent: navigator.userAgent,
-        app_version: '1.0.0', // À mettre à jour avec la version de votre application
-        app_name: 'Collectif Feydeau'
+        subject: built.subject,
+        message: built.message,
       };
       
       // Envoyer l'email avec la clé publique explicite
