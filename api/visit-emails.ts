@@ -2,7 +2,7 @@
 // POST /api/visit-emails?type=send-7d-reminder — Rappel 7j avant (daily)
 // POST /api/visit-emails?type=send-1d-reminder — Rappel la veille, avec lien de désistement (daily)
 // POST /api/visit-emails?type=send-3h-reminder — Rappel ~3h avant (horaire, GitHub Actions)
-// POST /api/visit-emails?type=batch-delete-post-tour — Suppression RGPD 24H après (daily)
+// POST /api/visit-emails?type=batch-delete-post-tour — Purge RGPD des inscriptions passé le délai de conservation (daily)
 // POST /api/visit-emails?type=promote-waitlist — Auto-promotion file attente
 
 import { VercelRequest, VercelResponse } from "@vercel/node";
@@ -25,6 +25,7 @@ import {
   rtdbCountWaitlistedPlaces,
   rtdbTourStatsPut,
   holdsSeat,
+  retentionDays,
 } from "./_visit-db.js";
 import { placesOf, bookableCapacity } from "../src/types/visitTypes.js";
 import { buildVisitEmail } from "./_visit-email.js";
@@ -389,7 +390,8 @@ async function sendReminderEmails1d(): Promise<{ sent: number; examined: number 
   return { sent, examined: registrations.length };
 }
 
-// ==== JOB 3: Batch delete 24H after tour (Q3: 01:00 daily) ====
+// ==== JOB 3: Purge RGPD des visites passées (quotidien) ====
+// Le délai est porté par retentionDays() (api/_visit-db.ts), pas codé ici.
 async function batchDeletePostTour(): Promise<{ deletedRegs: number; deletedWaitlist: number }> {
   const completedTours = await rtdbToursCompleted();
 
@@ -408,7 +410,7 @@ async function batchDeletePostTour(): Promise<{ deletedRegs: number; deletedWait
 
     // Bilan chiffré AVANT la purge : c'est le dernier instant où ces données
     // existent. Sans cette écriture, le collectif perd le taux d'absentéisme de
-    // chaque visite 24h après l'avoir faite — et ne peut donc jamais régler son
+    // chaque visite à l'expiration du délai — et ne peut donc jamais régler son
     // surbooking sur ses propres chiffres.
     const seated = regs.filter((r) => holdsSeat(r));
     const sumPlaces = (list: typeof seated) => list.reduce((sum, r) => sum + placesOf(r), 0);
@@ -446,7 +448,7 @@ async function batchDeletePostTour(): Promise<{ deletedRegs: number; deletedWait
       tourTitle: tour.title,
       deletedRegistrations: tourRegs,
       deletedWaitlist: tourWaits,
-      reason: "RGPD 24h after tour completion",
+      reason: `RGPD: délai de conservation de ${retentionDays()} jours dépassé`,
       timestamp: new Date().toISOString(),
     });
 

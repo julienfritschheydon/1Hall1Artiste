@@ -72,9 +72,11 @@ Annuler ensuite l'inscription de test pour libérer la place.
 
 ## Après le festival
 
-- Relever le **bilan de fréquentation** dans le portail guide (inscrits,
-  présents, absents, taux d'absentéisme) **avant** que la purge RGPD des 24 h
-  n'efface les inscriptions. Les compteurs anonymes sont conservés, mais notez
+- **Terminer les appels** dans le portail guide. Vous avez 30 jours après
+  chaque visite : passé ce délai, noms et emails sont effacés (RGPD) et les
+  présences non pointées sont perdues pour de bon.
+- Relever le **bilan de fréquentation** (inscrits, présents, absents, taux
+  d'absentéisme). Les compteurs anonymes sont conservés sans limite, mais notez
   le taux quelque part : c'est lui qui permettra de régler le surbooking
   l'année suivante.
 - Noter les créneaux qui ont affiché complet et la taille des files d'attente :
