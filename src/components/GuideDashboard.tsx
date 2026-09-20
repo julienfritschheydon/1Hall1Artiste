@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import DailyAttendanceModal from "./DailyAttendanceModal";
 import ExportRegistrationsModal from "./ExportRegistrationsModal";
+import RegistrantSearchModal from "./RegistrantSearchModal";
 
 const ORANGE = "#ff7a45";
 
@@ -109,6 +110,7 @@ export default function GuideDashboard({
   const [showMultiModal, setShowMultiModal] = useState(false);
   const [showDailyModal, setShowDailyModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showSearchModal, setShowSearchModal] = useState(false);
   // L'historique s'ouvre à la demande, comme en Vue liste.
   const [showPast, setShowPast] = useState(false);
   const stats = calcStats(tours, registrationCounts, waitlistCounts, aggregationStats);
@@ -427,6 +429,12 @@ export default function GuideDashboard({
                 📋 Voir appels du jour
               </button>
               <button
+                onClick={() => setShowSearchModal(true)}
+                style={{ textAlign: "left", background: "transparent", border: "none", color: "#ff7a45", cursor: "pointer", padding: 0, textDecoration: "underline" }}
+              >
+                🔎 Rechercher un inscrit
+              </button>
+              <button
                 onClick={() => setShowExportModal(true)}
                 style={{ textAlign: "left", background: "transparent", border: "none", color: "#ff7a45", cursor: "pointer", padding: 0, textDecoration: "underline" }}
               >
@@ -441,6 +449,13 @@ export default function GuideDashboard({
         open={showDailyModal}
         onOpenChange={setShowDailyModal}
         tours={tours}
+        guideCode={guideCode}
+        onAuthError={onAuthError}
+      />
+
+      <RegistrantSearchModal
+        open={showSearchModal}
+        onOpenChange={setShowSearchModal}
         guideCode={guideCode}
         onAuthError={onAuthError}
       />

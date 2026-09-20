@@ -383,6 +383,66 @@ export async function rtdbRegistrationsListByEmail(email: string): Promise<Regis
 
 // ============ WAITLIST ============
 
+/**
+ * Normalise un texte pour la recherche : minuscules, accents retirés, espaces
+ * multiples réduits.
+ *
+ * Sans le retrait des accents, un guide qui tape « lea » ne trouve pas « Léa »
+ * et conclut à tort que la personne n'est pas inscrite — exactement le cas
+ * d'usage de cette recherche.
+ */
+export function normalizeSearchText(input: string): string {
+  return input
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // diacritiques
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Une personne correspond-elle à la requête ? email, prénom, nom, ou « prénom nom ». */
+function matchesPerson(
+  p: { email: string; firstName: string; lastName: string },
+  needle: string
+): boolean {
+  const full = normalizeSearchText(`${p.firstName} ${p.lastName}`);
+  const reversed = normalizeSearchText(`${p.lastName} ${p.firstName}`);
+  return (
+    normalizeSearchText(p.email).includes(needle) ||
+    full.includes(needle) ||
+    reversed.includes(needle)
+  );
+}
+
+/**
+ * Inscriptions dont l'email ou le nom contient `query`.
+ *
+ * Contrairement à `rtdbRegistrationsListByEmail`, la correspondance est
+ * PARTIELLE et inclut les inscriptions annulées : on cherche précisément parce
+ * qu'on ne sait pas ce qui s'est passé. Les documents supprimés (`deletedAt`,
+ * purge RGPD) restent exclus.
+ *
+ * Firebase RTDB ne sait pas faire de recherche partielle : le filtrage se fait
+ * en mémoire. À l'échelle du projet (quelques milliers d'inscriptions) c'est
+ * sans conséquence, et c'est déjà ce que font les autres listings.
+ */
+export async function rtdbRegistrationsSearch(query: string): Promise<Registration[]> {
+  const needle = normalizeSearchText(query);
+  if (!needle) return [];
+  const all = await rtdbGet<Record<string, Registration>>("registrations");
+  if (!all) return [];
+  return Object.values(all).filter((r) => !r.deletedAt && matchesPerson(r, needle));
+}
+
+/** Entrées de file d'attente dont l'email ou le nom contient `query`. */
+export async function rtdbWaitlistSearch(query: string): Promise<Waitlist[]> {
+  const needle = normalizeSearchText(query);
+  if (!needle) return [];
+  const all = await rtdbGet<Record<string, Waitlist>>("waitlist");
+  if (!all) return [];
+  return Object.values(all).filter((w) => !w.deletedAt && matchesPerson(w, needle));
+}
+
 export async function rtdbWaitlistGet(waitId: string): Promise<Waitlist | null> {
   return rtdbGet<Waitlist>(`waitlist/${waitId}`);
 }
