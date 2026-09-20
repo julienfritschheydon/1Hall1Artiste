@@ -76,8 +76,62 @@ const parseTimeOfDay = (raw: string): { hours: number; minutes: number } | null 
   return { hours, minutes };
 };
 
+const FESTIVAL_TIMEZONE = 'Europe/Paris';
+
+const parisParts = new Intl.DateTimeFormat('en-US', {
+  timeZone: FESTIVAL_TIMEZONE,
+  hourCycle: 'h23',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+});
+
+/** Décalage de Paris par rapport à UTC, en minutes, pour un instant donné. */
+const parisOffsetMinutes = (instant: Date): number => {
+  const parts = Object.fromEntries(
+    parisParts.formatToParts(instant).map(({ type, value }) => [type, value])
+  ) as Record<string, string>;
+  const asUtc = Date.UTC(
+    Number(parts.year),
+    Number(parts.month) - 1,
+    Number(parts.day),
+    Number(parts.hour),
+    Number(parts.minute),
+    Number(parts.second)
+  );
+  return (asUtc - instant.getTime()) / 60000;
+};
+
 /**
- * Calcule les dates de début et de fin réelles d'un événement du festival.
+ * Convertit une heure « de pendule » française en instant réel.
+ *
+ * Les exports calendrier sont en temps universel (suffixe Z) ; en construisant
+ * les dates avec `new Date(...)` / `setHours()`, on utilisait le fuseau de
+ * l'appareil. Un visiteur dont le téléphone est réglé sur Londres ou New York
+ * voyait donc l'événement décalé d'une ou plusieurs heures. L'événement a lieu
+ * en France : l'horaire du Google Sheet est toujours une heure de Paris.
+ */
+const parisWallClockToUtc = (
+  year: number,
+  month: number,
+  day: number,
+  hours: number,
+  minutes: number
+): Date => {
+  const naive = Date.UTC(year, month - 1, day, hours, minutes, 0, 0);
+  // Deux passes : la première estimation peut tomber du mauvais côté d'un
+  // changement d'heure, la seconde la corrige.
+  let instant = naive - parisOffsetMinutes(new Date(naive)) * 60000;
+  instant = naive - parisOffsetMinutes(new Date(instant)) * 60000;
+  return new Date(instant);
+};
+
+/**
+ * Calcule les dates de début et de fin réelles d'un événement du festival,
+ * l'horaire saisi étant interprété à l'heure française.
  * Renvoie null si l'horaire de l'événement est illisible : mieux vaut une
  * erreur explicite qu'un événement placé à une date absurde.
  */
@@ -87,7 +141,7 @@ const getEventDates = (event: Event): { startDate: Date; endDate: Date } | null 
   // fictive après le festival).
   const festivalDates = getFestivalDates();
   const dayKey = event.days?.includes('samedi') ? 'samedi' : 'dimanche';
-  const eventDate = new Date(`${festivalDates[dayKey]}T00:00:00`);
+  const [year, month, day] = festivalDates[dayKey].split('-').map(Number);
 
   const [rawStart, rawEnd] = (event.time ?? '').split(/\s*[-–]\s*/);
   const start = parseTimeOfDay(rawStart);
@@ -96,11 +150,8 @@ const getEventDates = (event: Event): { startDate: Date; endDate: Date } | null 
   // Sans heure de fin lisible, on prévoit une heure par défaut.
   const end = parseTimeOfDay(rawEnd ?? '') ?? { hours: start.hours + 1, minutes: start.minutes };
 
-  const startDate = new Date(eventDate);
-  startDate.setHours(start.hours, start.minutes, 0, 0);
-
-  const endDate = new Date(eventDate);
-  endDate.setHours(end.hours, end.minutes, 0, 0);
+  const startDate = parisWallClockToUtc(year, month, day, start.hours, start.minutes);
+  const endDate = parisWallClockToUtc(year, month, day, end.hours, end.minutes);
 
   // Une fin antérieure au début (horaire mal saisi) décalerait l'événement :
   // on retombe sur une durée d'une heure.

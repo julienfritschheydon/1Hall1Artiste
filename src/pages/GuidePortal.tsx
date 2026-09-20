@@ -404,7 +404,9 @@ function TourForm({
       const body = {
         title,
         description: description.trim(),
-        date: new Date(date).toISOString(),
+        // Le créneau n'est plus modifiable une fois la visite créée : on ne le
+        // renvoie pas, pour ne pas risquer de le réécrire avec un arrondi.
+        ...(isEdit ? {} : { date: new Date(date).toISOString() }),
         durationMinutes: Number(durationMinutes),
         capacity: Number(capacity),
         overbookingSeats: Number(overbookingSeats) || 0,
@@ -419,7 +421,7 @@ function TourForm({
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || (data.errors ? data.errors.join(", ") : "Erreur"));
+        setError(humanizeTourError(data.error) || (data.errors ? data.errors.join(", ") : "Erreur"));
         return;
       }
       if (data.warning) {
@@ -457,39 +459,55 @@ function TourForm({
               placeholder="Présentation de la visite pour les visiteurs"
             />
           </div>
-          <div>
-            <label className={labelCls}>Jour *</label>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant={day === "samedi" ? undefined : "outline"}
-                style={day === "samedi" ? orangeBtn : undefined}
-                className={day === "samedi" ? "text-white" : ""}
-                onClick={() => setDateStr(festivalDates.samedi)}
-              >
-                Samedi {new Date(festivalDates.samedi).toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}
-              </Button>
-              <Button
-                type="button"
-                variant={day === "dimanche" ? undefined : "outline"}
-                style={day === "dimanche" ? orangeBtn : undefined}
-                className={day === "dimanche" ? "text-white" : ""}
-                onClick={() => setDateStr(festivalDates.dimanche)}
-              >
-                Dimanche {new Date(festivalDates.dimanche).toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}
-              </Button>
-            </div>
-            {day === null && (
-              <p className="text-xs text-amber-700 mt-1">
-                Date actuelle : {new Date(`${dateStr}T12:00`).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })} (hors
-                week-end du festival — elle sera conservée telle quelle sauf si vous choisissez un jour ci-dessus).
+          {/* Créneau : figé une fois la visite créée. C'est l'engagement pris
+              auprès des inscrits, qui l'ont mis dans leur agenda. */}
+          {isEdit ? (
+            <div>
+              <label className={labelCls}>Créneau</label>
+              <p className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-[#4a4636]">
+                {new Date(`${dateStr}T${time}`).toLocaleDateString("fr-FR", {
+                  weekday: "long",
+                  day: "numeric",
+                  month: "long",
+                })}{" "}
+                à {time.replace(":", "h")}
               </p>
-            )}
-          </div>
-          <div>
-            <label className={labelCls}>Heure de départ *</label>
-            <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} required />
-          </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Le jour et l'heure ne sont pas modifiables : les inscrits les ont notés. Pour
+                déplacer la visite, annulez-la et créez-en une nouvelle.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div>
+                <label className={labelCls}>Jour *</label>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant={day === "samedi" ? undefined : "outline"}
+                    style={day === "samedi" ? orangeBtn : undefined}
+                    className={day === "samedi" ? "text-white" : ""}
+                    onClick={() => setDateStr(festivalDates.samedi)}
+                  >
+                    Samedi {new Date(festivalDates.samedi).toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={day === "dimanche" ? undefined : "outline"}
+                    style={day === "dimanche" ? orangeBtn : undefined}
+                    className={day === "dimanche" ? "text-white" : ""}
+                    onClick={() => setDateStr(festivalDates.dimanche)}
+                  >
+                    Dimanche {new Date(festivalDates.dimanche).toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}
+                  </Button>
+                </div>
+              </div>
+              <div>
+                <label className={labelCls}>Heure de départ *</label>
+                <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} required />
+              </div>
+            </>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>Durée (min) *</label>
@@ -1207,6 +1225,19 @@ function PastStatsPanel({ stats }: { stats: PastStats | null }) {
       </CardContent>
     </Card>
   );
+}
+
+// Les erreurs de l'API sont techniques et en anglais : affichées telles quelles,
+// elles laissaient le guide sans savoir quoi faire.
+function humanizeTourError(error: string | undefined): string | undefined {
+  if (!error) return error;
+  if (error === "tour already started") {
+    return "Cette visite a déjà commencé : elle n'est plus modifiable.";
+  }
+  if (error === "date: not editable") {
+    return "Le jour et l'heure d'une visite ne sont pas modifiables. Pour la déplacer, annulez-la et créez-en une nouvelle.";
+  }
+  return error;
 }
 
 function toLocalInput(iso: string): string {

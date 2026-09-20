@@ -66,6 +66,30 @@ function isValidOverbooking(value: unknown): boolean {
   return Number.isInteger(value) && (value as number) >= 0 && (value as number) <= MAX_OVERBOOKING_SEATS;
 }
 
+// Le formulaire renvoie toujours tous les champs, y compris ceux que le guide
+// n'a pas touchés. Une comparaison brute (JSON.stringify) voit un changement
+// là où il n'y en a pas — une visite sans surbooking enregistré (champ absent)
+// contre le « 0 » du formulaire, un champ vide contre un champ absent, une date
+// identique à la seconde près. On compare donc les valeurs par leur sens, pour
+// ne refuser une visite commencée que sur une vraie modification.
+function isUnset(value: unknown): boolean {
+  return value === undefined || value === null || value === "" || (Array.isArray(value) && value.length === 0);
+}
+
+function isSameFieldValue(field: string, next: unknown, prev: unknown): boolean {
+  if (isUnset(next) && isUnset(prev)) return true;
+  if (field === "date") {
+    const a = new Date(next as string).getTime();
+    const b = new Date(prev as string).getTime();
+    return Number.isFinite(a) && Number.isFinite(b) && a === b;
+  }
+  // Champs numériques : un champ absent vaut 0 (surbooking non renseigné).
+  if (field === "durationMinutes" || field === "capacity" || field === "overbookingSeats") {
+    return Number(next ?? 0) === Number(prev ?? 0);
+  }
+  return JSON.stringify(next) === JSON.stringify(prev);
+}
+
 // Validate tour input
 function validateTourInput(data: any): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
@@ -234,29 +258,34 @@ async function handlePut(req: VercelRequest, res: VercelResponse) {
       return res.status(404).json({ error: "tour not found" });
     }
 
-    // Restriction: pas modifier si J-1 ou après (Q11 invalidate post-season)
-    const now = new Date();
-    const tourStart = new Date(tour.date);
-    const diffMs = tourStart.getTime() - now.getTime();
-    const hoursUntilStart = diffMs / (60 * 60 * 1000);
+    // Une visite déjà commencée n'est plus modifiable : on ne réécrit pas une
+    // visite en cours ou passée sous les pieds des inscrits et du bilan.
+    // Tant qu'elle n'a pas démarré, en revanche, le guide reste maître de sa
+    // fiche — y compris le jour même, où les ajustements sont les plus utiles.
+    const tourStarted = new Date(tour.date).getTime() <= Date.now();
 
     // Whitelist des champs modifiables — le corps était fusionné tel quel dans
     // le document (id, deletedAt, batchDeleteExecuted… écrasables).
-    const ALLOWED_FIELDS = ["title", "description", "date", "durationMinutes", "capacity", "overbookingSeats", "labels", "status"] as const;
+    //
+    // Le créneau (jour + heure de départ) n'en fait PAS partie : c'est le seul
+    // engagement pris auprès des inscrits, qui l'ont noté et mis dans leur
+    // agenda. Le déplacer sans les prévenir les enverrait devant une porte
+    // close. Une visite à déplacer s'annule et se recrée.
+    const ALLOWED_FIELDS = ["title", "description", "durationMinutes", "capacity", "overbookingSeats", "labels", "status"] as const;
     const updates: Record<string, any> = {};
     for (const field of ALLOWED_FIELDS) {
       if (req.body[field] !== undefined) updates[field] = req.body[field];
     }
-    // Seuls les champs publics sont gelés à J-1 : un remplacement de guide de
-    // dernière minute doit rester possible (les « guides » sont internes).
-    // L'intitulé reste aussi modifiable : corriger un titre n'impacte pas les
-    // inscrits (horaire, durée, capacité inchangés).
-    const FROZEN_FIELDS = ALLOWED_FIELDS.filter((f) => f !== "title");
-    const publicFieldChanged = FROZEN_FIELDS.some(
-      (f) => updates[f] !== undefined && JSON.stringify(updates[f]) !== JSON.stringify((tour as any)[f])
+    // Le formulaire renvoie tous les champs, touchés ou non : on ne regarde que
+    // ceux dont la valeur change réellement (cf. isSameFieldValue).
+    if (req.body.date !== undefined && !isSameFieldValue("date", req.body.date, (tour as any).date)) {
+      return res.status(400).json({ error: "date: not editable" });
+    }
+    const fieldChanged = ALLOWED_FIELDS.some(
+      (f) => updates[f] !== undefined && !isSameFieldValue(f, updates[f], (tour as any)[f])
     );
-    if (hoursUntilStart < 24 && publicFieldChanged) {
-      return res.status(400).json({ error: "cannot modify within 24h of start" });
+    if (tourStarted && fieldChanged) {
+      return res.status(400).json({ error: "tour already started" });
     }
     if (req.body.guides !== undefined) {
       const guides = normalizeGuideNames(req.body.guides, MAX_GUIDES_PER_TOUR);
@@ -277,15 +306,6 @@ async function handlePut(req: VercelRequest, res: VercelResponse) {
     if (updates.status !== undefined && !["upcoming", "ongoing", "completed"].includes(updates.status)) {
       return res.status(400).json({ error: "status: invalid value" });
     }
-    if (updates.date !== undefined) {
-      const newDate = new Date(updates.date);
-      if (isNaN(newDate.getTime())) {
-        return res.status(400).json({ error: "date: invalid ISO datetime" });
-      }
-      if (newDate < new Date()) {
-        return res.status(400).json({ error: "date: must be future" });
-      }
-    }
     if (updates.capacity !== undefined) {
       if (!Number.isFinite(updates.capacity) || updates.capacity < 1) {
         return res.status(400).json({ error: "capacity: number >= 1 required" });
@@ -302,15 +322,44 @@ async function handlePut(req: VercelRequest, res: VercelResponse) {
     const placesAvant = bookableCapacity(tour);
     const placesApres = bookableCapacity({ ...tour, ...updates } as Tour);
 
+    // Une modification qui change ce que les inscrits ont lu ou prévu doit être
+    // signalée au guide : personne n'est prévenu automatiquement, et c'est à lui
+    // d'envoyer un mot. Les adresses sont dans la fiche de la visite (export CSV).
+    const warnings: string[] = [];
+    const dureeChangee = updates.durationMinutes !== undefined && Number(updates.durationMinutes) !== Number(tour.durationMinutes);
+    const texteChange =
+      (updates.title !== undefined && !isSameFieldValue("title", updates.title, (tour as any).title)) ||
+      (updates.description !== undefined && !isSameFieldValue("description", updates.description, (tour as any).description));
+
+    // Un seul décompte, réutilisé : inutile de relire la base par avertissement.
+    let confirmedCount: number | null = null;
+    const countInscrits = async () => {
+      if (confirmedCount === null) confirmedCount = await rtdbCountRegisteredByTour(id);
+      return confirmedCount;
+    };
+
     // Spec §9 : places ouvertes passées sous le nombre d'inscrits → avertir le
     // guide, sans jamais désinscrire personne automatiquement.
-    let warning: string | undefined;
-    if (placesApres < placesAvant) {
-      const confirmedCount = await rtdbCountRegisteredByTour(id);
-      if (placesApres < confirmedCount) {
-        warning = `Places ouvertes (${placesApres}) < inscrits confirmés (${confirmedCount}). ${confirmedCount - placesApres} personne(s) en surnombre — à gérer manuellement (annuler des inscriptions).`;
-      }
+    if (placesApres < placesAvant && (await countInscrits()) > placesApres) {
+      const inscrits = await countInscrits();
+      warnings.push(
+        `Places ouvertes (${placesApres}) < inscrits confirmés (${inscrits}). ${inscrits - placesApres} personne(s) en surnombre — à gérer manuellement (annuler des inscriptions), et à prévenir par email.`
+      );
     }
+
+    if (dureeChangee && (await countInscrits()) > 0) {
+      warnings.push(
+        `La durée passe de ${tour.durationMinutes} à ${updates.durationMinutes} min. ${await countInscrits()} personne(s) déjà inscrite(s) ont prévu leur journée sur l'ancienne durée : prévenez-les par email.`
+      );
+    }
+
+    if (texteChange && (await countInscrits()) > 0) {
+      warnings.push(
+        `${await countInscrits()} personne(s) sont déjà inscrites et ont reçu l'ancien texte. Si votre modification touche le point de rendez-vous ou une information pratique, envoyez-leur un email.`
+      );
+    }
+
+    const warning = warnings.length > 0 ? warnings.join("\n\n") : undefined;
 
     // Places ouvertes en plus : proposer immédiatement à la file d'attente.
     // Un seul appel suffit, promoteWaitlist remplit tous les sièges libres.
