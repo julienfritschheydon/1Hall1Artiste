@@ -51,6 +51,22 @@ const shouldIgnoreError = (message: string, stack?: string): boolean => {
 };
 
 /**
+ * Détecter une erreur cross-origin opaque : le navigateur remplace le message
+ * par "Script error." et vide source/ligne/colonne lorsqu'un script d'un autre
+ * domaine (analytics, extension, widget...) lève une exception sans en-tête
+ * CORS ni attribut crossorigin. Ces rapports n'apportent aucune information.
+ */
+export const isOpaqueCrossOriginError = (
+  message: unknown,
+  source?: string | null,
+  lineno?: number | null
+): boolean => {
+  const text = typeof message === 'string' ? message.trim().toLowerCase() : '';
+  const isScriptError = text === 'script error.' || text === 'script error';
+  return isScriptError && !source && !lineno;
+};
+
+/**
  * Capturer une erreur et la stocker localement
  */
 export const captureError = (
@@ -62,6 +78,12 @@ export const captureError = (
     const message = typeof error === 'string' ? error : error.message;
     const stack = typeof error === 'string' ? undefined : error.stack;
     
+    // Erreur cross-origin opaque : aucune information exploitable
+    if (isOpaqueCrossOriginError(message, additionalInfo?.source as string, additionalInfo?.lineno as number)) {
+      console.log('[ErrorTracking] Erreur cross-origin opaque ignorée');
+      return;
+    }
+
     // Ignorer certaines erreurs normales
     if (shouldIgnoreError(message, stack)) {
       console.log(`[ErrorTracking] Erreur ignorée (normale): ${message}`);
@@ -275,15 +297,28 @@ export const sendErrorsToTrackingService = async (): Promise<boolean> => {
  * Configurer un gestionnaire global d'erreurs non capturées
  */
 export const setupGlobalErrorHandler = (): void => {
-  window.onerror = (message, source, lineno, colno, error) => {
+  // On utilise addEventListener plutôt que window.onerror afin de ne pas
+  // écraser un gestionnaire déjà installé (cf. utils/logger.ts).
+  window.addEventListener('error', (event: ErrorEvent) => {
+    // Erreur de chargement de ressource (img, script...) : pas une erreur JS
+    if (!event.message && event.target && event.target !== window) {
+      return;
+    }
+
+    // Erreur opaque cross-origin : le navigateur ne fournit ni message utile,
+    // ni source, ni ligne. Inutile de la stocker/envoyer.
+    if (isOpaqueCrossOriginError(event.message, event.filename, event.lineno)) {
+      console.log('[ErrorTracking] Erreur cross-origin opaque ignorée');
+      return;
+    }
+
     captureError(
-      error || String(message),
+      event.error || String(event.message),
       'GlobalErrorHandler',
-      { source, lineno, colno }
+      { source: event.filename, lineno: event.lineno, colno: event.colno }
     );
-    return false; // Permettre au gestionnaire d'erreurs par défaut de s'exécuter également
-  };
-  
+  });
+
   window.addEventListener('unhandledrejection', (event) => {
     captureError(
       event.reason || 'Promesse rejetée non gérée',
