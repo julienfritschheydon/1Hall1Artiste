@@ -35,6 +35,9 @@ export const initGtagDebug = () => {
     // Ajouter le script de debug
     const script = document.createElement('script');
     script.async = true;
+    // crossOrigin permet au navigateur de remonter le vrai message d'erreur
+    // au lieu d'un "Script error." opaque si ce script échoue.
+    script.crossOrigin = 'anonymous';
     script.src = `https://www.googletagmanager.com/gtag/js?id=G-D6K43TLW5Y&debug=1`;
     document.head.appendChild(script);
     
