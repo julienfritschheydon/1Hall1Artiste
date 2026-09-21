@@ -26,7 +26,7 @@ describe("normalizeRecipient", () => {
   });
 });
 
-const sendMock = vi.fn(async () => ({ status: 200, text: "OK" }));
+const sendMock = vi.fn(async (..._args: unknown[]) => ({ status: 200, text: "OK" }));
 vi.mock("@emailjs/browser", () => ({
   send: sendMock,
   init: vi.fn(),
