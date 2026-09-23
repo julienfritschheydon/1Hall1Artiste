@@ -160,7 +160,7 @@ Enseignements :
 | Compte Instagram saisi sous quatre formes (URL, `@nom`, nom seul, URL à paramètres) | ~10 | Normaliser en URL `https://instagram.com/nom` ; conserver l'original |
 | Liens sans schéma (`www.…`) ou hors sujet (« Céline Ranger peintre ») | ~8 | `https://` ajouté si domaine plausible, sinon champ « note » |
 | Textes avec retours ligne, espaces insécables, caractères invisibles (U+200B) | une ligne | Nettoyer |
-| Téléphone : `0637698078`, `06 28 32 55 04`, `+34695697440` | toutes | Normaliser E.164 |
+| Téléphone saisi sous plusieurs formes (collé sans espace, avec espaces, préfixe étranger `+34`) | toutes | Normaliser E.164 |
 | E-mail d'un compte anonyme/temporaire (`john-doe.fr`, `mailo.com`) | tests | Sans effet ; le bannissement/détection de doublon s'appuie sur l'e-mail normalisé |
 
 ### 2.3 Contacts musique et danse
