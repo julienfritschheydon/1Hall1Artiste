@@ -32,6 +32,7 @@ const IGNORED_ERROR_PATTERNS = [
   'Failed to fetch',
   'NetworkError',
   'TypeError: Failed to fetch',
+  'Load failed', // Safari (iOS/macOS) équivalent de "Failed to fetch"
   
   // Erreurs de bloqueurs de publicités
   'adblock',
