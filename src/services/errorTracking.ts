@@ -33,7 +33,11 @@ const IGNORED_ERROR_PATTERNS = [
   'NetworkError',
   'TypeError: Failed to fetch',
   'Load failed', // Safari (iOS/macOS) équivalent de "Failed to fetch"
-  
+  'AbortError',
+  'Fetch is aborted', // Safari : requête annulée (navigation, unmount...)
+  'The operation was aborted', // Safari : message générique d'abandon
+  'The network connection was lost', // Safari iOS : coupure réseau en cours de requête (wifi/cellulaire)
+
   // Erreurs de bloqueurs de publicités
   'adblock',
   'uBlock',
