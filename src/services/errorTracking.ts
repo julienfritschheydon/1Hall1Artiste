@@ -38,6 +38,9 @@ const IGNORED_ERROR_PATTERNS = [
   'The operation was aborted', // Safari : message générique d'abandon
   'The network connection was lost', // Safari iOS : coupure réseau en cours de requête (wifi/cellulaire)
 
+  // Injecté par une extension/outil tiers (ex: traduction, WebView), pas par notre code
+  'Object Not Found Matching Id',
+
   // Erreurs de bloqueurs de publicités
   'adblock',
   'uBlock',
