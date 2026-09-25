@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Proto 2027 – 1Hall1Artiste</title>
+<style>
+:root{--bg:#faf7f2;--card:#fff;--ink:#222;--mut:#777;--line:#e5ddd0;--acc:#b4532a;--ok:#2e7d32;--warn:#e0a100;--bad:#c62828}
+*{box-sizing:border-box}body{margin:0;font:15px/1.45 system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+header{background:#2b2118;color:#fff;padding:10px 16px;display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+header b{font-size:16px}nav{display:flex;gap:6px;flex-wrap:wrap}
+nav button,.btn{border:1px solid var(--line);background:var(--card);padding:7px 12px;border-radius:8px;cursor:pointer;font:inherit}
+nav button{background:#43342a;color:#fff;border-color:#5a4737}nav button.on{background:var(--acc);border-color:var(--acc)}
+.btn.p{background:var(--acc);color:#fff;border-color:var(--acc)}.btn.s{padding:4px 9px;font-size:13px}.btn:disabled{opacity:.45;cursor:not-allowed}
+main{max-width:1100px;margin:0 auto;padding:16px}
+.bar{background:#fff3e6;border:1px dashed var(--acc);border-radius:10px;padding:8px 12px;margin-bottom:14px;display:flex;gap:14px;flex-wrap:wrap;align-items:center;font-size:13px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
+h2{margin:0 0 10px}h3{margin:14px 0 6px}label{display:block;margin:10px 0 3px;font-weight:600;font-size:13px}
+input,select,textarea{width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;font:inherit;background:#fff}
+.row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1;min-width:140px}
+.steps{display:flex;gap:6px;margin-bottom:12px}.steps span{flex:1;text-align:center;padding:6px;border-radius:8px;background:#eee;font-size:13px}.steps .on{background:var(--acc);color:#fff}.steps .done{background:#d9ecd9}
+.badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:12px;color:#fff;background:var(--mut)}
+.b-ok{background:var(--ok)}.b-warn{background:var(--warn);color:#222}.b-bad{background:var(--bad)}.b-acc{background:var(--acc)}
+.board{display:grid;grid-template-columns:200px repeat(7,minmax(150px,1fr));gap:8px;overflow-x:auto;padding-bottom:8px}
+.col{background:#f1ebe0;border-radius:10px;padding:8px;min-height:140px}.col.pool{background:#e8e0d0}.col.over{outline:2px dashed var(--acc)}
+.col h4{margin:0 0 6px;font-size:13px}.chip{background:#fff;border:1px solid var(--line);border-radius:8px;padding:6px 8px;margin-bottom:6px;cursor:grab;font-size:13px}
+.chip small{color:var(--mut);display:block}.chip.conf{border-color:var(--bad);background:#fdeaea}
+.crop{width:200px;height:200px;border:2px solid var(--acc);border-radius:10px;overflow:hidden;position:relative;background:#ddd}
+.crop img{position:absolute;top:0;left:0;transform-origin:0 0;cursor:move;user-select:none}
+.phone{max-width:390px;margin:0 auto;border:8px solid #2b2118;border-radius:26px;background:#fff;padding:12px;min-height:420px}
+.off{background:#333;color:#fff;padding:6px 10px;border-radius:8px;font-size:12px;margin-bottom:8px}
+.mission{border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px;display:flex;gap:10px;align-items:center}.mission.done{background:#eef7ee;text-decoration:line-through;color:var(--mut)}
+table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid var(--line);padding:6px;text-align:left;font-size:13px}
+.hide{display:none}.note{color:var(--mut);font-size:12px}
+</style>
+</head>
+<body>
+<header>
+  <b>1Hall1Artiste 2027 · prototype</b>
+  <nav id="nav"></nav>
+  <button class="btn s" id="reset" style="margin-left:auto">Réinitialiser les données</button>
+</header>
+<main>
+  <div class="bar">
+    <span><b>Simulateur</b></span>
+    <label style="margin:0">Phase
+      <select id="phase" style="width:auto"><option value="1">1 – Candidatures (février)</option><option value="2">2 – Matériel (post-sélection)</option><option value="3">3 – Date butoir dépassée</option></select>
+    </label>
+    <label style="margin:0"><input type="checkbox" id="offline" style="width:auto"> Réseau coupé (référent)</label>
+    <span class="note">Tout est stocké dans ton navigateur (localStorage). Aucune donnée n'est envoyée.</span>
+  </div>
+  <div id="view"></div>
+</main>
+<script>
+const LOCS=["Cour Ovale","15 Duguay-Trouin","17 Kervégan","8 quai Turenne","Hall Graslin","Passage Est","Jardin Ouest"];
+const CAT=[["grille","Grille d'exposition"],["table","Table brasseur 2 m"],["chaise","Chaise"]];
+const seed=()=>({phase:"1",offline:false,tab:"artiste",step:1,
+  apps:[
+   {id:"a1",name:"Claire Martin",type:"exposition",days:["samedi","dimanche"],status:"retenu",loc:1,pub:false,req:{grille:2,table:1},none:false,alloc:{}},
+   {id:"a2",name:"Trio Feydeau",type:"concert",days:["samedi"],status:"retenu",loc:0,slot:"15:00-15:45",pub:false,req:{chaise:4},none:false,alloc:{}},
+   {id:"a3",name:"Marc Aubry",type:"exposition",days:["dimanche"],status:"candidat",loc:null,pub:false,req:{},none:false,alloc:{}},
+   {id:"a4",name:"Duo Nocturne",type:"concert",days:["samedi","dimanche"],status:"retenu",loc:0,slot:"15:15-16:00",pub:false,req:{},none:true,alloc:{}},
+   {id:"a5",name:"Léa Roche",type:"exposition",days:["samedi"],status:"non_retenu",loc:null,pub:false,req:{},none:false,alloc:{}}],
+  items:[{id:"i1",label:"Chevalet bois #1",from:3,to:1},{id:"i2",label:"Chevalet bois #2",from:3,to:1},{id:"i3",label:"Panneau A-Frame",from:3,to:2}],
+  missions:[],me:"François"});
+const load=()=>{try{return JSON.parse(localStorage.getItem("proto2027")||"null")}catch(e){return null}};
+let S=load()||seed();
+const save=()=>{try{localStorage.setItem("proto2027",JSON.stringify(S))}catch(e){}};
+const $=s=>document.querySelector(s), esc=t=>String(t).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const TABS=[["artiste","Artiste"],["prog","Programmateur"],["transf","Transferts"],["ref","Référent (mobile)"]];
+function nav(){$("#nav").innerHTML=TABS.map(([k,l])=>`<button class="${S.tab==k?"on":""}" data-t="${k}">${l}</button>`).join("");
+ $("#nav").onclick=e=>{const t=e.target.dataset.t;if(t){S.tab=t;save();render()}};
+ $("#phase").value=S.phase;$("#offline").checked=S.offline}
+$("#phase").onchange=e=>{S.phase=e.target.value;if(S.phase==="3")autoClose();save();render()};
+$("#offline").onchange=e=>{S.offline=e.target.checked;save();render()};
+$("#reset").onclick=()=>{if(confirm("Tout effacer ?")){S=seed();save();render()}};
+function autoClose(){S.apps.filter(a=>a.status==="retenu"&&!a.none&&!Object.values(a.req).some(v=>v>0)).forEach(a=>a.none=true)}
+const sel=n=>S.apps.find(a=>a.id===n);
+
+/* ---------- Artiste ---------- */
+let draft={type:"exposition",days:[],img:null,zoom:1,x:0,y:0};
+function vArtiste(){
+ const me=sel("a1");
+ return `<div class="row" style="align-items:flex-start">
+  <div class="card"><h2>Formulaire de candidature</h2>${S.phase==="1"?form():`<p>Fenêtre de candidature fermée (phase ${S.phase}). <span class="note">Passe le simulateur en phase 1 pour tester.</span></p>`}</div>
+  <div class="card"><h2>Espace artiste <span class="note">(lien magique de ${esc(me.name)})</span></h2>${space(me)}</div></div>`}
+function form(){
+ const st=S.step,d=draft,ex=d.type==="exposition";
+ const steps=`<div class="steps">${[1,2,3].map(i=>`<span class="${i==st?"on":i<st?"done":""}">${i}. ${["Qui ?","Votre art","Dispos"][i-1]}</span>`).join("")}</div>`;
+ let b="";
+ if(st==1)b=`<label>Nom / groupe</label><input id="f_name" value="${esc(d.name||"")}"><div class="row"><div><label>E-mail</label><input id="f_mail" type="email" value="${esc(d.mail||"")}"></div><div><label>Téléphone</label><input id="f_tel" value="${esc(d.tel||"")}"></div></div>
+  <label>Vous candidatez pour…</label><select id="f_type"><option value="exposition" ${ex?"selected":""}>Une exposition</option><option value="concert" ${!ex?"selected":""}>Un concert</option></select>`;
+ if(st==2)b=ex?`<label>Démarche artistique</label><textarea id="f_txt" rows="4">${esc(d.txt||"")}</textarea><label>Format des œuvres</label><input id="f_fmt" value="${esc(d.fmt||"")}">`
+  :`<label>Style musical</label><input id="f_fmt" value="${esc(d.fmt||"")}"><label>Membres</label><input id="f_mem" value="${esc(d.mem||"")}"><label>Présentation</label><textarea id="f_txt" rows="3">${esc(d.txt||"")}</textarea>`;
+ if(st==2)b+=`<label>Photo (glisse pour cadrer, curseur pour zoomer)</label><input type="file" id="f_img" accept="image/*">
+  <div class="row" style="margin-top:8px;align-items:center"><div class="crop" id="crop">${d.img?`<img id="cimg" src="${d.img}" style="transform:translate(${d.x}px,${d.y}px) scale(${d.zoom});width:200px">`:`<span class="note" style="padding:10px;display:block">Aucune image</span>`}</div>
+  <div><input type="range" id="f_zoom" min="1" max="3" step="0.05" value="${d.zoom}"><p class="note">Aperçu = rendu carré de la carte festival.</p></div></div>`;
+ if(st==3)b=`<label>Disponibilités</label>${["samedi","dimanche"].map(j=>`<label style="font-weight:400"><input type="checkbox" style="width:auto" class="f_day" value="${j}" ${d.days.includes(j)?"checked":""}> ${j}</label>`).join("")}<p class="note">Pas de demande de matériel maintenant : elle s'ouvrira si vous êtes retenu·e.</p>`;
+ const nx=st<3?`<button class="btn p" id="next">Suivant</button>`:`<button class="btn p" id="send">Envoyer ma candidature</button>`;
+ return steps+b+`<p style="margin-top:14px">${st>1?`<button class="btn" id="prev">Retour</button> `:""}${nx} <span id="err" class="badge b-bad hide"></span></p>`}
+function readDraft(){const g=i=>{const e=$(i);return e?e.value:undefined};
+ for(const [k,i] of [["name","#f_name"],["mail","#f_mail"],["tel","#f_tel"],["txt","#f_txt"],["fmt","#f_fmt"],["mem","#f_mem"]]){const v=g(i);if(v!==undefined)draft[k]=v}
+ const t=g("#f_type");if(t)draft.type=t;
+ if($(".f_day"))draft.days=[...document.querySelectorAll(".f_day:checked")].map(x=>x.value)}
+function space(a){
+ const stat={candidat:["En cours d'examen","b-warn"],retenu:["Retenu·e 🎉","b-ok"],non_retenu:["Non retenu·e","b-bad"]}[a.status];
+ let h=`<p>Statut : <span class="badge ${stat[1]}">${stat[0]}</span> ${a.pub?'<span class="badge b-acc">🌐 publié</span>':""}</p>`;
+ if(a.status!=="retenu")return h+`<p class="note">La mini-fiche du lieu et le matériel apparaissent après sélection.</p>`;
+ const co=S.apps.filter(x=>x.id!==a.id&&x.loc===a.loc&&x.status==="retenu").map(x=>x.name);
+ h+=`<h3>Votre lieu : ${LOCS[a.loc]}</h3><p class="note">📸 photos du hall · Accrochage sur grilles uniquement, pas de scotch mural · Référent : François 06 xx xx xx xx${co.length?" · Colocataire : "+esc(co.join(", ")):""}</p><h3>Matériel Mairie</h3>`;
+ if(S.phase==="1")return h+`<p class="note">Le formulaire matériel s'ouvre en phase 2 (simulateur).</p>`;
+ if(S.phase==="3"||a.closed)return h+`<p><span class="badge">Clôturé</span> ${a.none||!Object.values(a.req).some(v=>v>0)?"Aucun matériel":Object.entries(a.req).map(([k,v])=>v+" × "+k).join(", ")}</p><p class="note">Date butoir dépassée : contactez l'organisation pour toute modification.</p>`;
+ h+=CAT.map(([k,l])=>`<div class="row" style="align-items:center;margin-bottom:4px"><span>${l}</span><input type="number" min="0" max="20" data-mat="${k}" value="${a.req[k]||0}" style="max-width:90px"></div>`).join("");
+ return h+`<p><button class="btn p" id="savemat">Enregistrer ma demande</button> <button class="btn" id="nomat">Je n'ai besoin d'aucun matériel</button></p><p class="note">${a.none?"✅ Aucun matériel confirmé.":"Sans réponse à la date butoir : 0 matériel."}</p>`}
+function bindArtiste(){
+ const v=$("#view");
+ v.onclick=e=>{const id=e.target.id;
+  if(id==="next"){readDraft();const m=vali(S.step);if(m)return err(m);S.step++;save();render()}
+  if(id==="prev"){readDraft();S.step--;render()}
+  if(id==="send"){readDraft();const m=vali(3);if(m)return err(m);
+    S.apps.push({id:"a"+Date.now(),name:draft.name,type:draft.type,days:draft.days,status:"candidat",loc:null,pub:false,req:{},none:false,alloc:{}});
+    draft={type:"exposition",days:[],img:null,zoom:1,x:0,y:0};S.step=1;save();alert("Candidature envoyée. En vrai : un e-mail part avec votre lien magique personnel.");render()}
+  if(id==="savemat"){const a=sel("a1");document.querySelectorAll("[data-mat]").forEach(i=>a.req[i.dataset.mat]=+i.value||0);a.none=false;save();render()}
+  if(id==="nomat"){const a=sel("a1");a.req={};a.none=true;save();render()}};
+ const f=$("#f_img");if(f)f.onchange=()=>{const r=new FileReader();r.onload=()=>{draft.img=r.result;draft.zoom=1;draft.x=draft.y=0;readDraft();render()};r.readAsDataURL(f.files[0])};
+ const z=$("#f_zoom");if(z)z.oninput=()=>{draft.zoom=+z.value;$("#cimg").style.transform=`translate(${draft.x}px,${draft.y}px) scale(${draft.zoom})`};
+ const im=$("#cimg");if(im){let dr=null;im.onmousedown=e=>{dr=[e.clientX-draft.x,e.clientY-draft.y];e.preventDefault()};
+  window.onmousemove=e=>{if(!dr)return;draft.x=e.clientX-dr[0];draft.y=e.clientY-dr[1];im.style.transform=`translate(${draft.x}px,${draft.y}px) scale(${draft.zoom})`};window.onmouseup=()=>dr=null}}
+function vali(s){if(s==1){if(!draft.name)return"Nom requis";if(!/^\S+@\S+\.\S+$/.test(draft.mail||""))return"E-mail invalide"}
+ if(s==2&&!(draft.txt||"").trim())return"Présentation requise";if(s==3&&!draft.days.length)return"Choisissez au moins un jour"}
+function err(m){const e=$("#err");e.textContent=m;e.classList.remove("hide")}
+
+/* ---------- Programmateur ---------- */
+function conflicts(a){if(a.loc==null||a.type!=="concert"||!a.slot)return false;
+ const [s,e]=a.slot.split("-");return S.apps.some(o=>o!==a&&o.loc===a.loc&&o.type==="concert"&&o.slot&&o.status==="retenu"&&o.slot.split("-")[0]<e&&s<o.slot.split("-")[1])}
+function chip(a){const c=conflicts(a),nod=a.loc!=null&&!a.days.length;
+ return `<div class="chip ${c?"conf":""}" draggable="true" data-id="${a.id}">${esc(a.name)}<small>${a.type} · ${a.days.join("/")}${a.slot?" · "+a.slot:""}</small>${c?'<small style="color:var(--bad)">⚠ créneau en conflit</small>':""}
+ <small>${a.status==="retenu"?`<a href="#" data-out="${a.id}">non retenu</a>`:a.status==="non_retenu"?`<a href="#" data-back="${a.id}">repêcher</a>`:`<a href="#" data-ok="${a.id}">retenir</a> · <a href="#" data-out="${a.id}">refuser</a>`}${a.loc!=null?` · <a href="#" data-pub="${a.id}">${a.pub?"🌐 dépublier":"publier"}</a>`:""}</small></div>`}
+function vProg(){
+ const pool=S.apps.filter(a=>a.loc==null),cols=LOCS.map((n,i)=>`<div class="col" data-loc="${i}"><h4>${n}</h4>${S.apps.filter(a=>a.loc===i).map(chip).join("")}</div>`).join("");
+ const tot=CAT.map(([k,l])=>{const d=S.apps.reduce((s,a)=>s+(a.status==="retenu"?a.req[k]||0:0),0),al=S.apps.reduce((s,a)=>s+(a.alloc[k]||0),0);return `<tr><td>${l}</td><td>${d}</td><td><input type="number" min="0" value="${al}" data-al="${k}" style="max-width:80px"></td></tr>`}).join("");
+ return `<div class="card"><h2>Échiquier par lieu</h2><p class="note">Glisse une fiche vers un lieu, ou vers « À placer ». Les créneaux de concert qui se chevauchent sont signalés (avertissement, pas de blocage).</p>
+ <div class="board"><div class="col pool" data-loc="null"><h4>À placer (${pool.length})</h4>${pool.map(chip).join("")}</div>${cols}</div></div>
+ <div class="card"><h3>Arbitrage matériel Mairie (retenus)</h3><table><tr><th>Article</th><th>Demandé</th><th>Alloué</th></tr>${tot}</table><p><button class="btn" id="cpalloc">Copier demandé → alloué</button> <button class="btn p" id="exp">Aperçu du bon de commande</button></p><pre id="bon" class="note"></pre></div>`}
+function bindProg(){
+ const v=$("#view");let drag=null;
+ v.ondragstart=e=>{drag=e.target.dataset?.id};
+ v.ondragover=e=>{const c=e.target.closest?.(".col");if(c){e.preventDefault();c.classList.add("over")}};
+ v.ondragleave=e=>e.target.closest?.(".col")?.classList.remove("over");
+ v.ondrop=e=>{const c=e.target.closest(".col");if(!c||!drag)return;e.preventDefault();const a=sel(drag),l=c.dataset.loc==="null"?null:+c.dataset.loc;
+  a.loc=l;if(l!=null&&a.status==="candidat")a.status="retenu";if(l!=null&&a.type==="concert"&&!a.slot)a.slot=prompt("Créneau (ex 16:00-16:45)","16:00-16:45")||"";save();render()};
+ v.onclick=e=>{const d=e.target.dataset;if(!d)return;const go=(k,f)=>{if(d[k]){e.preventDefault();f(sel(d[k]));save();render()}};
+  go("ok",a=>a.status="retenu");go("out",a=>{a.status="non_retenu";a.loc=null;a.pub=false});go("back",a=>a.status="retenu");go("pub",a=>a.pub=!a.pub);
+  if(e.target.id==="cpalloc"){S.apps.forEach(a=>a.alloc={...a.req});save();render()}
+  if(e.target.id==="exp"){const pts=[["Point Nord",[0,1,2]],["Point Sud",[3,4,5,6]]];
+   $("#bon").textContent=pts.map(([n,ls])=>n+"\n"+CAT.map(([k,l])=>{const q=S.apps.filter(a=>ls.includes(a.loc)).reduce((s,a)=>s+(a.alloc[k]||0),0);return q?`  ${q} × ${l}`:""}).filter(Boolean).join("\n")).join("\n\n")}};
+ v.onchange=e=>{const k=e.target.dataset.al;if(k){const n=+e.target.value;S.apps.filter(a=>a.status==="retenu"&&(a.req[k]||0)>0).forEach((a,i)=>a.alloc[k]=i?0:n);save()}}}
+
+/* ---------- Transferts ---------- */
+function vTransf(){
+ const it=S.items.map(i=>`<tr><td>${i.label}</td><td>${LOCS[i.from]}</td><td>${LOCS[i.to]}</td></tr>`).join("");
+ const ms=S.missions.map(m=>`<tr><td><span class="badge ${m.dir=="aller"?"b-acc":""}">${m.dir}</span></td><td>${m.qty} × ${esc(m.what)}</td><td>${LOCS[m.from]} → ${LOCS[m.to]}</td><td>${m.when}</td>
+  <td><select data-who="${m.id}">${["","François","Julien","Patricia"].map(p=>`<option ${m.who==p?"selected":""}>${p}</option>`).join("")}</select></td><td>${m.done?"✅":"—"}</td></tr>`).join("");
+ const left=S.missions.filter(m=>m.dir==="aller"&&m.done&&!S.missions.find(r=>r.dir==="retour"&&r.key===m.key&&r.done));
+ return `<div class="card"><h2>Matériel interne</h2><table><tr><th>Objet</th><th>Stockage habituel</th><th>Destination festival</th></tr>${it}</table>
+ <p><button class="btn p" id="gen">Générer les missions aller / retour</button> <span class="note">Les objets ayant le même trajet sont regroupés.</span></p></div>
+ <div class="card"><h3>Missions</h3>${S.missions.length?`<table><tr><th></th><th>Quoi</th><th>Trajet</th><th>Quand</th><th>Qui</th><th>Fait</th></tr>${ms}</table>`:'<p class="note">Aucune mission générée.</p>'}
+ ${left.length?`<p class="badge b-warn">À rapatrier : ${left.map(m=>m.qty+" × "+esc(m.what)).join(", ")}</p>`:""}</div>`}
+function bindTransf(){
+ $("#view").onclick=e=>{if(e.target.id!=="gen")return;const g={};S.items.forEach(i=>{const k=i.from+">"+i.to;(g[k]=g[k]||[]).push(i)});S.missions=[];let n=0;
+  Object.entries(g).forEach(([k,its])=>{const [f,t]=k.split(">").map(Number),w=its.length>1?its[0].label.replace(/ #\d+$/,""):its[0].label;
+   S.missions.push({id:"m"+n++,key:k,dir:"aller",what:w,qty:its.length,from:f,to:t,when:"Samedi 09h30",who:"",done:false},{id:"m"+n++,key:k,dir:"retour",what:w,qty:its.length,from:t,to:f,when:"Dimanche 19h15",who:"",done:false})});save();render()};
+ $("#view").onchange=e=>{const m=S.missions.find(x=>x.id===e.target.dataset.who);if(m){m.who=e.target.value;save()}}}
+
+/* ---------- Référent mobile ---------- */
+function vRef(){
+ const mine=S.missions.filter(m=>m.who===S.me),arts=S.apps.filter(a=>a.loc===1&&a.status==="retenu");
+ return `<div class="phone"><div class="off ${S.offline?"":"hide"}">📴 Hors-ligne · données du 12/09 à 18:04 · les coches seront envoyées au retour du réseau</div>
+ <h2>Bonjour ${S.me}</h2><h3>Mon hall : ${LOCS[1]}</h3>${arts.map(a=>`<p>🎨 <b>${esc(a.name)}</b> <small>${a.days.join("/")}</small> <a class="btn s" href="#">Appeler</a></p>`).join("")||'<p class="note">Aucun artiste.</p>'}
+ <h3>Mes missions (${mine.filter(m=>m.done).length}/${mine.length})</h3>
+ ${mine.map(m=>{const lock=m.dir==="retour"&&!S.missions.find(x=>x.key===m.key&&x.dir==="aller").done;return `<label class="mission ${m.done?"done":""}" style="font-weight:400"><input type="checkbox" style="width:auto" data-done="${m.id}" ${m.done?"checked":""} ${lock?"disabled":""}><span><b>${m.dir}</b> · ${m.qty} × ${esc(m.what)}<br><small>${LOCS[m.from]} → ${LOCS[m.to]} · ${m.when}${lock?" · 🔒 après l'aller":""}</small></span></label>`}).join("")||'<p class="note">Aucune mission. Génère-les et affecte-les à « François » dans l’onglet Transferts.</p>'}
+ </div>`}
+function bindRef(){$("#view").onchange=e=>{const m=S.missions.find(x=>x.id===e.target.dataset.done);if(m){m.done=e.target.checked;save();render()}}}
+
+function render(){nav();const v=$("#view");v.onclick=v.onchange=v.ondragstart=v.ondragover=v.ondragleave=v.ondrop=null;
+ ({artiste:vArtiste,prog:vProg,transf:vTransf,ref:vRef})[S.tab]&&(v.innerHTML=({artiste:vArtiste,prog:vProg,transf:vTransf,ref:vRef})[S.tab]());
+ ({artiste:bindArtiste,prog:bindProg,transf:bindTransf,ref:bindRef})[S.tab]()}
+render();
+</script>
+</body>
+</html>
