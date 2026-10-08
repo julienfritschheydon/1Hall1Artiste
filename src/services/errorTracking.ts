@@ -41,6 +41,11 @@ const IGNORED_ERROR_PATTERNS = [
   // Injecté par une extension/outil tiers (ex: traduction, WebView), pas par notre code
   'Object Not Found Matching Id',
 
+  // Script injecté par le navigateur intégré Instagram/Facebook (Android WebView) :
+  // son logger de performance échoue quand l'app native ferme la WebView
+  'Java object is gone',
+  'iabjs://',
+
   // Erreurs de bloqueurs de publicités
   'adblock',
   'uBlock',
