@@ -38,6 +38,11 @@ const IGNORED_ERROR_PATTERNS = [
   'The operation was aborted', // Safari : message générique d'abandon
   'The network connection was lost', // Safari iOS : coupure réseau en cours de requête (wifi/cellulaire)
 
+  // Chunk obsolète après un déploiement (page rechargée via vite:preloadError)
+  'Importing a module script failed', // Safari
+  'Failed to fetch dynamically imported module', // Chrome
+  'error loading dynamically imported module', // Firefox
+
   // Injecté par une extension/outil tiers (ex: traduction, WebView), pas par notre code
   'Object Not Found Matching Id',
 

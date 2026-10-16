@@ -15,6 +15,21 @@ import './debug/analytics-realtime-test'
 // Initialiser le système de gestion des erreurs
 initErrorHandlingSystem();
 
+// Après un déploiement, un client avec l'ancien index.html (cache, service worker)
+// réclame des chunks dont le hash n'existe plus. On recharge une seule fois pour
+// récupérer la nouvelle version (garde en sessionStorage pour éviter une boucle).
+window.addEventListener('vite:preloadError', () => {
+  const key = 'chunk_reload_at';
+  try {
+    const last = Number(sessionStorage.getItem(key) || 0);
+    if (Date.now() - last < 10_000) return;
+    sessionStorage.setItem(key, String(Date.now()));
+  } catch {
+    // sessionStorage indisponible : on recharge quand même
+  }
+  window.location.reload();
+});
+
 // Initialiser le mode debug Firebase en développement
 if (import.meta.env.DEV) {
   // Méthode 1: Firebase Debug
